@@ -14,6 +14,7 @@ import { Settings } from "@/pages/Settings";
 import { getDb } from "@/lib/db";
 import { useLangStore } from "@/store/langStore";
 import { detectOS } from "@/lib/platform";
+import { ToastHost } from "@/components/ui/ToastHost";
 import { Lock, Eye, EyeOff, Fingerprint } from "lucide-react";
 
 // ── simple djb2-style hash (same as Settings.tsx) ──────────────────────────
@@ -317,7 +318,7 @@ export default function App() {
           return;
         }
       }
-    } catch { }
+    } catch (e) { void e; /* startup checks: best-effort */ }
     setAppState("ready");
   };
 
@@ -364,6 +365,7 @@ export default function App() {
     </main>
       {/* Mobile bottom nav */}
       <BottomNav />
+      <ToastHost />
   </div>
 );
 }

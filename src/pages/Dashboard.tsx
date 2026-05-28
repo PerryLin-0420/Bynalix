@@ -7,6 +7,9 @@ import { useLangStore } from "@/store/langStore";
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
 import { bmr, neat, tdeeBasic } from "@/lib/calculations/metabolism";
 import { getDashboardTotals, type DashboardTotals } from "@/lib/db/queries/log";
+import { getDashboardExtras, type DashboardExtras } from "@/lib/db/queries/dashboard";
+import { linearTrend } from "@/lib/statistics/trend";
+import { logError } from "@/lib/error";
 import { clsx } from "clsx";
 
 
@@ -38,19 +41,9 @@ export function Dashboard() {
     calories: 0, protein: 0, carb: 0, fat: 0,
     water_ml: 0, exercise_kcal: 0, weight_kg: null,
   });
+  const [extras, setExtras] = useState<DashboardExtras | null>(null);
 
   useEffect(() => { loadUser(); }, []);
-
-  useEffect(() => {
-    if (!profile) return;
-    loadTotals();
-  }, [profile, today]);
-
-  const loadTotals = async () => {
-    try {
-      setTotals(await getDashboardTotals(profile!.user_id, today));
-    } catch { /* no data yet */ }
-  };
 
   const targets = (() => {
     if (!profile || !modeSettings) return null;
@@ -67,6 +60,33 @@ export function Dashboard() {
       });
     } catch { return null; }
   })();
+
+  useEffect(() => {
+    if (!profile) return;
+    loadTotals();
+    loadExtras();
+  }, [profile, today, targets?.total_kcal, targets?.protein_g, modeSettings?.water_goal_ml]);
+
+  const loadTotals = async () => {
+    try {
+      setTotals(await getDashboardTotals(profile!.user_id, today));
+    } catch (e) { logError("Dashboard.loadTotals", e); }
+  };
+
+  const loadExtras = async () => {
+    if (!profile) return;
+    try {
+      setExtras(await getDashboardExtras(
+        profile.user_id,
+        today,
+        {
+          calories: targets?.total_kcal ?? 2000,
+          protein:  targets?.protein_g  ?? 150,
+          water_ml: modeSettings?.water_goal_ml ?? 2000,
+        },
+      ));
+    } catch (e) { logError("Dashboard.loadExtras", e); }
+  };
 
   const modeInfo = modeSettings ? MODE_INFO[modeSettings.mode] : null;
   const ModeIcon = modeInfo?.icon ?? Minus;
@@ -341,6 +361,303 @@ export function Dashboard() {
     </div>
   );
 
+  // ── New cards (additive, depend on extras) ─────────────────────────────────
+
+  const checks = [
+    { key: "meal",     done: totals.calories > 0,         label: lang === "zh" ? "飲食" : "Meal",     icon: "🍽" },
+    { key: "water",    done: totals.water_ml > 0,         label: lang === "zh" ? "飲水" : "Water",    icon: "💧" },
+    { key: "exercise", done: totals.exercise_kcal > 0,    label: lang === "zh" ? "運動" : "Exercise", icon: "🏃" },
+    { key: "weight",   done: totals.weight_kg != null,    label: lang === "zh" ? "體重" : "Weight",   icon: "⚖️" },
+    { key: "sleep",    done: extras?.hasSleep ?? false,   label: lang === "zh" ? "睡眠" : "Sleep",    icon: "🌙" },
+  ];
+  const doneCount = checks.filter(c => c.done).length;
+  const allDone   = doneCount === checks.length;
+
+  const TodayChecklistCard = (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-semibold text-[var(--text-on-surface)]">
+          {lang === "zh" ? "今日記錄" : "Today's Log"}
+        </p>
+        <span className={clsx(
+          "text-xs font-bold px-2 py-0.5 rounded-full",
+          allDone ? "bg-green-50 text-green-600"
+                  : "bg-[var(--surface-container)] text-[var(--text-on-surface-muted)]"
+        )}>
+          {doneCount}/{checks.length}
+        </span>
+      </div>
+      <div className="flex justify-around">
+        {checks.map(c => (
+          <div key={c.key} className="flex flex-col items-center gap-1">
+            <div className={clsx(
+              "w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all",
+              c.done ? "bg-green-50 border border-green-200"
+                     : "bg-[var(--surface-container)] border border-transparent opacity-40"
+            )}>
+              {c.icon}
+            </div>
+            <span className={clsx(
+              "text-[10px] font-medium",
+              c.done ? "text-green-600" : "text-[var(--text-on-surface-muted)]"
+            )}>
+              {c.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const StreakCard = (() => {
+    const streak = extras?.streak ?? 0;
+    const message = streak === 0
+      ? (lang === "zh" ? "今天開始記錄吧" : "Start logging today")
+      : streak < 3   ? (lang === "zh" ? "繼續保持！" : "Keep it up!")
+      : streak < 7   ? (lang === "zh" ? "狀態不錯！" : "Great progress!")
+      : streak < 30  ? (lang === "zh" ? "養成習慣了！" : "Building a habit!")
+                     : (lang === "zh" ? "驚人的堅持力！" : "Incredible consistency!");
+    const fullCycles = Math.floor(streak / 7);
+    const cumulative = streak > 7;
+
+    // ── Cumulative mode (> 7 days) ───────────────────────────────────────────
+    if (cumulative) {
+      const MILESTONES = [7, 14, 30, 60, 100, 365];
+      const next = MILESTONES.find(m => m > streak) ?? MILESTONES[MILESTONES.length - 1];
+      const prev = [...MILESTONES].reverse().find(m => m <= streak) ?? 0;
+      const span = Math.max(1, next - prev);
+      const milestonePct = Math.min(100, ((streak - prev) / span) * 100);
+      const remaining = Math.max(0, next - streak);
+
+      return (
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-medium text-[var(--text-on-surface-muted)]">
+                  {lang === "zh" ? "連續記錄" : "Logging Streak"}
+                </p>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
+                  {lang === "zh" ? "累計" : "Cumulative"}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-4xl font-black text-[var(--text-accent)] leading-none">{streak}</span>
+                <span className="text-sm font-medium text-[var(--text-on-surface-muted)]">
+                  {lang === "zh" ? "天" : "days"}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--text-on-surface-muted)] mt-1">{message}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs text-[var(--text-on-surface-muted)] mb-0.5">
+                {lang === "zh" ? "週循環" : "Cycles"}
+              </p>
+              <p className="text-lg font-bold text-[var(--text-accent)] leading-none">
+                ×{fullCycles}
+              </p>
+              <p className="text-base mt-0.5">
+                {"🔥".repeat(Math.min(fullCycles, 5))}
+                {fullCycles > 5 && <span className="text-[10px] text-[var(--text-on-surface-muted)] ml-0.5">+{fullCycles - 5}</span>}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <div className="flex justify-between mb-1">
+              <span className="text-[10px] text-[var(--text-on-surface-muted)] font-mono">{prev}d</span>
+              <span className="text-[10px] text-[var(--text-on-surface)] font-bold">
+                {lang === "zh" ? `下一里程碑 ${next} 天` : `Next milestone ${next}d`}
+              </span>
+              <span className="text-[10px] text-[var(--text-on-surface-muted)] font-mono">{next}d</span>
+            </div>
+            <div className="h-2 bg-[var(--surface-container)] rounded-full overflow-hidden">
+              <div className="h-full bg-[var(--color-primary)] rounded-full transition-all duration-500"
+                style={{ width: `${milestonePct}%` }} />
+            </div>
+            <p className="text-[10px] text-[var(--text-on-surface-muted)] mt-1">
+              {remaining > 0
+                ? (lang === "zh" ? `還差 ${remaining} 天` : `${remaining} day(s) to go`)
+                : (lang === "zh" ? "已達成所有里程碑 🎉" : "All milestones reached 🎉")}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // ── First-week mode (≤ 7 days) ──────────────────────────────────────────
+    const cycleLen = 7;
+    const cyclePct = streak > 0 ? ((streak % cycleLen) || cycleLen) / cycleLen : 0;
+    const circ = 2 * Math.PI * 22;
+    return (
+      <div className="card">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-[var(--text-on-surface-muted)]">
+              {lang === "zh" ? "連續記錄" : "Logging Streak"}
+            </p>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-3xl font-black text-[var(--text-accent)]">{streak}</span>
+              <span className="text-sm font-medium text-[var(--text-on-surface-muted)]">
+                {lang === "zh" ? "天" : "days"}
+              </span>
+            </div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">{message}</p>
+          </div>
+          <div className="relative w-14 h-14 shrink-0">
+            <svg width={56} height={56} style={{ transform: "rotate(-90deg)" }}>
+              <circle cx={28} cy={28} r={22} fill="none"
+                stroke="var(--surface-container)" strokeWidth={5} />
+              <circle cx={28} cy={28} r={22} fill="none"
+                stroke="var(--color-primary)" strokeWidth={5}
+                strokeDasharray={circ}
+                strokeDashoffset={circ * (1 - cyclePct)}
+                strokeLinecap="round"
+                style={{ transition: "stroke-dashoffset 0.5s ease" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-[11px] font-bold text-[var(--text-accent)]">
+                {streak > 0 ? `${((streak % cycleLen) || cycleLen)}/${cycleLen}` : "0/7"}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-1 mt-3">
+          {Array.from({ length: 7 }).map((_, i) => {
+            const daysAgo   = 6 - i;
+            const hasRecord = streak > daysAgo;
+            return (
+              <div key={i} className={clsx(
+                "flex-1 h-2 rounded-full transition-all",
+                hasRecord ? "bg-[var(--color-primary)]" : "bg-[var(--surface-container)]"
+              )} />
+            );
+          })}
+        </div>
+        <div className="flex justify-between mt-1">
+          <span className="text-[9px] text-[var(--text-on-surface-muted)]">
+            {lang === "zh" ? "7 天前" : "7d ago"}
+          </span>
+          <span className="text-[9px] text-[var(--text-on-surface-muted)]">
+            {lang === "zh" ? "今天" : "Today"}
+          </span>
+        </div>
+      </div>
+    );
+  })();
+
+  const WeeklyAdherenceCard = (() => {
+    if (!extras) return null;
+    const items = [
+      { label: lang === "zh" ? "熱量"   : "Calories", hit: extras.weekly.calorie,  color: "#38bdf8" },
+      { label: lang === "zh" ? "蛋白質" : "Protein",  hit: extras.weekly.protein,  color: "#c084fc" },
+      { label: lang === "zh" ? "飲水"   : "Water",    hit: extras.weekly.water,    color: "#60a5fa" },
+      { label: lang === "zh" ? "運動"   : "Exercise", hit: extras.weekly.exercise, color: "#fb923c" },
+    ];
+    return (
+      <div className="card">
+        <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-3">
+          {lang === "zh" ? "近 7 天達標率" : "7-Day Adherence"}
+        </p>
+        <div className="space-y-2.5">
+          {items.map(item => {
+            const pct = (item.hit / 7) * 100;
+            return (
+              <div key={item.label}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-[var(--text-on-surface-sub)]">{item.label}</span>
+                  <span className="text-xs font-mono font-bold text-[var(--text-on-surface)]">
+                    {item.hit}/7
+                  </span>
+                </div>
+                <div className="h-1.5 bg-[var(--surface-container)] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${pct}%`, backgroundColor: item.color }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-[10px] text-[var(--text-on-surface-muted)] mt-3">
+          {lang === "zh" ? "熱量達標：攝取在目標的 80–110% 範圍內"
+                        : "Calorie goal: within 80–110% of target"}
+        </p>
+      </div>
+    );
+  })();
+
+  const WeightTrendCard = (() => {
+    if (!extras || extras.weightPoints.length < 4) return null;
+    const trend = linearTrend(extras.weightPoints);
+    if (!trend) return null;
+
+    const perWeek = trend.slopePerWeek;
+    const isGain  = perWeek >  0.05;
+    const isLoss  = perWeek < -0.05;
+    const isFlat  = !isGain && !isLoss;
+
+    const goalMode = modeSettings ? (
+      ["cut_slow","cut_normal","cut_aggressive"].includes(modeSettings.mode) ? "cut"
+      : ["bulk_lean","bulk_normal","bulk_aggressive"].includes(modeSettings.mode) ? "bulk"
+      : "maintain"
+    ) : "maintain";
+
+    const isOnTrack =
+      (goalMode === "cut"      && isLoss) ||
+      (goalMode === "bulk"     && isGain) ||
+      (goalMode === "maintain" && isFlat);
+
+    const trendText = isFlat
+      ? (lang === "zh" ? "持平" : "Stable")
+      : `${perWeek > 0 ? "+" : ""}${perWeek.toFixed(2)} kg/${lang === "zh" ? "週" : "wk"}`;
+
+    const trendColor = isOnTrack ? "text-green-500"
+                     : isFlat    ? "text-[var(--text-on-surface-muted)]"
+                                 : "text-amber-500";
+
+    const r2Label = trend.r2 > 0.7 ? (lang === "zh" ? "趨勢穩定" : "Stable trend")
+                  : trend.r2 > 0.4 ? (lang === "zh" ? "趨勢波動中" : "Some fluctuation")
+                                   : (lang === "zh" ? "波動較大" : "High variance");
+
+    const pts  = extras.weightPoints;
+    const vals = pts.map(p => p.value);
+    const min  = Math.min(...vals);
+    const max  = Math.max(...vals);
+    const range = max - min || 1;
+    const W = 80, H = 36;
+    const polyPoints = pts.map((p, i) => {
+      const x = (i / Math.max(1, pts.length - 1)) * W;
+      const y = H - ((p.value - min) / range) * H;
+      return `${x},${y}`;
+    }).join(" ");
+
+    return (
+      <div className="card">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-[var(--text-on-surface-muted)]">
+              {lang === "zh" ? "體重趨勢（近 14 天）" : "Weight Trend (14d)"}
+            </p>
+            <p className={clsx("text-2xl font-black mt-0.5", trendColor)}>
+              {trendText}
+            </p>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">
+              {r2Label}
+              {" · "}
+              {isOnTrack ? (lang === "zh" ? "✓ 符合目標方向" : "✓ On track")
+                         : (lang === "zh" ? "注意趨勢方向"   : "Check your trend")}
+            </p>
+          </div>
+          <svg width={W} height={H} className="shrink-0 opacity-70">
+            <polyline points={polyPoints} fill="none"
+              stroke={isOnTrack ? "#10b981" : "#f59e0b"}
+              strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </div>
+    );
+  })();
 
   return (
     <>
@@ -373,6 +690,11 @@ export function Dashboard() {
             {ExerciseCard}
             {WeightCard}
           </div>
+
+          {TodayChecklistCard}
+          {extras && StreakCard}
+          {extras && WeeklyAdherenceCard}
+          {extras && WeightTrendCard}
         </div>
 
       </div>

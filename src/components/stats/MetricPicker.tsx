@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Check } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
+import { logError } from "@/lib/error";
 import { SEED_EXERCISES } from "@/lib/db/seed/exercises";
 
 // Body-part ZH → EN lookup (matches body_part values stored in strength_session)
@@ -173,7 +174,7 @@ export function MetricPicker({
         [userId]
       );
       setBodyParts(rows.map(r => r.body_part));
-    } catch { }
+    } catch (e) { logError("MetricPicker", e); }
     setBpLoading(false);
   };
 
@@ -191,7 +192,7 @@ export function MetricPicker({
         name: r.name,
         nameEn: (r.name_en || SEED_EXERCISES.find(e => e.name === r.name)?.name_en) ?? null,
       })));
-    } catch { }
+    } catch (e) { logError("MetricPicker", e); }
     setExLoading(false);
   };
 

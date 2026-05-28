@@ -4,6 +4,8 @@ import { fmtDay as fmtDayFn } from "@/lib/dateFormat";
 import { Plus, X, Moon, Pencil, Check, ChevronLeft, ChevronRight, Trash2, History, AlertCircle } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
+import { logError } from "@/lib/error";
+import { showToast } from "@/store/toastStore";
 import { addWeightEntry, deleteWeightEntry } from "@/lib/db/queries/log";
 import { checkBound, BOUNDS } from "@/lib/validate";
 import { useUserStore } from "@/store/userStore";
@@ -191,7 +193,7 @@ export function BodyStatus() {
          ORDER BY log_time DESC`,
         [profile!.user_id, selectedDate]);
       setEntries(rows);
-    } catch { }
+    } catch (e) { logError("BodyStatus", e); }
   };
 
   const save = async () => {
@@ -240,7 +242,7 @@ export function BodyStatus() {
       setShowForm(false); setForm(initForm()); setFormNotes("");
       setFormDate(today); setFormTime(format(new Date(), "HH:mm"));
       loadEntries();
-    } catch { }
+    } catch (e) { logError("BodyStatus", e); }
   };
 
   const startEdit = (e: CompEntry) => {
@@ -285,7 +287,7 @@ export function BodyStatus() {
       setEditId(null); setEditForm(initForm()); setEditNotes("");
       setEditDate(today); setEditTime(format(new Date(), "HH:mm"));
       loadEntries();
-    } catch { }
+    } catch (e) { logError("BodyStatus", e); }
   };
 
   const deleteEntry = async (id: number) => {
@@ -293,7 +295,7 @@ export function BodyStatus() {
       const db = await getDb();
       await db.execute("DELETE FROM body_composition_log WHERE id=?", [id]);
       loadEntries();
-    } catch { }
+    } catch (e) { logError("BodyStatus", e); }
   };
 
   // ── Sleep loaders & actions ────────────────────────────────────────────────
@@ -307,7 +309,7 @@ export function BodyStatus() {
          ORDER BY log_time DESC`,
         [profile.user_id, selectedDate]);
       setSleepEntries(rows);
-    } catch { }
+    } catch (e) { logError("BodyStatus", e); }
   };
 
   const loadWeightEntries = async () => {
@@ -317,7 +319,7 @@ export function BodyStatus() {
         "SELECT * FROM weight_log WHERE user_id=? AND log_date=? ORDER BY log_time DESC",
         [profile!.user_id, selectedDate]);
       setWeightEntries(rows);
-    } catch { }
+    } catch (e) { logError("BodyStatus", e); }
   };
 
   const saveWeight = async () => {
@@ -333,7 +335,10 @@ export function BodyStatus() {
         weightType, selectedDate, weightNotes || null);
       setShowWeightForm(false); setWeightVal(""); setBodyFatVal(""); setWeightNotes("");
       loadWeightEntries();
-    } catch { }
+    } catch (e) {
+      logError("BodyStatus.saveWeight", e);
+      showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
+    }
   };
 
   const saveEditWeight = async () => {
@@ -348,7 +353,7 @@ export function BodyStatus() {
          editingWeight.type, editingWeight.id]);
       setEditingWeight(null);
       loadWeightEntries();
-    } catch { }
+    } catch (e) { logError("BodyStatus", e); }
   };
 
   const saveSleep = async () => {
@@ -368,7 +373,10 @@ export function BodyStatus() {
       setShowSleepForm(false); setSleepDate(today); setSleepQuality("normal");
       setSleepHours(""); setSleepNotes("");
       loadSleep();
-    } catch { }
+    } catch (e) {
+      logError("BodyStatus.saveSleep", e);
+      showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
+    }
   };
 
   const saveEditSleep = async () => {
@@ -381,7 +389,7 @@ export function BodyStatus() {
          editingSleep.hours ? parseFloat(editingSleep.hours) : null,
          editingSleep.id]);
       setEditingSleep(null); loadSleep();
-    } catch { }
+    } catch (e) { logError("BodyStatus", e); }
   };
 
   const deleteSleep = async (id: number) => {
@@ -389,7 +397,7 @@ export function BodyStatus() {
       const db = await getDb();
       await db.execute("DELETE FROM sleep_log WHERE id=?", [id]);
       loadSleep();
-    } catch { }
+    } catch (e) { logError("BodyStatus", e); }
   };
 
   const getMuscleSummary = (e: CompEntry): string | null => {

@@ -5,6 +5,7 @@ import { X, ChevronRight, ChevronDown } from "lucide-react";
 import { useSwipeClose } from "@/hooks/useSwipe";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
+import { logError } from "@/lib/error";
 import { useLangStore } from "@/store/langStore";
 
 interface Props {
@@ -74,7 +75,7 @@ export function FoodHistoryDrawer({ open, userId, onClose, onSelectDate }: Props
         LIMIT 90
       `, [userId]);
       setSummaries(rows);
-    } catch { }
+    } catch (e) { logError("FoodHistoryDrawer", e); }
   };
 
   const toggleExpand = async (date: string) => {
@@ -107,7 +108,7 @@ export function FoodHistoryDrawer({ open, userId, onClose, onSelectDate }: Props
           }
         }
         setDetails(d => ({ ...d, [date]: Array.from(map.values()) }));
-      } catch { }
+      } catch (e) { logError("FoodHistoryDrawer", e); }
       setLoadingDetail(null);
     }
   };

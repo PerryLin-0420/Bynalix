@@ -4,6 +4,8 @@ import { fmtDay } from "@/lib/dateFormat";
 import { Dumbbell, Droplets, Plus, Trash2, X, Star, ChevronLeft, ChevronRight, History, Pencil, Check, AlertCircle } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
+import { logError } from "@/lib/error";
+import { showToast } from "@/store/toastStore";
 import { deleteExerciseEntry, deleteWaterEntry } from "@/lib/db/queries/log";
 import { checkBound, BOUNDS } from "@/lib/validate";
 import { useUserStore } from "@/store/userStore";
@@ -198,7 +200,7 @@ export function ExerciseLog() {
       setWaterEntries(water);
       setTotalWater(water.reduce((s, w) => s + w.amount_ml, 0));
       setFavExs(favEx);
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const loadExerciseDb = async () => {
@@ -207,7 +209,7 @@ export function ExerciseLog() {
       const rows = await db.select<ExerciseDB[]>(
         "SELECT * FROM exercise_database ORDER BY source_type DESC, name LIMIT 200");
       setExercises(rows);
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const loadSessions = async () => {
@@ -223,7 +225,7 @@ export function ExerciseLog() {
         result.push({ ...s, sets });
       }
       setSessions(result);
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const loadRunningSessions = async () => {
@@ -239,7 +241,7 @@ export function ExerciseLog() {
         result.push({ ...s, intervals });
       }
       setRunningSessions(result);
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   // ── Cardio actions ───────────────────────────────────────────────────────────
@@ -284,7 +286,10 @@ export function ExerciseLog() {
          parseInt(exDuration), exIntensity, selEx.default_mets, calcKcal(), selectedDate]);
       setShowExForm(false); setSelEx(null); setExDuration("30"); setExSearch(""); setExFormMode("cardio");
       loadAll();
-    } catch { }
+    } catch (e) {
+      logError("ExerciseLog.saveExercise", e);
+      showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
+    }
   };
 
   const toggleFavEx = async (ex: ExerciseDB) => {
@@ -302,7 +307,7 @@ export function ExerciseLog() {
           [profile.user_id, "exercise", ex.exercise_id]);
       }
       loadAll();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const saveCustomExercise = async () => {
@@ -332,7 +337,10 @@ export function ExerciseLog() {
       setShowExForm(false); setExSearch(""); setCustomExKcal(""); setCustomExDuration("30"); setCustomExNameEn(""); setExFormMode("cardio");
       loadExerciseDb();
       loadAll();
-    } catch { }
+    } catch (e) {
+      logError("ExerciseLog.saveCustomExercise", e);
+      showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
+    }
   };
 
   // ── Running actions ──────────────────────────────────────────────────────────
@@ -364,7 +372,7 @@ export function ExerciseLog() {
       setRunIntervals([{ distance: "", time: "" }]);
       setAddCardioType("");
       loadRunningSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const addIntervalToRunning = async () => {
@@ -382,7 +390,7 @@ export function ExerciseLog() {
       await recomputeSessionKcal(db, addRunIntervalTo.sessionId);
       setAddRunIntervalTo(null);
       loadRunningSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const saveEditRunInterval = async () => {
@@ -400,7 +408,7 @@ export function ExerciseLog() {
       if (srow) await recomputeSessionKcal(db, srow.session_id);
       setEditingRunInterval(null);
       loadRunningSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   // Delete a user-created exercise from the database (cardio or strength)
@@ -411,7 +419,7 @@ export function ExerciseLog() {
       await db.execute("DELETE FROM user_favorites WHERE item_type='exercise' AND item_id=?", [ex.exercise_id]);
       await db.execute("DELETE FROM exercise_database WHERE exercise_id=? AND source_type='user'", [ex.exercise_id]);
       loadExerciseDb();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const deleteRunningInterval = async (id: number) => {
@@ -422,7 +430,7 @@ export function ExerciseLog() {
       await db.execute("DELETE FROM running_interval WHERE id=?", [id]);
       if (srow) await recomputeSessionKcal(db, srow.session_id);
       loadRunningSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const deleteRunningSession = async (sessionId: number) => {
@@ -431,7 +439,7 @@ export function ExerciseLog() {
       await db.execute("DELETE FROM running_interval WHERE session_id=?", [sessionId]);
       await db.execute("DELETE FROM running_session WHERE id=?", [sessionId]);
       loadRunningSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   // ── Strength actions ─────────────────────────────────────────────────────────
@@ -482,7 +490,7 @@ export function ExerciseLog() {
       setStrExName(""); setStrSearch(""); setStrBodyPart(""); setStrExNameEn("");
       setStrSets([{ weight: "", reps: "" }]);
       loadSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const addSetToSession = async () => {
@@ -503,7 +511,7 @@ export function ExerciseLog() {
         [addSetTo.sessionId, (cnt?.c ?? 0) + 1, w, r]);
       setAddSetTo(null);
       loadSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const deleteSet = async (setId: number) => {
@@ -511,7 +519,7 @@ export function ExerciseLog() {
       const db = await getDb();
       await db.execute("DELETE FROM strength_set WHERE id=?", [setId]);
       loadSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const deleteSession = async (sessionId: number) => {
@@ -520,7 +528,7 @@ export function ExerciseLog() {
       await db.execute("DELETE FROM strength_set WHERE session_id=?", [sessionId]);
       await db.execute("DELETE FROM strength_session WHERE id=?", [sessionId]);
       loadSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   // ── Water / Weight actions ───────────────────────────────────────────────────
@@ -534,7 +542,7 @@ export function ExerciseLog() {
         "INSERT INTO water_log (user_id, amount_ml, log_date, log_time) VALUES (?,?,?,?)",
         [profile.user_id, ml, selectedDate, time]);
       loadAll();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   // ── Inline edit save handlers ────────────────────────────────────────────────
@@ -558,7 +566,7 @@ export function ExerciseLog() {
         [dur, editingEx.intensity, kcal, editingEx.id]);
       setEditingEx(null);
       loadAll();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const saveEditSession = async () => {
@@ -570,7 +578,7 @@ export function ExerciseLog() {
         [editingSession.name.trim(), editingSession.bodyPart || null, editingSession.id]);
       setEditingSession(null);
       loadSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const saveEditSet = async () => {
@@ -583,7 +591,7 @@ export function ExerciseLog() {
       await db.execute("UPDATE strength_set SET weight_kg=?, reps=? WHERE id=?", [w, r, editingSet.id]);
       setEditingSet(null);
       loadSessions();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const saveEditWater = async () => {
@@ -597,7 +605,7 @@ export function ExerciseLog() {
         [ml, editingWater.time + ":00", editingWater.id]);
       setEditingWater(null);
       loadAll();
-    } catch { }
+    } catch (e) { logError("ExerciseLog", e); }
   };
 
   const strengthExs = exercises.filter(e => e.category === "重訓");

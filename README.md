@@ -42,6 +42,18 @@ but deeper personal understanding through self-owned data.
 
 ---
 
+## Changelog
+
+### v1.1.0
+- **Trend analysis tab** — z-score normalized trend chart (weight / sleep / calories) with adaptive slope detection and direction indicators
+- **Lag analysis** — 3 independent lag sections correlating factors against weight change, sleep change, and calorie change
+- **Reliability improvements** — robust z-score (median + MAD), minimum data threshold lowered to 7 days
+- **Basic stats** — correlation ranking bar chart added (matching advanced tab)
+- **History** — cardio chart uses dual Y-axis (duration left, calories right)
+- **Bug fix** — body history drawer transparency resolved
+
+---
+
 ## Why Bynálix Exists
 
 Bynálix was created to help users verify ideas using their own long-term data,

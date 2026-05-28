@@ -13,6 +13,7 @@ import { clsx } from "clsx";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { getDb } from "@/lib/db";
+import { logError } from "@/lib/error";
 import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDates } from "@/lib/db/queries/stats";
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
 import { bmr, neat, tdeeBasic } from "@/lib/calculations/metabolism";
@@ -276,7 +277,7 @@ export function History() {
     if (!profile) return;
     try {
       setActiveDates(await getActiveDates(profile.user_id, ["meal", "exercise", "weight"]));
-    } catch { }
+    } catch (e) { logError("History", e); }
   };
 
   const loadOverview = async () => {
@@ -345,7 +346,7 @@ export function History() {
         setCalData(c);
         setMealCountData(m);
       }
-    } catch { }
+    } catch (e) { logError("History", e); }
     setLoading(false);
   };
 
@@ -380,7 +381,7 @@ export function History() {
         v.avg_sets_per_session = v.total_sessions > 0 ? Math.round(v.total_sets / v.total_sessions) : 0;
       }
       setPartStats(Array.from(bpMap.values()).sort((a, b) => b.total_sessions - a.total_sessions));
-    } catch { }
+    } catch (e) { logError("History", e); }
   };
 
   const loadMaxWeightExercises = async () => {
@@ -396,7 +397,7 @@ export function History() {
       // Remove any previously selected exercises that no longer exist in this range
       const validNames = new Set(rows.map(r => r.exercise_name));
       setSelMaxExs(prev => prev.filter(n => validNames.has(n)));
-    } catch { }
+    } catch (e) { logError("History", e); }
   };
 
   const loadMaxWeightForExercise = async (exName: string): Promise<MaxWeightPoint[]> => {
@@ -532,7 +533,7 @@ export function History() {
       }
 
       setRunRows([...byDate.values()].sort((a, b) => a.log_date.localeCompare(b.log_date)));
-    } catch { }
+    } catch (e) { logError("History", e); }
   };
 
   const loadOther = async () => {
@@ -562,7 +563,7 @@ export function History() {
         GROUP BY log_date
         ORDER BY log_date ASC`, [profile.user_id, from, to]);
       setOtherRows(rows);
-    } catch { }
+    } catch (e) { logError("History", e); }
   };
 
   const loadBodyComp = async () => {
@@ -601,7 +602,7 @@ export function History() {
         };
       });
       setBodyCompPoints(points);
-    } catch { }
+    } catch (e) { logError("History", e); }
   };
 
   const loadBodySleep = async () => {
@@ -626,7 +627,7 @@ export function History() {
         hours:        r.duration_hours,
         color:        BODY_SLEEP_COLORS[r.quality],
       })));
-    } catch { }
+    } catch (e) { logError("History", e); }
   };
 
   // ── Derived stats ────────────────────────────────────────────────────────────
@@ -1415,7 +1416,10 @@ export function History() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
                     <XAxis dataKey="log_date" tickFormatter={fmt}
                       tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="min" orientation="left"
+                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={28} />
+                    <YAxis yAxisId="kcal" orientation="right"
+                      tick={{ fontSize: 11, fill: "#f97316" }} axisLine={false} tickLine={false} width={36} />
                     <Tooltip
                       labelFormatter={v => fmtDay(v as string)}
                       formatter={(v: number, name: string) => {
@@ -1424,8 +1428,8 @@ export function History() {
                         return [`${Math.round(v)}${u[name] ?? ""}`, l[name] ?? name];
                       }}
                       contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
-                    <Line type="monotone" dataKey="total_min"  stroke="#111827" strokeWidth={2} dot={false} connectNulls />
-                    <Line type="monotone" dataKey="total_kcal" stroke="#f97316" strokeWidth={2} dot={false} connectNulls strokeDasharray="5 5" />
+                    <Line yAxisId="min"  type="monotone" dataKey="total_min"  stroke="#111827" strokeWidth={2} dot={false} connectNulls />
+                    <Line yAxisId="kcal" type="monotone" dataKey="total_kcal" stroke="#f97316" strokeWidth={2} dot={false} connectNulls strokeDasharray="5 5" />
                   </LineChart>
                 </ResponsiveContainer>
                 <div className="flex gap-4 mt-2 justify-center">

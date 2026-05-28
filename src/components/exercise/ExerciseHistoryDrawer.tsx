@@ -4,6 +4,7 @@ import { X, ChevronRight, ChevronDown, Trash2 } from "lucide-react";
 import { useSwipeClose } from "@/hooks/useSwipe";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
+import { logError } from "@/lib/error";
 import { useLangStore } from "@/store/langStore";
 
 interface Props {
@@ -58,7 +59,7 @@ export function ExerciseHistoryDrawer({ open, userId, onClose, onSelectDate }: P
         LIMIT 90
       `, [userId]);
       setSummaries(rows);
-    } catch { }
+    } catch (e) { logError("ExerciseHistoryDrawer", e); }
   };
 
   const toggleExpand = async (date: string) => {
@@ -78,7 +79,7 @@ export function ExerciseHistoryDrawer({ open, userId, onClose, onSelectDate }: P
           ORDER BY log_time
         `, [userId, date]);
         setDetails(d => ({ ...d, [date]: rows }));
-      } catch { }
+      } catch (e) { logError("ExerciseHistoryDrawer", e); }
       setLoadingDetail(null);
     }
   };
@@ -95,7 +96,7 @@ export function ExerciseHistoryDrawer({ open, userId, onClose, onSelectDate }: P
       `, [userId, date]);
       setDetails(d => ({ ...d, [date]: rows }));
       await loadSummaries();
-    } catch { }
+    } catch (e) { logError("ExerciseHistoryDrawer", e); }
   };
 
 

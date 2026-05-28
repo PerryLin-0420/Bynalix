@@ -8,6 +8,8 @@ import {
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
 import { checkBound, BOUNDS } from "@/lib/validate";
+import { logError } from "@/lib/error";
+import { showToast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { FoodHistoryDrawer } from "@/components/food/FoodHistoryDrawer";
@@ -227,7 +229,7 @@ export function FoodLog() {
         calories: a.calories + g.total.calories, protein: a.protein + g.total.protein,
         carb: a.carb + g.total.carb, fat: a.fat + g.total.fat,
       }), { calories: 0, protein: 0, carb: 0, fat: 0 }));
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const loadFavIds = async () => {
@@ -237,7 +239,7 @@ export function FoodLog() {
         "SELECT item_id FROM user_favorites WHERE user_id=? AND item_type='food'",
         [profile!.user_id]);
       setFavIds(new Set(rows.map(r => r.item_id)));
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const loadTemplates = async () => {
@@ -256,7 +258,7 @@ export function FoodLog() {
         result.push({ ...t, items });
       }
       setTemplates(result);
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const loadKnownTypes = async () => {
@@ -267,7 +269,7 @@ export function FoodLog() {
       const labels = rows.map(r => KEY_TO_LABEL[r.meal_type] ?? r.meal_type);
       const custom = labels.filter(l => !DEFAULT_TYPES.includes(l));
       setKnownTypes([...DEFAULT_TYPES, ...custom]);
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const loadExtraFilters = async () => {
@@ -276,7 +278,7 @@ export function FoodLog() {
       const [row] = await db.select<{ value: string }[]>(
         "SELECT value FROM app_settings WHERE key='food_quick_filters'");
       if (row?.value) setExtraFilters(JSON.parse(row.value));
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const saveExtraFilters = async (filters: string[]) => {
@@ -285,7 +287,7 @@ export function FoodLog() {
       await db.execute(
         "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('food_quick_filters', ?)",
         [JSON.stringify(filters)]);
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const addExtraFilter = (cat: string) => {
@@ -331,11 +333,16 @@ export function FoodLog() {
             [filter, q, likeQ, likeQ]);
         }
       } else if (q.trim()) {
+        // Prefix match outranks "contains anywhere" so searching「雞胸」surfaces
+        // 「雞胸肉」above「去皮雞胸肉」. Custom foods still win the first tier.
+        const prefixQ = `${q}%`;
         rows = await db.select<FoodItem[]>(
-          `SELECT * FROM food_database
+          `SELECT *,
+             CASE WHEN food_name LIKE ? OR name_en LIKE ? THEN 0 ELSE 1 END AS _rank
+           FROM food_database
            WHERE food_name LIKE ? OR name_en LIKE ?
-           ORDER BY source_type DESC, food_name LIMIT 25`,
-          [likeQ, likeQ]);
+           ORDER BY source_type DESC, _rank, food_name LIMIT 30`,
+          [prefixQ, prefixQ, likeQ, likeQ]);
       } else {
         // default: show favorites
         rows = await db.select<FoodItem[]>(`
@@ -345,7 +352,7 @@ export function FoodLog() {
           ORDER BY uf.display_order LIMIT 20`, [profile.user_id]);
       }
       setResults(rows);
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   }, [profile]);
 
   useEffect(() => {
@@ -382,7 +389,7 @@ export function FoodLog() {
       setBasket(items);
       setTplName(t.template_name);
       setShowTplPicker(false);
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const saveMeal = async () => {
@@ -434,7 +441,10 @@ export function FoodLog() {
       closeSheet();
       loadLog();
       loadKnownTypes();
-    } catch { }
+    } catch (e) {
+      logError("FoodLog.saveMeal", e);
+      showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
+    }
   };
 
   const deleteEntry = async (id: number) => {
@@ -443,7 +453,10 @@ export function FoodLog() {
       await db.execute("DELETE FROM water_log WHERE meal_log_id=?", [id]);
       await db.execute("DELETE FROM meal_log WHERE meal_log_id=?", [id]);
       loadLog();
-    } catch { }
+    } catch (e) {
+      logError("FoodLog.deleteEntry", e);
+      showToast(lang === "zh" ? "刪除失敗" : "Delete failed", "error");
+    }
   };
 
   const deleteMealGroup = async (group: MealGroup) => {
@@ -459,7 +472,10 @@ export function FoodLog() {
         [profile.user_id, dbType, selectedDate]
       );
       loadLog();
-    } catch { }
+    } catch (e) {
+      logError("FoodLog.deleteMealGroup", e);
+      showToast(lang === "zh" ? "刪除失敗" : "Delete failed", "error");
+    }
   };
 
   const saveEditEntry = async () => {
@@ -475,7 +491,10 @@ export function FoodLog() {
       );
       setEditEntry(null);
       loadLog();
-    } catch { }
+    } catch (e) {
+      logError("FoodLog.saveEditEntry", e);
+      showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
+    }
   };
 
   const toggleFav = async (food: FoodItem) => {
@@ -493,7 +512,7 @@ export function FoodLog() {
           [profile.user_id, "food", food.food_id]);
         setFavIds(s => new Set(s).add(food.food_id));
       }
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const deleteCustomFood = async (food: FoodItem) => {
@@ -511,7 +530,10 @@ export function FoodLog() {
       setFavIds(s => { const n = new Set(s); n.delete(food.food_id); return n; });
       if (pickedFood?.food_id === food.food_id) setPickedFood(null);
       doSearch(query, catFilter);
-    } catch { }
+    } catch (e) {
+      logError("FoodLog.deleteCustomFood", e);
+      showToast(lang === "zh" ? "刪除失敗" : "Delete failed", "error");
+    }
   };
 
   const saveCustomFood = async () => {
@@ -544,7 +566,10 @@ export function FoodLog() {
       setShowCustomFood(false);
       setCf({ name:"", name_en:"", calories:"", protein:"", carb:"", fat:"", quantity:"100", unit:"g", category:"", addToFav:true });
       doSearch(query, catFilter);
-    } catch { }
+    } catch (e) {
+      logError("FoodLog.saveCustomFood", e);
+      showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
+    }
   };
 
   const openSheet = (initialType?: string) => {
@@ -583,7 +608,7 @@ export function FoodLog() {
       setShowTplPicker(false);
       setSheetOpen(true);
       doSearch("", "全部");
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const closeSheet = () => {
@@ -616,7 +641,7 @@ export function FoodLog() {
       await loadTemplates();
       setFavMealDialogGroup(null);
       setFavMealName("");
-    } catch { }
+    } catch (e) { logError("FoodLog", e); }
   };
 
   const basketTotal = basket.reduce(

@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
-  ResponsiveContainer, LineChart, Line,
+  ResponsiveContainer, LineChart, Line, ReferenceLine,
 } from "recharts";
-import { format, parseISO } from "date-fns";
-import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Activity, Target, Pencil, Plus, X, User } from "lucide-react";
+import { format } from "date-fns";
+import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
 import { MetricPicker, metricKey, metricLabel, type MetricCfg } from "@/components/stats/MetricPicker";
 import { MiniCalendar } from "@/components/common/MiniCalendar";
 import { CHART_DATE_RANGES } from "@/constants";
@@ -15,20 +15,39 @@ import { useLangStore } from "@/store/langStore";
 import { useSwipeTabs } from "@/hooks/useSwipe";
 import { getDailyStatsRecords, getActiveDates } from "@/lib/db/queries/stats";
 import { getDb } from "@/lib/db";
-import { computeInfluenceRanking, FACTOR_LABELS, FACTOR_LABELS_EN, type Factor } from "@/lib/statistics/pearson";
+import { computeInfluenceRanking, FACTOR_LABELS, FACTOR_LABELS_EN, RELIABILITY_THRESHOLDS, getReliability, lagCorrelation, bestLag, buildDateRange as buildDateRangePure, linearInterpolate as linearInterpPure, type Factor, type Reliability, type LagResult } from "@/lib/statistics/pearson";
+import { logError } from "@/lib/error";
 import { MODE_GOAL, MODE_META, STATS_MIN_DAYS } from "@/constants";
 import type { DailyStatsRecord } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StatTab = "pearson" | "body" | "advanced";
+type StatTab = "pearson" | "advanced" | "patterns";
 
-interface BodyPoint {
-  date: string;
-  body_fat: number | null;
-  muscle: number | null;
-  water: number | null;
-  visceral: number | null;
+interface LagRow {
+  factor: string;
+  label: string;
+  best: LagResult | null;
+  density: number;
+  sampleSize: number;
+}
+
+interface TrendTabData {
+  chartPoints: {
+    date: string;
+    w: number | null;    // z-score for plotting
+    s: number | null;
+    c: number | null;
+    wRaw: number | null; // original values for tooltip
+    sRaw: number | null;
+    cRaw: number | null;
+  }[];
+  trends: {
+    weight:   { slope: number; significant: boolean } | null;
+    sleep:    { slope: number; significant: boolean } | null;
+    calories: { slope: number; significant: boolean } | null;
+  };
+  lagSections: { targetLabel: string; rows: LagRow[] }[];
 }
 
 interface AdvResult {
@@ -44,7 +63,7 @@ interface AdvResult {
 
 
 
-const fmtDate = (d: string) => format(parseISO(d), "M/d");
+// (formatter kept for future use)
 
 // ─── Helper: linear interpolation over a date-keyed map ────────────────────
 
@@ -88,15 +107,13 @@ function linearInterpolate(dataMap: Map<string, number>, allDates: string[]): Ma
 function computePearsonAligned(
   goalPts: number[],
   varPts: number[],
-  rangeDays: number,
-): number | null {
-  const threshold = rangeDays / 2;
-  if (goalPts.length <= threshold || varPts.length <= threshold) return null;
-  const nMin = Math.min(goalPts.length, varPts.length);
+): { r: number; reliability: Reliability } | null {
+  const n = Math.min(goalPts.length, varPts.length);
+  if (n < RELIABILITY_THRESHOLDS.MIN_PAIRS) return null;
   // Always trim from head (oldest) of the larger series
-  const g = goalPts.length > nMin ? goalPts.slice(goalPts.length - nMin) : goalPts;
-  const v = varPts.length > nMin ? varPts.slice(varPts.length - nMin) : varPts;
-  return pearsonFromArrays(g, v);
+  const g = goalPts.length > n ? goalPts.slice(goalPts.length - n) : goalPts;
+  const v = varPts.length  > n ? varPts.slice(varPts.length  - n) : varPts;
+  return { r: pearsonFromArrays(g, v), reliability: getReliability(n) };
 }
 
 function pearsonFromArrays(x: number[], y: number[]): number {
@@ -121,6 +138,64 @@ function buildDateRange(from: string, to: string): string[] {
     d.setDate(d.getDate() + 1);
   }
   return dates;
+}
+
+// ─── Trend helpers ────────────────────────────────────────────────────────────
+
+function zScoreMap(rawMap: Map<string, number>): Map<string, number> {
+  const vals = [...rawMap.values()].sort((a, b) => a - b);
+  if (vals.length < 2) return new Map();
+  const mid = Math.floor(vals.length / 2);
+  const median = vals.length % 2 === 0 ? (vals[mid - 1] + vals[mid]) / 2 : vals[mid];
+  const devs = vals.map(v => Math.abs(v - median)).sort((a, b) => a - b);
+  const mad = devs.length % 2 === 0 ? (devs[mid - 1] + devs[mid]) / 2 : devs[mid];
+  const scale = 1.4826 * mad;
+  if (scale === 0) return new Map();
+  const result = new Map<string, number>();
+  for (const [d, v] of rawMap) result.set(d, (v - median) / scale);
+  return result;
+}
+
+function currentSlope(zMap: Map<string, number>, allDates: string[], window: number): number | null {
+  const pts: { x: number; y: number }[] = [];
+  for (let i = allDates.length - 1; i >= 0 && pts.length < window; i--) {
+    const z = zMap.get(allDates[i]);
+    if (z != null) pts.unshift({ x: i, y: z });
+  }
+  if (pts.length < 3) return null;
+  const n = pts.length;
+  const sx = pts.reduce((s, p) => s + p.x, 0);
+  const sy = pts.reduce((s, p) => s + p.y, 0);
+  const sxy = pts.reduce((s, p) => s + p.x * p.y, 0);
+  const sxx = pts.reduce((s, p) => s + p.x * p.x, 0);
+  const denom = n * sxx - sx * sx;
+  if (denom === 0) return null;
+  return (n * sxy - sx * sy) / denom;
+}
+
+function adaptiveThreshold(rangeDays: number): number {
+  if (rangeDays <= 30)  return 0.05;
+  if (rangeDays <= 90)  return 0.03;
+  if (rangeDays <= 180) return 0.02;
+  return 0.01;
+}
+
+function rollingChangeMap(
+  rawMap: Map<string, number>,
+  allDates: string[],
+  window = 3,
+): Map<string, number> {
+  const interp = linearInterpPure(rawMap, allDates);
+  const result = new Map<string, number>();
+  for (let i = window; i < allDates.length; i++) {
+    const curr = allDates.slice(i - window + 1, i + 1).map(d => interp.get(d)?.value).filter((v): v is number => v != null);
+    const prev = allDates.slice(i - window, i).map(d => interp.get(d)?.value).filter((v): v is number => v != null);
+    if (!curr.length || !prev.length) continue;
+    const ac = curr.reduce((s, v) => s + v, 0) / curr.length;
+    const ap = prev.reduce((s, v) => s + v, 0) / prev.length;
+    result.set(allDates[i], ac - ap);
+  }
+  return result;
 }
 
 // ─── Goal metric label (bilingual) ──────────────────────────────────────────
@@ -418,7 +493,7 @@ export function Statistics() {
   const dStr = (n: number) => lang === "zh" ? `${n}天` : `${n} days`;
 
   const [activeTab, setActiveTab] = useState<StatTab>("pearson");
-  const STAT_TABS = ["pearson", "advanced", "body"] as const;
+  const STAT_TABS = ["pearson", "advanced", "patterns"] as const;
   const statSwipe = useSwipeTabs(STAT_TABS, activeTab, setActiveTab as (t: string) => void);
 
   // Date range
@@ -434,9 +509,9 @@ export function Statistics() {
   const [basicFactors, setBasicFactors] = useState<{ factor: string; label: string; r: number | null; density: number }[]>([]);
   const [advGoalDensity, setAdvGoalDensity] = useState(100);
 
-  // Body composition tab
-  const [bodyPoints, setBodyPoints] = useState<BodyPoint[]>([]);
-  const [hasBody, setHasBody]       = useState(false);
+  // Patterns tab (trend + lag)
+  const [trendData, setTrendData] = useState<TrendTabData | null>(null);
+  const [patternsLoading, setPatternsLoading] = useState(false);
 
   // Advanced tab — legacy correlation
   const [_advResults, setAdvResults]       = useState<AdvResult[] | null>(null);
@@ -453,7 +528,7 @@ export function Statistics() {
   const [advVarCards, setAdvVarCards]         = useState<VarCard[]>([]);
   const [_advChartData, setAdvChartData]       = useState<{ date: string; [k: string]: number | string | null }[]>([]);
   const [_advChartLoading, setAdvChartLoading] = useState(false);
-  const [advPearsonResults, setAdvPearsonResults] = useState<Record<string, { r: number | null; density: number }>>({});
+  const [advPearsonResults, setAdvPearsonResults] = useState<Record<string, { r: number | null; density: number; reliability: Reliability }>>({});
 
   // Advanced tab — slot 2 (custom mode 進階2)
   const [adv2GoalCfg, setAdv2GoalCfg]                 = useState<MetricCfg | null>(null);
@@ -461,7 +536,7 @@ export function Statistics() {
   const [adv2GoalOpen, setAdv2GoalOpen]               = useState(false);
   const [adv2GoalConfirmed, setAdv2GoalConfirmed]     = useState(false);
   const [adv2VarCards, setAdv2VarCards]               = useState<VarCard[]>([]);
-  const [adv2PearsonResults, setAdv2PearsonResults]   = useState<Record<string, { r: number | null; density: number }>>({});
+  const [adv2PearsonResults, setAdv2PearsonResults]   = useState<Record<string, { r: number | null; density: number; reliability: Reliability }>>({});
   const [adv2GoalDensity, setAdv2GoalDensity]         = useState(100);
 
   // Total days in the currently selected range (for Pearson density)
@@ -490,7 +565,7 @@ export function Statistics() {
 
   useEffect(() => {
     if (profile) {
-      loadPearson(); loadBodyComp(); loadAdvanced();
+      loadPearson(); loadTrend(); loadAdvanced();
       if (advGoalConfirmed && advGoalCfg) loadAdvChart(advGoalCfg, advVarCards, 1);
       if (adv2GoalConfirmed && adv2GoalCfg) loadAdvChart(adv2GoalCfg, adv2VarCards, 2);
     }
@@ -555,7 +630,7 @@ export function Statistics() {
     if (!profile) return;
     try {
       setActiveDates(await getActiveDates(profile.user_id, ["meal", "exercise", "weight", "body"]));
-    } catch { }
+    } catch (e) { logError("Statistics.loadActiveDates", e); }
   };
 
   const loadPearson = async () => {
@@ -606,25 +681,120 @@ export function Statistics() {
         };
       });
       setBasicFactors(bFactors);
-    } catch { }
+    } catch (e) { logError("Statistics.loadPearson", e); }
     setLoading(false);
   };
 
-  const loadBodyComp = async () => {
+  const loadTrend = async () => {
     if (!profile) return;
+    setPatternsLoading(true);
     try {
-      const db   = await getDb();
       const { from, to } = getFromTo();
-      const rows = await db.select<any[]>(
-        `SELECT log_date as date, body_fat_pct as body_fat, skeletal_muscle_kg as muscle,
-           body_water_pct as water, visceral_fat_level as visceral
-         FROM body_composition_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ?
-         ORDER BY log_date ASC`,
-        [profile.user_id, from, to]);
-      setBodyPoints(rows);
-      setHasBody(rows.length >= 2);
-    } catch { }
+      const recs = await getDailyStatsRecords(profile.user_id, days, from, to);
+      const allDates = buildDateRangePure(from, to);
+      const rangeLen = Math.max(1, allDates.length);
+
+      // ── Raw maps ──────────────────────────────────────────────────────────
+      const weightRaw = new Map(recs.filter(r => r.weight_kg  != null).map(r => [r.date, r.weight_kg!]));
+      const sleepRaw  = new Map(recs.filter(r => r.sleep_hours != null).map(r => [r.date, r.sleep_hours!]));
+      const calRaw    = new Map(recs.filter(r => r.calories    != null).map(r => [r.date, r.calories!]));
+
+      // ── Z-score normalize ─────────────────────────────────────────────────
+      const wZ = zScoreMap(weightRaw);
+      const sZ = zScoreMap(sleepRaw);
+      const cZ = zScoreMap(calRaw);
+
+      // ── Chart points ──────────────────────────────────────────────────────
+      const chartPoints = allDates.map(date => ({
+        date,
+        w: wZ.get(date) ?? null,
+        s: sZ.get(date) ?? null,
+        c: cZ.get(date) ?? null,
+        wRaw: weightRaw.get(date) ?? null,
+        sRaw: sleepRaw.get(date)  ?? null,
+        cRaw: calRaw.get(date)    ?? null,
+      }));
+
+      // ── Current trend slope ───────────────────────────────────────────────
+      const slopeWindow = Math.min(14, Math.max(7, Math.floor(rangeLen / 4)));
+      const threshold   = adaptiveThreshold(rangeLen);
+      const mkTrend = (zMap: Map<string, number>) => {
+        const slope = currentSlope(zMap, allDates, slopeWindow);
+        if (slope == null) return null;
+        return { slope, significant: Math.abs(slope) >= threshold };
+      };
+      const trends = {
+        weight:   mkTrend(wZ),
+        sleep:    mkTrend(sZ),
+        calories: mkTrend(cZ),
+      };
+
+      // ── Rolling change targets ─────────────────────────────────────────────
+      const weightTargetMap   = rollingChangeMap(weightRaw, allDates);
+      const sleepTargetMap    = rollingChangeMap(sleepRaw,  allDates);
+      const calTargetMap      = rollingChangeMap(calRaw,    allDates);
+
+      const buildRows = (
+        targetMap: Map<string, number>,
+        factors: { key: string; labelZh: string; labelEn: string }[],
+      ): LagRow[] => {
+        const rows = factors.map(({ key, labelZh, labelEn }) => {
+          const fmap = new Map<string, number>();
+          let nonNull = 0;
+          for (const r of recs) {
+            const v = (r as any)[key];
+            if (v != null) { fmap.set(r.date, v as number); nonNull++; }
+          }
+          const results = lagCorrelation(fmap, targetMap, 7);
+          const best = bestLag(results);
+          return {
+            factor: key,
+            label: lang === "en" ? labelEn : labelZh,
+            best,
+            density:    Math.round((nonNull / rangeLen) * 100),
+            sampleSize: best?.sampleSize ?? 0,
+          };
+        });
+        return rows.sort((a, b) => (b.best ? Math.abs(b.best.r) : -1) - (a.best ? Math.abs(a.best.r) : -1));
+      };
+
+      const lagSections = [
+        {
+          targetLabel: lang === "zh" ? "→ 體重變化" : "→ Weight change",
+          rows: buildRows(weightTargetMap, [
+            { key: "calories",           labelZh: "攝取熱量", labelEn: "Calories"      },
+            { key: "protein_g",          labelZh: "蛋白質",   labelEn: "Protein"       },
+            { key: "water_ml",           labelZh: "飲水量",   labelEn: "Water"         },
+            { key: "sleep_hours",        labelZh: "睡眠時長", labelEn: "Sleep"         },
+            { key: "exercise_kcal",      labelZh: "運動消耗", labelEn: "Exercise burn" },
+            { key: "strength_volume_kg", labelZh: "重訓總量", labelEn: "Strength vol." },
+          ]),
+        },
+        {
+          targetLabel: lang === "zh" ? "→ 睡眠變化" : "→ Sleep change",
+          rows: buildRows(sleepTargetMap, [
+            { key: "weight_kg",     labelZh: "體重",     labelEn: "Weight"        },
+            { key: "calories",      labelZh: "攝取熱量", labelEn: "Calories"      },
+            { key: "water_ml",      labelZh: "飲水量",   labelEn: "Water"         },
+            { key: "exercise_kcal", labelZh: "運動消耗", labelEn: "Exercise burn" },
+            { key: "protein_g",     labelZh: "蛋白質",   labelEn: "Protein"       },
+          ]),
+        },
+        {
+          targetLabel: lang === "zh" ? "→ 熱量變化" : "→ Calorie change",
+          rows: buildRows(calTargetMap, [
+            { key: "weight_kg",          labelZh: "體重",     labelEn: "Weight"        },
+            { key: "sleep_hours",        labelZh: "睡眠時長", labelEn: "Sleep"         },
+            { key: "exercise_kcal",      labelZh: "運動消耗", labelEn: "Exercise burn" },
+            { key: "water_ml",           labelZh: "飲水量",   labelEn: "Water"         },
+            { key: "strength_volume_kg", labelZh: "重訓總量", labelEn: "Strength vol." },
+          ]),
+        },
+      ];
+
+      setTrendData({ chartPoints, trends, lagSections });
+    } catch (e) { logError("Statistics.loadTrend", e); }
+    setPatternsLoading(false);
   };
 
   const loadAdvanced = async () => {
@@ -709,8 +879,7 @@ export function Statistics() {
           }
         }
 
-        const MIN_PAIRS = 14;
-        const r = xArr.length >= MIN_PAIRS ? pearsonFromArrays(xArr, yArr) : null;
+        const r = xArr.length >= RELIABILITY_THRESHOLDS.MIN_PAIRS ? pearsonFromArrays(xArr, yArr) : null;
 
         advRes.push({
           varKey,
@@ -887,17 +1056,19 @@ export function Statistics() {
         return pt;
       }));
       const goalValues = rawRows["__goal__"].map(r => r.value);
-      const pearsonMap: Record<string, { r: number | null; density: number }> = {};
+      const pearsonMap: Record<string, { r: number | null; density: number; reliability: Reliability }> = {};
       for (const v of confirmedVars) {
         const varValues = rawRows[v.id].map(r => r.value);
+        const res = computePearsonAligned(goalValues, varValues);
         pearsonMap[v.id] = {
-          r: computePearsonAligned(goalValues, varValues, rangeTotal),
+          r: res?.r ?? null,
+          reliability: res?.reliability ?? 'insufficient',
           density: rangeTotal > 0 ? Math.round((rawRows[v.id].length / rangeTotal) * 100) : 0,
         };
       }
       setPearson(pearsonMap);
       setDensity(rangeTotal > 0 ? Math.round((rawRows["__goal__"].length / rangeTotal) * 100) : 0);
-    } catch { }
+    } catch (e) { logError("Statistics.loadAdvChart", e); }
     setAdvChartLoading(false);
   };
 
@@ -1137,6 +1308,12 @@ export function Statistics() {
               const stat = pearsonResults[card.id];
               const r = stat?.r ?? null;
               const density = stat?.density ?? 0;
+              const reliability: Reliability = stat?.reliability ?? 'insufficient';
+              const reliabilityBadge =
+                r === null ? null
+                : reliability === 'low'    ? (lang === "zh" ? "樣本較少" : "Low sample")
+                : reliability === 'medium' ? (lang === "zh" ? "中可信度" : "Moderate")
+                : null;
               const isGood = r === null ? false : goalDir === "up" ? r > 0 : r < 0;
               const abs = r !== null ? Math.abs(r) : 0;
               const strength = abs > 0.5
@@ -1158,7 +1335,8 @@ export function Statistics() {
                 <div key={card.id}
                   className={clsx("card flex items-start gap-3 border-l-4",
                     r === null ? "border-l-gray-200"
-                      : isGood ? "border-l-green-400" : "border-l-red-300")}>
+                      : isGood ? "border-l-green-400" : "border-l-red-300",
+                    (reliability === 'low' || reliability === 'insufficient') && "opacity-75")}>
                   <div className={clsx("w-7 h-7 flex items-center justify-center shrink-0 text-base font-black leading-none",
                     r === null ? "text-gray-300"
                       : isGood ? "text-emerald-600" : "text-rose-600")}>
@@ -1214,7 +1392,14 @@ export function Statistics() {
                         </button>
                       </div>
                     </div>
-                    <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">{insight}</p>
+                    <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">
+                      {insight}
+                      {reliabilityBadge && (
+                        <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-600">
+                          {reliabilityBadge}
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
               );
@@ -1249,9 +1434,9 @@ export function Statistics() {
             </p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <button onClick={() => { loadPearson(); loadBodyComp(); loadAdvanced(); }} disabled={loading || advLoading}
+            <button onClick={() => { loadPearson(); loadTrend(); loadAdvanced(); }} disabled={loading || advLoading || patternsLoading}
               className={clsx("p-2 rounded-xl transition-all border border-white/30 text-white bg-white/10",
-                (loading || advLoading) ? "animate-spin opacity-40 cursor-wait" : "hover:bg-white/20")}>
+                (loading || advLoading || patternsLoading) ? "animate-spin opacity-40 cursor-wait" : "hover:bg-white/20")}>
               <RefreshCw size={16} />
             </button>
           </div>
@@ -1314,10 +1499,10 @@ export function Statistics() {
             ? (lang === "zh" ? "進階2" : "Adv.2")
             : t("stats.tab.advanced")}
         </button>
-        <button onClick={() => setActiveTab("body")}
+        <button onClick={() => setActiveTab("patterns")}
           className={clsx("flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-            activeTab === "body" ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
-          {t("stats.tab.body")}
+            activeTab === "patterns" ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+          {lang === "zh" ? "規律" : "Patterns"}
         </button>
       </div>
 
@@ -1365,33 +1550,80 @@ export function Statistics() {
               const wDensity = rangeTotal > 0 ? Math.round((daysWithData / rangeTotal) * 100) : 0;
               const dc = wDensity >= 80 ? "green" : wDensity >= 50 ? "yellow" : "red";
               const dcClx = dc === "green" ? "text-green-500" : dc === "yellow" ? "text-amber-400" : "text-red-400";
+              const daysUntilUnlock = Math.max(0, RELIABILITY_THRESHOLDS.MIN_PAIRS - daysWithData);
               return (
-                <div className={clsx(
-                  "flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--surface-container-low)] border border-[var(--surface-border)]",
-                  dc === "red" && "opacity-50"
-                )}>
-                  <div className="w-2 h-2 rounded-full bg-[var(--text-accent)] shrink-0" />
-                  <p className="flex-1 text-sm font-semibold text-[var(--text-on-surface)] truncate">
-                    {lang === "zh" ? "體重 (kg)" : "Weight (kg)"}
-                  </p>
-                  <span style={{
-                    display: "inline-block",
-                    transform: goalMode === "bulk" ? "rotate(-90deg)" : goalMode === "cut" ? "rotate(90deg)" : "rotate(0deg)",
-                    color: goalMode === "bulk" ? "#10b981" : goalMode === "cut" ? "#ef4444" : "#9ca3af",
-                    fontWeight: "bold",
-                    fontSize: "20px",
-                    lineHeight: 1,
-                  }}>»</span>
-                  <div className="flex items-baseline gap-0.5 shrink-0">
-                    <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">
-                      {lang === "zh" ? "資料密度" : "Density"}:
-                    </span>
-                    <span className={clsx("text-sm font-bold leading-none ml-0.5", dcClx)}>{wDensity}%</span>
+                <>
+                  <div className={clsx(
+                    "flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--surface-container-low)] border border-[var(--surface-border)]",
+                    dc === "red" && "opacity-50"
+                  )}>
+                    <div className="w-2 h-2 rounded-full bg-[var(--text-accent)] shrink-0" />
+                    <p className="flex-1 text-sm font-semibold text-[var(--text-on-surface)] truncate">
+                      {lang === "zh" ? "體重 (kg)" : "Weight (kg)"}
+                    </p>
+                    <span style={{
+                      display: "inline-block",
+                      transform: goalMode === "bulk" ? "rotate(-90deg)" : goalMode === "cut" ? "rotate(90deg)" : "rotate(0deg)",
+                      color: goalMode === "bulk" ? "#10b981" : goalMode === "cut" ? "#ef4444" : "#9ca3af",
+                      fontWeight: "bold",
+                      fontSize: "20px",
+                      lineHeight: 1,
+                    }}>»</span>
+                    <div className="flex items-baseline gap-0.5 shrink-0">
+                      <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">
+                        {lang === "zh" ? "資料密度" : "Density"}:
+                      </span>
+                      <span className={clsx("text-sm font-bold leading-none ml-0.5", dcClx)}>{wDensity}%</span>
+                    </div>
                   </div>
-                </div>
+                  {daysUntilUnlock > 0 && (
+                    <p className="text-[11px] text-amber-500 mt-2 font-medium">
+                      {lang === "zh"
+                        ? `再記錄 ${daysUntilUnlock} 天體重即可解鎖統計分析`
+                        : `${daysUntilUnlock} more day(s) of weight logs to unlock analysis`}
+                    </p>
+                  )}
+                </>
               );
             })()}
           </div>
+
+          {/* ── Correlation ranking chart ────────────────────────── */}
+          {(() => {
+            const chartData = [...basicFactors]
+              .filter(f => f.r !== null)
+              .sort((a, b) => Math.abs(b.r!) - Math.abs(a.r!));
+            if (chartData.length === 0) return null;
+            return (
+              <div className="card">
+                <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">
+                  {lang === "zh" ? "相關係數排名" : "Correlation Ranking"}
+                </p>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 40, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#374151" }}
+                      axisLine={false} tickLine={false}
+                      angle={-30} textAnchor="end" interval={0} />
+                    <YAxis domain={[-1, 1]}
+                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
+                      tickFormatter={v => v.toFixed(1)} />
+                    <Tooltip
+                      formatter={(v: number) => [v.toFixed(3), "Pearson r"]}
+                      contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
+                    <Bar dataKey="r" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                      {chartData.map((d, i) => {
+                        const good = goalMode === "cut" ? d.r! < 0
+                          : goalMode === "bulk" ? d.r! > 0
+                          : d.r! > 0;
+                        return <Cell key={i} fill={good ? "#10b981" : "#f87171"} />;
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
 
           {/* ── Factor cards (all 9, always shown) ─────────────────── */}
           <div className="space-y-3">
@@ -1473,130 +1705,156 @@ export function Statistics() {
       )}
 
       {/* ══════════════════════════════════════════
-          TAB: 身體組成變化
+          TAB: 規律 (Patterns) — Trend + Lag
       ══════════════════════════════════════════ */}
-      {activeTab === "body" && (
-        <>
-          {!hasBody ? (
-            <div className="card text-center py-12 space-y-3">
-              <Activity size={36} className="mx-auto text-[var(--text-on-surface-muted)]" />
-              <p className="text-sm font-medium text-[var(--text-on-surface-sub)]">{t("stats.noBodyComp")}</p>
-              <p className="text-xs text-[var(--text-on-surface-muted)]">{t("stats.noBodyCompDesc")}</p>
+      {activeTab === "patterns" && (() => {
+        if (!trendData) return (
+          <div className="card text-center py-10">
+            <p className="text-sm text-[var(--text-on-surface-muted)]">
+              {patternsLoading
+                ? (lang === "zh" ? "載入中…" : "Loading…")
+                : (lang === "zh" ? "尚無資料" : "No data")}
+            </p>
+          </div>
+        );
+
+        const { chartPoints, trends, lagSections } = trendData;
+        const xInterval = Math.max(6, Math.floor(rangeTotal / 7) - 1);
+
+        // Trend symbol helper
+        const trendSymbol = (t: { slope: number; significant: boolean } | null) => {
+          if (!t) return { sym: "—", cls: "text-gray-400" };
+          if (!t.significant) return { sym: "→", cls: "text-gray-400" };
+          return t.slope > 0
+            ? { sym: "↑", cls: "text-red-400" }    // weight up = bad for cut; use neutral red
+            : { sym: "↓", cls: "text-emerald-500" };
+        };
+        const wSym = trendSymbol(trends.weight);
+        const sSym = trendSymbol(trends.sleep);
+        const cSym = trendSymbol(trends.calories);
+
+        return (
+          <div className="space-y-4">
+
+            {/* ── Trend chart ───────────────────────────────────────────── */}
+            <div className="card">
+              <p className="text-xs text-[var(--text-on-surface-muted)] mb-3">
+                {lang === "zh"
+                  ? "Z-score 標準化 · 虛線為實際數值，空白為無記錄"
+                  : "Z-score normalized · dashed = recorded, gap = no data"}
+              </p>
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={chartPoints} margin={{ top: 4, right: 4, bottom: 0, left: -32 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    interval={xInterval}
+                    tickFormatter={d => format(new Date(d), "M/d")}
+                    tick={{ fontSize: 10, fill: "var(--text-on-surface-muted)" }}
+                    axisLine={false} tickLine={false}
+                  />
+                  <YAxis hide />
+                  <ReferenceLine y={0} stroke="var(--surface-border)" strokeDasharray="4 4" />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const pt = chartPoints.find(p => p.date === label);
+                      if (!pt) return null;
+                      return (
+                        <div className="bg-[var(--surface)] border border-[var(--surface-border)] rounded-xl px-3 py-2 text-xs shadow-lg space-y-0.5">
+                          <p className="font-semibold text-[var(--text-on-surface)] mb-1">{label}</p>
+                          {pt.wRaw != null && <p style={{ color: "#60a5fa" }}>{lang === "zh" ? "體重" : "Weight"}: {pt.wRaw.toFixed(1)} kg</p>}
+                          {pt.sRaw != null && <p style={{ color: "#c084fc" }}>{lang === "zh" ? "睡眠" : "Sleep"}: {pt.sRaw.toFixed(1)} hr</p>}
+                          {pt.cRaw != null && <p style={{ color: "#fb923c" }}>{lang === "zh" ? "熱量" : "Cal"}: {Math.round(pt.cRaw)} kcal</p>}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Line dataKey="w" stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="6 3"
+                    dot={false} connectNulls={false} name={lang === "zh" ? "體重" : "Weight"} />
+                  <Line dataKey="s" stroke="#c084fc" strokeWidth={1.5} strokeDasharray="6 3"
+                    dot={false} connectNulls={false} name={lang === "zh" ? "睡眠" : "Sleep"} />
+                  <Line dataKey="c" stroke="#fb923c" strokeWidth={1.5} strokeDasharray="6 3"
+                    dot={false} connectNulls={false} name={lang === "zh" ? "熱量" : "Cal"} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
-          ) : (
-            <>
-              {/* Body fat + muscle dual chart */}
-              <div className="card">
-                <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{t("stats.bodyFatMuscle")}</p>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={bodyPoints} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                    <XAxis dataKey="date" tickFormatter={fmtDate}
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                    <YAxis domain={["auto", "auto"]}
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      labelFormatter={v => format(parseISO(v as string), "M/d")}
-                      formatter={(v: number, name: string) => {
-                        const labels: Record<string, string> = { body_fat: t("stats.legendBodyFat"), muscle: t("stats.legendMuscle") };
-                        const units: Record<string, string> = { body_fat: "%", muscle: " kg" };
-                        return [`${v}${units[name] ?? ""}`, labels[name] ?? name];
-                      }}
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
-                    {bodyPoints.some(p => p.body_fat != null) && (
-                      <Line type="monotone" dataKey="body_fat" stroke="#f97316"
-                        strokeWidth={2} dot={false} connectNulls activeDot={{ r: 4 }} />
-                    )}
-                    {bodyPoints.some(p => p.muscle != null) && (
-                      <Line type="monotone" dataKey="muscle" stroke="#10b981"
-                        strokeWidth={2} dot={false} connectNulls activeDot={{ r: 4 }} strokeDasharray="5 5" />
-                    )}
-                  </LineChart>
-                </ResponsiveContainer>
-                <div className="flex gap-4 mt-2 justify-center">
-                  {[[t("stats.legendBodyFat"), "#f97316", "solid"], [t("stats.legendMuscle"), "#10b981", "dashed"]].map(([label, color, style]) => (
-                    <div key={label as string} className="flex items-center gap-1.5">
-                      <div className="w-6 h-0.5 rounded-full" style={{
-                        backgroundColor: color as string,
-                        backgroundImage: style === "dashed" ? `repeating-linear-gradient(to right, ${color} 0, ${color} 4px, transparent 4px, transparent 8px)` : undefined,
-                      }} />
-                      <span className="text-xs text-[var(--text-on-surface-muted)]">{label as string}</span>
-                    </div>
-                  ))}
+
+            {/* ── Trend chips ───────────────────────────────────────────── */}
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: lang === "zh" ? "體重" : "Weight", color: "#60a5fa", sym: wSym },
+                { label: lang === "zh" ? "睡眠" : "Sleep",  color: "#c084fc", sym: sSym },
+                { label: lang === "zh" ? "熱量" : "Calories", color: "#fb923c", sym: cSym },
+              ].map(({ label, color, sym }) => (
+                <div key={label} className="card py-2.5 px-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                  <span className="text-xs text-[var(--text-on-surface-muted)] truncate">{label}</span>
+                  <span className={clsx("text-base font-bold ml-auto", sym.cls)}>{sym.sym}</span>
                 </div>
+              ))}
+            </div>
+
+            {/* ── Lag sections ─────────────────────────────────────────── */}
+            {lagSections.map((section) => (
+              <div key={section.targetLabel} className="card space-y-0 divide-y divide-[var(--surface-border)]">
+                <p className="text-xs font-semibold text-[var(--text-on-surface)] pb-2">
+                  {lang === "zh" ? "延遲影響" : "Lag Impact"}
+                  <span className="ml-1.5 text-[var(--text-accent)]">{section.targetLabel}</span>
+                  <span className="ml-1 font-normal text-[var(--text-on-surface-muted)]">(0–7d)</span>
+                </p>
+                {section.rows.map((row) => {
+                  const r    = row.best?.r   ?? null;
+                  const lag  = row.best?.lag ?? null;
+                  const n    = row.sampleSize;
+                  const dotClx = row.density >= 80 ? "text-green-500" : row.density >= 50 ? "text-amber-400" : "text-red-400";
+                  const sym  = r == null ? "—" : Math.abs(r) <= 0.1 ? "→" : r > 0 ? "↑" : "↓";
+                  const rClx = r == null ? "text-gray-400" : r > 0.1 ? "text-red-400" : r < -0.1 ? "text-emerald-500" : "text-gray-400";
+                  const lowR = r !== null && n < RELIABILITY_THRESHOLDS.MIN_PAIRS;
+                  return (
+                    <div key={row.factor} className={clsx("flex items-center gap-2 py-2", lowR && "opacity-60")}>
+                      <p className="text-xs font-medium text-[var(--text-on-surface)] w-20 shrink-0 truncate">{row.label}</p>
+                      <span className={clsx("text-base font-bold w-5 text-center shrink-0", rClx)}>{sym}</span>
+                      <p className="text-[11px] text-[var(--text-on-surface-muted)] flex-1">
+                        {r == null
+                          ? (lang === "zh" ? "不足" : "n/a")
+                          : lag === 0
+                            ? (lang === "zh" ? "當天" : "same day")
+                            : `lag ${lag}d`}
+                        {r !== null && <span className="ml-1 text-gray-400">n={n}</span>}
+                      </p>
+                      {r !== null && (
+                        <span className={clsx("text-xs font-mono font-bold shrink-0", rClx)}>
+                          {r >= 0 ? "+" : ""}{r.toFixed(2)}
+                        </span>
+                      )}
+                      <span className={clsx("text-base leading-none shrink-0", dotClx)}>●</span>
+                    </div>
+                  );
+                })}
               </div>
+            ))}
 
-              {/* Water + visceral */}
-              {bodyPoints.some(p => p.water != null || p.visceral != null) && (
-                <div className="card">
-                  <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{t("stats.waterVisceral")}</p>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <LineChart data={bodyPoints} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                      <XAxis dataKey="date" tickFormatter={fmtDate}
-                        tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                      <YAxis domain={["auto", "auto"]}
-                        tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                      <Tooltip
-                        labelFormatter={v => format(parseISO(v as string), "M/d")}
-                        formatter={(v: number, name: string) => {
-                          const labels: Record<string, string> = { water: t("stats.legendWater"), visceral: t("stats.legendVisceral") };
-                          const units: Record<string, string>  = { water: "%", visceral: lang === "zh" ? " 級" : "" };
-                          return [`${v}${units[name] ?? ""}`, labels[name] ?? name];
-                        }}
-                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
-                      {bodyPoints.some(p => p.water != null) && (
-                        <Line type="monotone" dataKey="water" stroke="#0ea5e9"
-                          strokeWidth={2} dot={false} connectNulls />
-                      )}
-                      {bodyPoints.some(p => p.visceral != null) && (
-                        <Line type="monotone" dataKey="visceral" stroke="#8b5cf6"
-                          strokeWidth={2} dot={false} connectNulls />
-                      )}
-                    </LineChart>
-                  </ResponsiveContainer>
+            {/* ── Density legend ────────────────────────────────────────── */}
+            <div className="flex items-center gap-4 px-1 pb-1">
+              <p className="text-[10px] text-white shrink-0">
+                {lang === "zh" ? "資料密度" : "Data density"}:
+              </p>
+              {[
+                { clx: "text-green-500",  label: lang === "zh" ? "≥80%" : "≥80%" },
+                { clx: "text-amber-400",  label: lang === "zh" ? "50–79%" : "50–79%" },
+                { clx: "text-red-400",    label: lang === "zh" ? "<50%" : "<50%" },
+              ].map(({ clx, label }) => (
+                <div key={label} className="flex items-center gap-1">
+                  <span className={clsx("text-xs leading-none", clx)}>●</span>
+                  <span className="text-[10px] text-white">{label}</span>
                 </div>
-              )}
+              ))}
+            </div>
 
-              {/* Latest values */}
-              {bodyPoints.length > 0 && (() => {
-                const last = bodyPoints[bodyPoints.length - 1];
-                const first = bodyPoints[0];
-                return (
-                  <div className="card">
-                    <p className="text-xs font-semibold text-[var(--text-on-surface-muted)] uppercase tracking-wide mb-3">{lang === "zh" ? "變化摘要" : "Change Summary"}</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { key: "body_fat" as const, label: t("stats.legendBodyFat"), unit: "%", color: "#f97316" },
-                        { key: "muscle"   as const, label: t("stats.legendMuscle"),  unit: " kg", color: "#10b981" },
-                      ].map(({ key, label, unit, color }) => {
-                        const lastVal  = last[key];
-                        const firstVal = first[key];
-                        if (lastVal == null || firstVal == null) return null;
-                        const diff = lastVal - firstVal;
-                        return (
-                          <div key={key}>
-                            <p className="text-xs text-[var(--text-on-surface-muted)]">{label}</p>
-                            <p className="text-xl font-bold" style={{ color }}>
-                              {lastVal}{unit}
-                            </p>
-                            <p className={clsx("text-xs mt-0.5",
-                              diff === 0 ? "text-[var(--text-on-surface-muted)]"
-                              : key === "body_fat" ? (diff < 0 ? "text-green-500" : "text-red-400")
-                              : (diff > 0 ? "text-green-500" : "text-red-400"))}>
-                              {diff > 0 ? "+" : ""}{diff.toFixed(1)}{unit} {lang === "zh" ? "較" : "vs"} {fmtDate(first.date)}
-                            </p>
-                          </div>
-                        );
-                      }).filter(Boolean)}
-                    </div>
-                  </div>
-                );
-              })()}
-            </>
-          )}
-        </>
-      )}
+          </div>
+        );
+      })()}
 
       {/* ══════════════════════════════════════════
           TAB: 進階統計 (Advanced) — v2

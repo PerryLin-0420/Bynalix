@@ -1,7 +1,7 @@
 import type { Mode, MealType, ActivityLevel, WeightMeasType, Intensity } from "@/types";
 
 // ─── Pearson Statistics ───────────────────────────────────────────────────────
-export const STATS_MIN_DAYS = 14;
+export const STATS_MIN_DAYS = 7;
 
 // ─── Modes ───────────────────────────────────────────────────────────────────
 export const MODE_META: Record<Mode, {
