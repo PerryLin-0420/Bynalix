@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { type Lang, type TKey, translate, detectSystemLang } from "@/lib/i18n";
 import { getDb } from "@/lib/db";
+import { logError } from "@/lib/error";
 
 interface LangState {
   lang: Lang;
@@ -31,7 +32,7 @@ export const useLangStore = create<LangState>((set, get) => ({
         );
         set({ lang, t: (key) => translate(lang, key) });
       }
-    } catch { /* keep default zh */ }
+    } catch (e) { logError("langStore.loadLang", e); }
   },
 
   setLang: async (lang) => {
@@ -42,6 +43,6 @@ export const useLangStore = create<LangState>((set, get) => ({
         "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('language', ?)",
         [lang]
       );
-    } catch { }
+    } catch (e) { logError("langStore.setLang", e); }
   },
 }));

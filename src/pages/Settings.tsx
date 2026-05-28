@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
+import { logError } from "@/lib/error";
+import { showToast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import type { Lang } from "@/lib/i18n";
@@ -111,7 +113,7 @@ export function Settings() {
         "SELECT value FROM app_settings WHERE key='encrypt_csv'"
       );
       if (row) setEncryptCsv(row.value === "1");
-    } catch { }
+    } catch (e) { logError("Settings", e); }
   };
 
 const loadStartupLockStatus = async () => {
@@ -123,7 +125,7 @@ const loadStartupLockStatus = async () => {
       if (rows.length > 0) {
         setStartupLockEnabled(rows[0].value !== "0");
       }
-    } catch { }
+    } catch (e) { logError("Settings", e); }
   };
 
   const loadSyncSettings = async () => {
@@ -135,7 +137,7 @@ const loadStartupLockStatus = async () => {
       for (const r of rows) {
         if (r.key === "sync_path") setSyncPath(r.value);
       }
-    } catch { }
+    } catch (e) { logError("Settings", e); }
   };
 
   const saveStartupLockEnabled = async (val: boolean) => {
@@ -146,7 +148,7 @@ const loadStartupLockStatus = async () => {
         "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('startup_lock_enabled', ?)",
         [val ? "1" : "0"]
       );
-    } catch { }
+    } catch (e) { logError("Settings", e); }
   };
 
   const handleStartupLockToggle = async () => {
@@ -236,7 +238,7 @@ const loadPinStatus = async () => {
         setCurrentPin(map["pin_hash"]);
         setPinEnabled(map["pin_enabled"] === "1");
       }
-    } catch { }
+    } catch (e) { logError("Settings", e); }
   };
 
   // Simple hash (not cryptographically secure, but fine for local PIN)
@@ -257,7 +259,7 @@ const loadPinStatus = async () => {
         "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('pin_enabled', ?)",
         [val ? "1" : "0"]
       );
-    } catch { }
+    } catch (e) { logError("Settings", e); }
   };
 
   const savePin = async () => {
@@ -270,7 +272,10 @@ const loadPinStatus = async () => {
       await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('pin_enabled', '1')");
       setCurrentPin(pinHash); setHasStoredPin(true); setPinEnabled(true);
       setShowPinSetup(false); setPinInput(""); setPinConfirm(""); setPinError("");
-    } catch { }
+    } catch (e) {
+      logError("Settings.savePin", e);
+      showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
+    }
   };
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
@@ -288,7 +293,7 @@ const loadPinStatus = async () => {
         try {
           const rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${table}`);
           files.push({ name: `${table}.csv`, content: "﻿" + toCSV(rows) });
-        } catch { }
+        } catch (e) { logError("Settings", e); }
       }
     }
     return files;

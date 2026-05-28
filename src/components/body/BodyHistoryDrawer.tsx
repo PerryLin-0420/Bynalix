@@ -4,6 +4,7 @@ import { X, ChevronRight, ChevronDown } from "lucide-react";
 import { useSwipeClose } from "@/hooks/useSwipe";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
+import { logError } from "@/lib/error";
 import { useLangStore } from "@/store/langStore";
 
 type Tab = "weight" | "body" | "sleep";
@@ -93,7 +94,7 @@ export function BodyHistoryDrawer({ open, tab, userId, onClose, onSelectDate }: 
           [userId]);
       }
       setSummaries(rows);
-    } catch { }
+    } catch (e) { logError("BodyHistoryDrawer", e); }
   };
 
   const toggleExpand = async (date: string) => {
@@ -122,7 +123,7 @@ export function BodyHistoryDrawer({ open, tab, userId, onClose, onSelectDate }: 
             [userId, date]);
           setDetails(d => ({ ...d, [date]: { type: "sleep", items } }));
         }
-      } catch { }
+      } catch (e) { logError("BodyHistoryDrawer", e); }
       setLoadingDetail(null);
     }
   };
@@ -214,7 +215,7 @@ export function BodyHistoryDrawer({ open, tab, userId, onClose, onSelectDate }: 
       />
       <div
         className={clsx(
-          "fixed top-0 right-0 h-full w-full sm:w-[360px] shadow-2xl z-[60] flex flex-col transition-transform duration-300",
+          "fixed top-0 right-0 h-full w-full sm:w-[360px] bg-white shadow-2xl z-[60] flex flex-col transition-transform duration-300",
           open ? "translate-x-0" : "translate-x-full"
         )}
         {...swipeClose}
