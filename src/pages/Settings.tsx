@@ -3,7 +3,7 @@ import { useSwipeTabs } from "@/hooks/useSwipe";
 import {
   Settings2, Shield, Download, Upload, Database,
   Eye, EyeOff, Check, X, AlertCircle, FileDown,
-  FolderOpen, Lock,
+  FolderOpen, Lock, Trash2,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
@@ -64,6 +64,11 @@ export function Settings() {
   const [syncPath, setSyncPath]             = useState<string>("");
   const [syncing, setSyncing]               = useState(false);
   const [syncMsg, setSyncMsg]               = useState<{ ok: boolean; text: string } | null>(null);
+
+  // ── Reset state ─────────────────────────────────────────────────────────────
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetting, setResetting]               = useState(false);
+  const [resetMsg, setResetMsg]                 = useState<{ ok: boolean; text: string } | null>(null);
 
   // ── Export / Import state ───────────────────────────────────────────────────
   const [exporting, setExporting]               = useState(false);
@@ -541,6 +546,37 @@ const loadPinStatus = async () => {
     }
   };
 
+  const performReset = async () => {
+    setShowResetConfirm(false);
+    setResetting(true);
+    setResetMsg(null);
+    try {
+      const db = await getDb();
+      const USER_TABLES = [
+        "meal_template_items", "meal_template",
+        "meal_log", "water_log",
+        "exercise_log",
+        "strength_set", "strength_session",
+        "running_interval", "running_session",
+        "weight_log", "body_composition_log",
+        "sleep_log",
+        "user_favorites",
+        "mode_settings",
+        "user_profile",
+        "app_settings",
+        "_seed_meta",
+      ];
+      for (const tbl of USER_TABLES) {
+        await db.execute(`DELETE FROM ${tbl}`).catch(() => {});
+      }
+      setResetMsg({ ok: true, text: t("settings.reset.done") });
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e: any) {
+      setResetMsg({ ok: false, text: t("settings.reset.fail") + (e?.message ?? String(e)) });
+      setResetting(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto h-full flex flex-col" {...settingsSwipe}>
       {/* Frozen header + tabs */}
@@ -1008,6 +1044,56 @@ const loadPinStatus = async () => {
                   <button onClick={confirmImportPin} disabled={importing}
                     className="btn-primary flex-1 disabled:opacity-40">
                     {importing ? t("settings.db.checking") : t("common.confirm")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reset all data */}
+          <div className="card border border-red-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Trash2 size={16} className="text-red-500" />
+              <span className="text-sm font-semibold text-red-600">{t("settings.reset.title")}</span>
+            </div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mb-3">{t("settings.reset.desc")}</p>
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              disabled={resetting}
+              className="w-full py-2.5 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600 font-medium hover:bg-red-100 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+              <Trash2 size={15} />
+              {resetting ? t("settings.reset.resetting") : t("settings.reset.btn")}
+            </button>
+            {resetMsg && (
+              <div className={clsx(
+                "mt-3 p-3 rounded-xl flex items-start gap-2",
+                resetMsg.ok ? "bg-green-50 border border-green-100" : "bg-red-50 border border-red-100"
+              )}>
+                {resetMsg.ok
+                  ? <Check size={14} className="text-green-600 mt-0.5 shrink-0" />
+                  : <X size={14} className="text-red-500 mt-0.5 shrink-0" />}
+                <p className={clsx("text-xs", resetMsg.ok ? "text-green-700" : "text-red-600")}>
+                  {resetMsg.text}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Reset confirmation modal */}
+          {showResetConfirm && (
+            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={20} className="text-red-500 shrink-0" />
+                  <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("settings.reset.confirmTitle")}</h3>
+                </div>
+                <p className="text-sm text-[var(--text-on-surface-muted)] leading-relaxed">{t("settings.reset.confirmWarn")}</p>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setShowResetConfirm(false)}
+                    className="btn-ghost flex-1 border border-[var(--surface-border)]">{t("common.cancel")}</button>
+                  <button onClick={performReset}
+                    className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-all">
+                    {t("settings.reset.btn")}
                   </button>
                 </div>
               </div>
