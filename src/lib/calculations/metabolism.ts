@@ -20,16 +20,6 @@ export function bmr(weightKg: number, heightCm: number, age: number, sex: Sex): 
   return sex === 'male' ? base + 5 : base - 161;
 }
 
-/** Katch–McArdle: uses LBM(kg) — more accurate when body fat is known */
-export function bmrHighAccuracy(lbmKg: number): number {
-  return 370 + 21.6 * lbmKg;
-}
-
-/** Cunningham: for athletes */
-export function bmrAthlete(lbmKg: number): number {
-  return 500 + 22 * lbmKg;
-}
-
 export function neat(bmrValue: number, activityLevel: ActivityLevel): number {
   return bmrValue * (NEAT_MULTIPLIERS[activityLevel] ?? 0);
 }
@@ -38,6 +28,3 @@ export function tdeeBasic(bmrValue: number, neatValue: number): number {
   return bmrValue + neatValue;
 }
 
-export function tdeeWithExercise(bmrValue: number, neatValue: number, exerciseKcal: number): number {
-  return bmrValue + neatValue + exerciseKcal;
-}

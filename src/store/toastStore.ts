@@ -11,7 +11,6 @@ export interface ToastMsg {
 interface ToastState {
   toast: ToastMsg | null;
   show: (text: string, kind?: ToastKind, durationMs?: number) => void;
-  dismiss: () => void;
 }
 
 let _counter = 0;
@@ -26,10 +25,6 @@ export const useToastStore = create<ToastState>((set) => ({
     _hideTimer = setTimeout(() => {
       set((s) => (s.toast?.id === id ? { toast: null } : s));
     }, durationMs);
-  },
-  dismiss: () => {
-    if (_hideTimer) clearTimeout(_hideTimer);
-    set({ toast: null });
   },
 }));
 

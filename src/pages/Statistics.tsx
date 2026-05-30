@@ -50,59 +50,7 @@ interface TrendTabData {
   lagSections: { targetLabel: string; rows: LagRow[] }[];
 }
 
-interface AdvResult {
-  varKey: string;
-  label: string;
-  r: number | null;        // null = insufficient paired data
-  daysWithData: number;    // actual (non-interpolated) data days
-  density: number;         // 0-100 percentage
-  densityColor: "green" | "yellow" | "red";
-}
-
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-
-
-// (formatter kept for future use)
-
-// ─── Helper: linear interpolation over a date-keyed map ────────────────────
-
-function linearInterpolate(dataMap: Map<string, number>, allDates: string[]): Map<string, number> {
-  const result = new Map<string, number>();
-  const knownDates = [...dataMap.keys()].sort();
-  if (knownDates.length === 0) return result;
-  if (knownDates.length === 1) {
-    result.set(knownDates[0], dataMap.get(knownDates[0])!);
-    return result;
-  }
-  for (const date of allDates) {
-    if (dataMap.has(date)) {
-      result.set(date, dataMap.get(date)!);
-      continue;
-    }
-    // Find nearest known surrounding dates
-    let prev: string | undefined;
-    let next: string | undefined;
-    for (const kd of knownDates) {
-      if (kd <= date) prev = kd;
-      else if (!next) { next = kd; break; }
-    }
-    if (prev && next) {
-      const pv = dataMap.get(prev)!;
-      const nv = dataMap.get(next)!;
-      const pt = new Date(prev).getTime();
-      const nt = new Date(next).getTime();
-      const dt = new Date(date).getTime();
-      const t  = (dt - pt) / (nt - pt);
-      result.set(date, pv + t * (nv - pv));
-    } else if (prev) {
-      result.set(date, dataMap.get(prev)!);
-    } else if (next) {
-      result.set(date, dataMap.get(next)!);
-    }
-  }
-  return result;
-}
 
 function computePearsonAligned(
   goalPts: number[],
@@ -128,16 +76,6 @@ function pearsonFromArrays(x: number[], y: number[]): number {
   }
   const denom = Math.sqrt(sx * sy);
   return denom === 0 ? 0 : num / denom;
-}
-
-function buildDateRange(from: string, to: string): string[] {
-  const dates: string[] = [];
-  const d = new Date(from);
-  while (format(d, "yyyy-MM-dd") <= to) {
-    dates.push(format(d, "yyyy-MM-dd"));
-    d.setDate(d.getDate() + 1);
-  }
-  return dates;
 }
 
 // ─── Trend helpers ────────────────────────────────────────────────────────────
@@ -198,293 +136,6 @@ function rollingChangeMap(
   return result;
 }
 
-// ─── Goal metric label (bilingual) ──────────────────────────────────────────
-
-function getGoalMetricLabel(
-  cfg: { category?: string; metric?: string; agg?: string },
-  lang: string,
-): string {
-  const zh: Record<string, string> = {
-    "distance_km":      "有氧距離 (km)",
-    "duration_min":     "有氧時長 (min)",
-    "avg_speed":        "平均速度 (km/h)",
-    "max_weight":       "最大重量 (kg)",
-    "total_volume":     "總訓練量 (kg)",
-    "total_reps":       "總次數",
-    "calories_burned":  "消耗熱量 (kcal)",
-    "body_fat_pct":     "體脂率 (%)",
-    "skeletal_muscle_kg": "骨骼肌 (kg)",
-    "body_water_pct":   "身體水分 (%)",
-    "visceral_fat_level": "內臟脂肪等級",
-  };
-  const en: Record<string, string> = {
-    "distance_km":      "Cardio distance (km)",
-    "duration_min":     "Cardio duration (min)",
-    "avg_speed":        "Avg speed (km/h)",
-    "max_weight":       "Max weight (kg)",
-    "total_volume":     "Total volume (kg)",
-    "total_reps":       "Total reps",
-    "calories_burned":  "Calories burned (kcal)",
-    "body_fat_pct":     "Body fat (%)",
-    "skeletal_muscle_kg": "Skeletal muscle (kg)",
-    "body_water_pct":   "Body water (%)",
-    "visceral_fat_level": "Visceral fat level",
-  };
-  const dict = lang === "zh" ? zh : en;
-  const m = cfg.metric ?? "";
-  return dict[m] ?? m;
-}
-
-// ─── Stat variable query helpers ─────────────────────────────────────────────
-
-async function queryStatVar(
-  varKey: string,
-  userId: number,
-  from: string,
-  to: string,
-): Promise<Map<string, number>> {
-  const db = await getDb();
-  const map = new Map<string, number>();
-  let rows: { log_date: string; value: number }[] = [];
-
-  switch (varKey) {
-    case "weight":
-      rows = await db.select(
-        `SELECT log_date, AVG(weight_kg) as value FROM weight_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ?
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "bodyFat":
-      // Prefer body_composition_log, fallback to weight_log
-      rows = await db.select(
-        `SELECT date, AVG(bf) as value FROM (
-           SELECT log_date as date, body_fat_pct as bf FROM body_composition_log
-             WHERE user_id=? AND log_date BETWEEN ? AND ? AND body_fat_pct IS NOT NULL
-           UNION ALL
-           SELECT log_date as date, body_fat_pct as bf FROM weight_log
-             WHERE user_id=? AND log_date BETWEEN ? AND ? AND body_fat_pct IS NOT NULL
-         ) GROUP BY date`,
-        [userId, from, to, userId, from, to]);
-      rows = rows.map(r => ({ log_date: (r as any).date, value: r.value }));
-      break;
-    case "calories":
-      rows = await db.select(
-        `SELECT ml.log_date, ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal), 1) as value
-         FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
-         WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
-         GROUP BY ml.log_date`,
-        [userId, from, to]);
-      break;
-    case "protein":
-      rows = await db.select(
-        `SELECT ml.log_date, ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g), 1) as value
-         FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
-         WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
-         GROUP BY ml.log_date`,
-        [userId, from, to]);
-      break;
-    case "water":
-      rows = await db.select(
-        `SELECT log_date, SUM(amount_ml) as value FROM water_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ?
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "sleep":
-      rows = await db.select(
-        `SELECT sleep_date as log_date, AVG(duration_hours) as value FROM sleep_log
-         WHERE user_id=? AND sleep_date BETWEEN ? AND ? AND duration_hours IS NOT NULL
-         GROUP BY sleep_date`,
-        [userId, from, to]);
-      break;
-    case "exerciseCal":
-      rows = await db.select(
-        `SELECT log_date, ROUND(SUM(calories_burned), 1) as value FROM exercise_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ?
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "steps":
-      // Proxy: total cardio duration in minutes
-      rows = await db.select(
-        `SELECT log_date, SUM(duration_min) as value FROM exercise_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ?
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "carb":
-      rows = await db.select(
-        `SELECT ml.log_date, ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g), 1) as value
-         FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
-         WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
-         GROUP BY ml.log_date`,
-        [userId, from, to]);
-      break;
-    case "fat":
-      rows = await db.select(
-        `SELECT ml.log_date, ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g), 1) as value
-         FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
-         WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
-         GROUP BY ml.log_date`,
-        [userId, from, to]);
-      break;
-    case "muscleTotal":
-      rows = await db.select(
-        `SELECT log_date, AVG(skeletal_muscle_kg) as value FROM body_composition_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ? AND skeletal_muscle_kg IS NOT NULL
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "muscleTrunk":
-      rows = await db.select(
-        `SELECT log_date, AVG(muscle_trunk_kg) as value FROM body_composition_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ? AND muscle_trunk_kg IS NOT NULL
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "muscleLeftArm":
-      rows = await db.select(
-        `SELECT log_date, AVG(muscle_left_arm_kg) as value FROM body_composition_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ? AND muscle_left_arm_kg IS NOT NULL
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "muscleRightArm":
-      rows = await db.select(
-        `SELECT log_date, AVG(muscle_right_arm_kg) as value FROM body_composition_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ? AND muscle_right_arm_kg IS NOT NULL
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "muscleLeg":
-      rows = await db.select(
-        `SELECT log_date, AVG((COALESCE(muscle_left_leg_kg,0) + COALESCE(muscle_right_leg_kg,0)) / 2.0) as value
-         FROM body_composition_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ?
-           AND (muscle_left_leg_kg IS NOT NULL OR muscle_right_leg_kg IS NOT NULL)
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "waist":
-      rows = await db.select(
-        `SELECT log_date, AVG(waist_cm) as value FROM body_composition_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ? AND waist_cm IS NOT NULL
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-    case "visceralFat":
-      rows = await db.select(
-        `SELECT log_date, AVG(visceral_fat_level) as value FROM body_composition_log
-         WHERE user_id=? AND log_date BETWEEN ? AND ? AND visceral_fat_level IS NOT NULL
-         GROUP BY log_date`,
-        [userId, from, to]);
-      break;
-  }
-
-  for (const r of rows) {
-    if (r.value != null) map.set(r.log_date, r.value);
-  }
-  return map;
-}
-
-async function queryGoalMetric(
-  advGoalType: string,
-  cfg: { category?: string; metric?: string; agg?: string; exerciseName?: string },
-  userId: number,
-  from: string,
-  to: string,
-): Promise<Map<string, number>> {
-  const db = await getDb();
-  const map = new Map<string, number>();
-  let rows: { log_date: string; value: number }[] = [];
-
-  if (advGoalType === "body_composition") {
-    const field = cfg.metric ?? "body_fat_pct";
-    rows = await db.select(
-      `SELECT log_date, AVG(${field}) as value
-       FROM body_composition_log
-       WHERE user_id=? AND log_date BETWEEN ? AND ? AND ${field} IS NOT NULL
-       GROUP BY log_date ORDER BY log_date`,
-      [userId, from, to]);
-  } else if (advGoalType === "exercise_performance") {
-    const cat = cfg.category ?? "running";
-    const metric = cfg.metric ?? "duration_min";
-    const exName = cfg.exerciseName?.trim() ?? "";
-    if (cat === "running") {
-      if (metric === "distance_km") {
-        rows = await db.select(
-          `SELECT rs.log_date, SUM(ri.distance_km) as value
-           FROM running_session rs JOIN running_interval ri ON ri.session_id = rs.id
-           WHERE rs.user_id=? AND rs.log_date BETWEEN ? AND ?
-           GROUP BY rs.log_date ORDER BY rs.log_date`,
-          [userId, from, to]);
-      } else if (metric === "duration_min") {
-        rows = await db.select(
-          `SELECT rs.log_date, SUM(ri.duration_min) as value
-           FROM running_session rs JOIN running_interval ri ON ri.session_id = rs.id
-           WHERE rs.user_id=? AND rs.log_date BETWEEN ? AND ?
-           GROUP BY rs.log_date ORDER BY rs.log_date`,
-          [userId, from, to]);
-      } else if (metric === "avg_speed") {
-        rows = await db.select(
-          `SELECT rs.log_date,
-             ROUND(SUM(ri.distance_km) / (SUM(ri.duration_min) / 60.0), 2) as value
-           FROM running_session rs JOIN running_interval ri ON ri.session_id = rs.id
-           WHERE rs.user_id=? AND rs.log_date BETWEEN ? AND ?
-           GROUP BY rs.log_date HAVING SUM(ri.duration_min) > 0
-           ORDER BY rs.log_date`,
-          [userId, from, to]);
-      }
-    } else if (cat === "strength") {
-      const exFilter = exName ? " AND ss.exercise_name=?" : "";
-      const exParams = exName ? [exName] : [];
-      if (metric === "max_weight") {
-        rows = await db.select(
-          `SELECT ss.log_date, MAX(st.weight_kg) as value
-           FROM strength_session ss JOIN strength_set st ON st.session_id = ss.id
-           WHERE ss.user_id=? AND ss.log_date BETWEEN ? AND ?${exFilter}
-           GROUP BY ss.log_date ORDER BY ss.log_date`,
-          [userId, from, to, ...exParams]);
-      } else if (metric === "total_volume") {
-        rows = await db.select(
-          `SELECT ss.log_date, ROUND(SUM(st.weight_kg * st.reps), 1) as value
-           FROM strength_session ss JOIN strength_set st ON st.session_id = ss.id
-           WHERE ss.user_id=? AND ss.log_date BETWEEN ? AND ?${exFilter}
-           GROUP BY ss.log_date ORDER BY ss.log_date`,
-          [userId, from, to, ...exParams]);
-      } else if (metric === "total_reps") {
-        rows = await db.select(
-          `SELECT ss.log_date, SUM(st.reps) as value
-           FROM strength_session ss JOIN strength_set st ON st.session_id = ss.id
-           WHERE ss.user_id=? AND ss.log_date BETWEEN ? AND ?${exFilter}
-           GROUP BY ss.log_date ORDER BY ss.log_date`,
-          [userId, from, to, ...exParams]);
-      }
-    } else {
-      // other cardio
-      if (metric === "duration_min") {
-        rows = await db.select(
-          `SELECT log_date, SUM(duration_min) as value FROM exercise_log
-           WHERE user_id=? AND log_date BETWEEN ? AND ?
-           GROUP BY log_date ORDER BY log_date`,
-          [userId, from, to]);
-      } else if (metric === "calories_burned") {
-        rows = await db.select(
-          `SELECT log_date, ROUND(SUM(calories_burned), 1) as value FROM exercise_log
-           WHERE user_id=? AND log_date BETWEEN ? AND ?
-           GROUP BY log_date ORDER BY log_date`,
-          [userId, from, to]);
-      }
-    }
-  }
-
-  for (const r of rows) {
-    if (r.value != null) map.set(r.log_date, r.value);
-  }
-  return map;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function Statistics() {
@@ -513,12 +164,6 @@ export function Statistics() {
   const [trendData, setTrendData] = useState<TrendTabData | null>(null);
   const [patternsLoading, setPatternsLoading] = useState(false);
 
-  // Advanced tab — legacy correlation
-  const [_advResults, setAdvResults]       = useState<AdvResult[] | null>(null);
-  const [_advGoalLabel, setAdvGoalLabel]   = useState("");
-  const [advLoading, setAdvLoading]        = useState(false);
-  const [_advHasInterp, setAdvHasInterp]   = useState(false);
-
   // Advanced tab — new config UI
   interface VarCard { id: string; cfg: MetricCfg | null; confirmed: boolean; open: boolean }
   const [advGoalCfg, setAdvGoalCfg]           = useState<MetricCfg | null>(null);
@@ -526,7 +171,6 @@ export function Statistics() {
   const [advGoalOpen, setAdvGoalOpen]         = useState(false);
   const [advGoalConfirmed, setAdvGoalConfirmed] = useState(false);
   const [advVarCards, setAdvVarCards]         = useState<VarCard[]>([]);
-  const [_advChartData, setAdvChartData]       = useState<{ date: string; [k: string]: number | string | null }[]>([]);
   const [_advChartLoading, setAdvChartLoading] = useState(false);
   const [advPearsonResults, setAdvPearsonResults] = useState<Record<string, { r: number | null; density: number; reliability: Reliability }>>({});
 
@@ -565,7 +209,7 @@ export function Statistics() {
 
   useEffect(() => {
     if (profile) {
-      loadPearson(); loadTrend(); loadAdvanced();
+      loadPearson(); loadTrend();
       if (advGoalConfirmed && advGoalCfg) loadAdvChart(advGoalCfg, advVarCards, 1);
       if (adv2GoalConfirmed && adv2GoalCfg) loadAdvChart(adv2GoalCfg, adv2VarCards, 2);
     }
@@ -797,116 +441,6 @@ export function Statistics() {
     setPatternsLoading(false);
   };
 
-  const loadAdvanced = async () => {
-    if (!profile || !modeSettings?.adv_goal_type) {
-      setAdvResults(null);
-      return;
-    }
-    setAdvLoading(true);
-    try {
-      const { from, to } = getFromTo();
-      const allDates = buildDateRange(from, to);
-      const totalDays = allDates.length;
-
-      // Parse config
-      let cfg: { category?: string; metric?: string; agg?: string } = {};
-      try { cfg = JSON.parse(modeSettings.adv_goal_config ?? "{}"); } catch { }
-
-      // Parse selected stat variables
-      let statVars: string[] = [];
-      try { statVars = JSON.parse(modeSettings.adv_stat_variables ?? "[]"); } catch { }
-
-      // Goal metric label
-      const label = getGoalMetricLabel(cfg, lang);
-      setAdvGoalLabel(label);
-
-      // Goal metric time series
-      const goalMap = await queryGoalMetric(modeSettings.adv_goal_type, cfg, profile.user_id, from, to);
-      if (goalMap.size === 0) {
-        setAdvResults([]);
-        setAdvLoading(false);
-        return;
-      }
-
-      // Build interpolated goal map
-      const goalInterp = linearInterpolate(goalMap, allDates);
-
-      // For each stat variable, compute density + Pearson r
-      const advRes: AdvResult[] = [];
-      let anyInterp = false;
-
-      // Build i18n label map for stat vars
-      const varLabels: Record<string, string> = {
-        weight:      t("stat.var.weight"),
-        bodyFat:     t("stat.var.bodyFat"),
-        calories:    t("stat.var.calories"),
-        protein:     t("stat.var.protein"),
-        water:       t("stat.var.water"),
-        sleep:       t("stat.var.sleep"),
-        exerciseCal: t("stat.var.exerciseCal"),
-        steps:       t("stat.var.steps"),
-        carb:          t("stat.var.carb"),
-        fat:           t("stat.var.fat"),
-        muscleTotal:   t("stat.var.muscleTotal"),
-        muscleTrunk:   t("stat.var.muscleTrunk"),
-        muscleLeftArm: t("stat.var.muscleLeftArm"),
-        muscleRightArm:t("stat.var.muscleRightArm"),
-        muscleLeg:     t("stat.var.muscleLeg"),
-        waist:         t("stat.var.waist"),
-        visceralFat:   t("stat.var.visceralFat"),
-      };
-
-      for (const varKey of statVars) {
-        const rawMap = await queryStatVar(varKey, profile.user_id, from, to);
-        const daysWithActual = rawMap.size;
-        const density = totalDays > 0 ? Math.round((daysWithActual / totalDays) * 100) : 0;
-        const densityColor: "green" | "yellow" | "red" =
-          density >= 80 ? "green" : density >= 50 ? "yellow" : "red";
-
-        // Interpolate stat var
-        const varInterp = linearInterpolate(rawMap, allDates);
-        if (rawMap.size < allDates.length) anyInterp = true;
-
-        // Compute Pearson: use dates where BOTH goal (interp) and var (interp) have values
-        const xArr: number[] = [];
-        const yArr: number[] = [];
-        for (const date of allDates) {
-          const gv = goalInterp.get(date);
-          const vv = varInterp.get(date);
-          if (gv != null && vv != null) {
-            xArr.push(vv);
-            yArr.push(gv);
-          }
-        }
-
-        const r = xArr.length >= RELIABILITY_THRESHOLDS.MIN_PAIRS ? pearsonFromArrays(xArr, yArr) : null;
-
-        advRes.push({
-          varKey,
-          label: varLabels[varKey] ?? varKey,
-          r,
-          daysWithData: daysWithActual,
-          density,
-          densityColor,
-        });
-      }
-
-      setAdvHasInterp(anyInterp);
-      // Sort by |r| descending (null at end)
-      advRes.sort((a, b) => {
-        if (a.r === null && b.r === null) return 0;
-        if (a.r === null) return 1;
-        if (b.r === null) return -1;
-        return Math.abs(b.r) - Math.abs(a.r);
-      });
-      setAdvResults(advRes);
-    } catch (e) {
-      console.error("loadAdvanced error", e);
-      setAdvResults([]);
-    }
-    setAdvLoading(false);
-  };
-
   // ── New advanced: query a MetricCfg over date range ─────────────────────────
   const queryCustomMetric = async (cfg: MetricCfg, from: string, to: string): Promise<{ date: string; value: number }[]> => {
     if (!profile) return [];
@@ -1043,18 +577,6 @@ export function Statistics() {
       for (const { id, cfg } of allCfgs) {
         rawRows[id] = await queryCustomMetric(cfg, from, to);
       }
-      const allDates = new Set<string>();
-      for (const rows of Object.values(rawRows)) for (const r of rows) allDates.add(r.date);
-      const sorted = [...allDates].sort();
-      const dateMaps: Record<string, Map<string, number>> = {};
-      for (const { id } of allCfgs) {
-        dateMaps[id] = new Map(rawRows[id].map(r => [r.date, r.value]));
-      }
-      setAdvChartData(sorted.map(date => {
-        const pt: { date: string; [k: string]: number | string | null } = { date };
-        for (const { id } of allCfgs) pt[id] = dateMaps[id].get(date) ?? null;
-        return pt;
-      }));
       const goalValues = rawRows["__goal__"].map(r => r.value);
       const pearsonMap: Record<string, { r: number | null; density: number; reliability: Reliability }> = {};
       for (const v of confirmedVars) {
@@ -1434,9 +956,9 @@ export function Statistics() {
             </p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <button onClick={() => { loadPearson(); loadTrend(); loadAdvanced(); }} disabled={loading || advLoading || patternsLoading}
+            <button onClick={() => { loadPearson(); loadTrend(); }} disabled={loading || patternsLoading}
               className={clsx("p-2 rounded-xl transition-all border border-white/30 text-white bg-white/10",
-                (loading || advLoading || patternsLoading) ? "animate-spin opacity-40 cursor-wait" : "hover:bg-white/20")}>
+                (loading || patternsLoading) ? "animate-spin opacity-40 cursor-wait" : "hover:bg-white/20")}>
               <RefreshCw size={16} />
             </button>
           </div>

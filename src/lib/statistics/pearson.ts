@@ -254,47 +254,6 @@ export function computeInfluenceRanking(
     .slice(0, topN);
 }
 
-/**
- * For cut mode: factors negatively correlated with weight change are beneficial
- * (eating less = losing weight). Positive r factors increase weight.
- *
- * For bulk mode: factors positively correlated are beneficial.
- */
-export type GoalMode = 'cut' | 'bulk' | 'maintain';
-
-export function rankingInsight(result: CorrelationResult, goalMode: GoalMode, lang: 'zh' | 'en' = 'zh'): string {
-  const { label, factor, r, direction } = result;
-  const displayLabel = lang === 'en' ? FACTOR_LABELS_EN[factor] : label;
-
-  if (lang === 'en') {
-    const strength = Math.abs(r) > 0.5 ? 'strong' : Math.abs(r) > 0.3 ? 'moderate' : 'mild';
-    if (goalMode === 'cut') {
-      return direction === 'negative'
-        ? `${displayLabel} shows a ${strength} positive link with weight loss (more = helps cut)`
-        : `${displayLabel} shows a ${strength} positive link with weight gain (monitor intake)`;
-    }
-    if (goalMode === 'bulk') {
-      return direction === 'positive'
-        ? `${displayLabel} shows a ${strength} positive link with weight gain (supports bulk)`
-        : `${displayLabel} correlates with weight loss (may hinder bulk)`;
-    }
-    return `${displayLabel} correlation with weight change: ${r.toFixed(2)}`;
-  }
-
-  const strong = Math.abs(r) > 0.5 ? '強' : Math.abs(r) > 0.3 ? '中等' : '輕微';
-  if (goalMode === 'cut') {
-    return direction === 'negative'
-      ? `${displayLabel} 與體重下降呈${strong}正向關係（多攝取有助減重）`
-      : `${displayLabel} 與體重上升呈${strong}正向關係（需注意控制）`;
-  }
-  if (goalMode === 'bulk') {
-    return direction === 'positive'
-      ? `${displayLabel} 與體重增加呈${strong}正向關係（有助增肌增重）`
-      : `${displayLabel} 與體重下降相關（可能影響增重效果）`;
-  }
-  return `${displayLabel} 與體重變化的相關係數為 ${r.toFixed(2)}`;
-}
-
 // ── Lag correlation ─────────────────────────────────────────────────────────
 
 export interface LagResult {
@@ -336,31 +295,3 @@ export function bestLag(results: LagResult[]): LagResult | null {
   return results.length > 0 ? results[0] : null;
 }
 
-// ── Day-of-week pattern ─────────────────────────────────────────────────────
-
-export interface DayOfWeekPattern {
-  dayOfWeek: number;   // 0 = Sun .. 6 = Sat
-  label: string;
-  avg: number;
-  count: number;
-}
-
-const DOW_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const DOW_ZH = ['日', '一', '二', '三', '四', '五', '六'];
-
-export function dayOfWeekPattern(
-  points: { date: string; value: number }[],
-  lang: 'zh' | 'en' = 'zh',
-): DayOfWeekPattern[] {
-  const buckets: number[][] = Array.from({ length: 7 }, () => []);
-  for (const { date, value } of points) {
-    const dow = new Date(date).getDay();
-    buckets[dow].push(value);
-  }
-  return buckets.map((vals, dow) => ({
-    dayOfWeek: dow,
-    label: (lang === 'zh' ? DOW_ZH : DOW_EN)[dow],
-    avg: vals.length > 0 ? vals.reduce((s, v) => s + v, 0) / vals.length : 0,
-    count: vals.length,
-  }));
-}
