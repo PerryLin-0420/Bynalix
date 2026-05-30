@@ -186,9 +186,14 @@ export function FoodLog() {
   const [showCustomFood, setShowCustomFood] = useState(false);
   const [customFoodErr, setCustomFoodErr]   = useState<string | null>(null);
   const [cf, setCf] = useState({
-    name: "", name_en: "", calories: "", protein: "", carb: "", fat: "",
+    name: "", name_en: "", protein: "", carb: "", fat: "",
     quantity: "100", unit: "g", category: "", addToFav: true,
   });
+  const cfCalories = Math.round(
+    (parseFloat(cf.protein) || 0) * 4 +
+    (parseFloat(cf.carb)    || 0) * 4 +
+    (parseFloat(cf.fat)     || 0) * 9
+  );
 
   useEffect(() => {
     if (profile) { loadLog(); loadFavIds(); loadTemplates(); loadKnownTypes(); loadExtraFilters(); }
@@ -537,10 +542,9 @@ export function FoodLog() {
   };
 
   const saveCustomFood = async () => {
-    if (!cf.name || !cf.calories) return;
+    if (!cf.name) return;
     setCustomFoodErr(null);
     const cfErr =
-      checkBound(cf.calories, BOUNDS.caloriesVal,   lang, true) ??
       (cf.protein ? checkBound(cf.protein, BOUNDS.macroNutrient, lang) : null) ??
       (cf.carb    ? checkBound(cf.carb,    BOUNDS.macroNutrient, lang) : null) ??
       (cf.fat     ? checkBound(cf.fat,     BOUNDS.macroNutrient, lang) : null);
@@ -554,7 +558,7 @@ export function FoodLog() {
          VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
         [cf.name, cf.name_en.trim() || null,
          parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
-         parseFloat(cf.fat)||0, parseFloat(cf.calories),
+         parseFloat(cf.fat)||0, cfCalories,
          parseFloat(cf.quantity)||100, cf.unit||"g",
          cf.category||null, "custom", profile?.user_id??null]);
       if (cf.addToFav && profile) {
@@ -564,7 +568,7 @@ export function FoodLog() {
         setFavIds(s => new Set(s).add(Number(res.lastInsertId)));
       }
       setShowCustomFood(false);
-      setCf({ name:"", name_en:"", calories:"", protein:"", carb:"", fat:"", quantity:"100", unit:"g", category:"", addToFav:true });
+      setCf({ name:"", name_en:"", protein:"", carb:"", fat:"", quantity:"100", unit:"g", category:"", addToFav:true });
       doSearch(query, catFilter);
     } catch (e) {
       logError("FoodLog.saveCustomFood", e);
@@ -1202,22 +1206,6 @@ export function FoodLog() {
                   value={cf.name_en} onChange={e => setCf(f => ({ ...f, name_en: e.target.value }))} />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="relative">
-                  <input className="input-base pr-14"
-                    placeholder={lang === "en" ? "Calories *" : "熱量 *"} type="number" inputMode="decimal"
-                    value={cf.calories} onChange={e => setCf(f => ({ ...f, calories: e.target.value }))} />
-                  <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">kcal</span>
-                </div>
-                <div className="flex gap-1.5">
-                  <input className="input-base flex-1"
-                    placeholder={lang === "en" ? "Amount" : "份量"} type="number" inputMode="decimal"
-                    value={cf.quantity} onChange={e => setCf(f => ({ ...f, quantity: e.target.value }))} />
-                  <input className="input-base w-16 text-center" placeholder="g"
-                    value={cf.unit} onChange={e => setCf(f => ({ ...f, unit: e.target.value }))} />
-                </div>
-              </div>
-
               <div className="grid grid-cols-3 gap-2">
                 {([[t("dashboard.protein"),"protein"],[t("dashboard.carb"),"carb"],[t("food.oilFat"),"fat"]] as [string,string][]).map(([label, key]) => (
                   <div key={key} className="relative">
@@ -1227,6 +1215,21 @@ export function FoodLog() {
                     <span className="absolute right-2 top-2 text-xs text-[var(--text-on-surface-muted)]">g</span>
                   </div>
                 ))}
+              </div>
+
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--surface-container)] border border-[var(--surface-border)]">
+                <span className="text-xs text-[var(--text-on-surface-muted)] flex-1">
+                  {lang === "en" ? "Calories (P×4 + C×4 + F×9)" : "熱量（P×4 + C×4 + F×9）"}
+                </span>
+                <span className="text-sm font-semibold text-[var(--text-on-surface)]">{cfCalories} kcal</span>
+              </div>
+
+              <div className="flex gap-1.5">
+                <input className="input-base flex-1"
+                  placeholder={lang === "en" ? "Amount" : "份量"} type="number" inputMode="decimal"
+                  value={cf.quantity} onChange={e => setCf(f => ({ ...f, quantity: e.target.value }))} />
+                <input className="input-base w-16 text-center" placeholder="g"
+                  value={cf.unit} onChange={e => setCf(f => ({ ...f, unit: e.target.value }))} />
               </div>
 
               <div className="flex gap-2">
