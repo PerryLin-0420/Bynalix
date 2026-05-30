@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { format, addDays, subDays, parseISO } from "date-fns";
-import { fmtDay } from "@/lib/dateFormat";
-import { Dumbbell, Droplets, Plus, Trash2, X, Star, ChevronLeft, ChevronRight, History, Pencil, Check, AlertCircle } from "lucide-react";
+import { format } from "date-fns";
+import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
@@ -11,6 +10,7 @@ import { checkBound, BOUNDS } from "@/lib/validate";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { NoProfile } from "@/components/common/NoProfile";
+import { DateNavHeader } from "@/components/layout/DateNavHeader";
 import { exerciseKcalBasic, exerciseKcalLbm, cardioSessionKcal, strengthEstKcal, type Intensity, type CardioType as CardioKind } from "@/lib/calculations/exercise";
 import { BODY_PART_COLORS } from "@/constants";
 import { leanBodyMass } from "@/lib/calculations/bodyComposition";
@@ -674,57 +674,18 @@ export function ExerciseLog() {
 
   if (!profile) return <NoProfile />;
 
-  const isToday = selectedDate === todayStr;
 
   return (
     <div className="pt-4 md:pt-6 px-4 md:px-6 max-w-2xl mx-auto pb-36 md:pb-6" {...exSwipe}>
       {/* Sticky header */}
-      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 pb-4 pt-1 md:pt-4 flex items-start justify-between shrink-0"
-        style={{ background: 'var(--bg-main)', backgroundAttachment: 'fixed' }}>
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-on-bg)]">{t("exercise.pageTitle")}</h1>
-          <p className="text-[var(--text-on-bg-muted)] font-bold text-sm mt-0.5">
-            {isToday ? t("common.today") : fmtDay(selectedDate, lang)}
-          </p>
-        </div>
-        <button
-          onClick={() => setHistoryOpen(true)}
-          className="p-2 text-[var(--text-on-bg)] hover:text-[var(--text-on-bg-muted)] transition-colors mt-0.5"
-          title={t("exercise.historyTitle")}
-        >
-          <History size={20} />
-        </button>
-      </div>
-
-      {/* Date navigation */}
-      <div className="flex items-center justify-between mb-4 bg-white/10 rounded-xl px-1 py-1">
-        <button
-          onClick={() => setSelectedDate(format(subDays(parseISO(selectedDate), 1), "yyyy-MM-dd"))}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] transition-colors active:bg-white/20 rounded-xl"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <span className="text-sm font-medium text-[var(--text-on-bg)]">
-          {isToday
-            ? `${t("common.today")} · ${format(parseISO(selectedDate), "M/d")}`
-            : fmtDay(selectedDate, lang)}
-        </span>
-        <button
-          onClick={() => {
-            const next = format(addDays(parseISO(selectedDate), 1), "yyyy-MM-dd");
-            if (next <= todayStr) setSelectedDate(next);
-          }}
-          className={clsx(
-            "min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors rounded-xl",
-            selectedDate >= todayStr
-              ? "text-[var(--text-on-bg-faint)] cursor-not-allowed"
-              : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] active:bg-white/20"
-          )}
-          disabled={selectedDate >= todayStr}
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
+      <DateNavHeader
+        title={t("exercise.pageTitle")}
+        historyTitle={t("exercise.historyTitle")}
+        selectedDate={selectedDate}
+        todayStr={todayStr}
+        onDateChange={setSelectedDate}
+        onHistory={() => setHistoryOpen(true)}
+      />
 
       {/* History drawer */}
       <ExerciseHistoryDrawer

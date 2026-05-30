@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { format, addDays, subDays, parseISO } from "date-fns";
-import { zhTW } from "date-fns/locale";
+import { format } from "date-fns";
 import {
   Search, Plus, X, Star, Trash2, UtensilsCrossed,
-  Clock, Bookmark, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, History, Pencil, Check, AlertCircle,
+  Clock, Bookmark, ChevronDown, ChevronUp, Pencil, Check, AlertCircle,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
@@ -13,6 +12,7 @@ import { showToast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { NoProfile } from "@/components/common/NoProfile";
+import { DateNavHeader } from "@/components/layout/DateNavHeader";
 import { FoodHistoryDrawer } from "@/components/food/FoodHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
 
@@ -655,58 +655,17 @@ export function FoodLog() {
 
   if (!profile) return <NoProfile />;
 
-  const isToday = selectedDate === todayStr;
 
   return (
     <div className="pt-4 md:pt-6 px-4 md:px-6 max-w-2xl mx-auto pb-24">
-      {/* Sticky header */}
-      <div 
-        className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 pb-4 pt-1 md:pt-4 flex items-start justify-between shrink-0"
-        style={{ background: 'var(--bg-main)', backgroundAttachment: 'fixed' }}>
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-on-bg)]">{t("food.logTitle")}</h1>
-          <p className="text-[var(--text-on-bg-muted)] font-bold text-sm mt-0.5">
-            {isToday ? t("common.today") : format(parseISO(selectedDate), lang === "zh" ? "M/d EEE" : "M/d EEE", { locale: lang === "zh" ? zhTW : undefined })}
-          </p>
-        </div>
-        <button
-          onClick={() => setHistoryOpen(true)}
-          className="p-2 text-[var(--text-on-bg)] hover:text-[var(--text-on-bg-muted)] transition-colors mt-0.5"
-          title={t("food.history")}
-        >
-          <History size={20} />
-        </button>
-      </div>
-
-      {/* Date navigation */}
-      <div className="flex items-center justify-between mb-4 bg-white/10 rounded-xl px-1 py-1">
-        <button
-          onClick={() => setSelectedDate(format(subDays(parseISO(selectedDate), 1), "yyyy-MM-dd"))}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] transition-colors active:bg-white/20 rounded-xl"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <span className="text-sm font-medium text-[var(--text-on-bg)]">
-          {isToday
-            ? `${t("common.today")} · ${format(parseISO(selectedDate), "M/d")}`
-            : format(parseISO(selectedDate), "M/d (EEE)", { locale: lang === "zh" ? zhTW : undefined })}
-        </span>
-        <button
-          onClick={() => {
-            const next = format(addDays(parseISO(selectedDate), 1), "yyyy-MM-dd");
-            if (next <= todayStr) setSelectedDate(next);
-          }}
-          className={clsx(
-            "min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors rounded-xl",
-            selectedDate >= todayStr
-              ? "text-[var(--text-on-bg-faint)] cursor-not-allowed"
-              : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] active:bg-white/20"
-          )}
-          disabled={selectedDate >= todayStr}
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
+      <DateNavHeader
+        title={t("food.logTitle")}
+        historyTitle={t("food.history")}
+        selectedDate={selectedDate}
+        todayStr={todayStr}
+        onDateChange={setSelectedDate}
+        onHistory={() => setHistoryOpen(true)}
+      />
 
       {/* History drawer */}
       <FoodHistoryDrawer

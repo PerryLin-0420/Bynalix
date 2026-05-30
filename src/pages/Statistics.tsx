@@ -59,6 +59,41 @@ const densityColor = (d: number): "green" | "yellow" | "red" =>
 const densityDotCls = (d: number): string =>
   d >= 80 ? "text-green-500" : d >= 50 ? "text-amber-400" : "text-red-400";
 
+// ─── Shared sub-components ────────────────────────────────────────────────────
+
+function PearsonBarChart({ data, colorFor, lang }: {
+  data: { label: string; r: number | null }[];
+  colorFor: (d: { label: string; r: number | null }) => boolean;
+  lang: string;
+}) {
+  return (
+    <div className="card">
+      <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">
+        {lang === "zh" ? "相關係數排名" : "Correlation Ranking"}
+      </p>
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 40, left: -20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#374151" }}
+            axisLine={false} tickLine={false}
+            angle={-30} textAnchor="end" interval={0} />
+          <YAxis domain={[-1, 1]}
+            tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
+            tickFormatter={(v: number) => v.toFixed(1)} />
+          <Tooltip
+            formatter={(v: number) => [v.toFixed(3), "Pearson r"]}
+            contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
+          <Bar dataKey="r" radius={[4, 4, 0, 0]} maxBarSize={40}>
+            {data.map((d, i) => (
+              <Cell key={i} fill={colorFor(d) ? "#10b981" : "#f87171"} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function computePearsonAligned(
   goalPts: number[],
   varPts: number[],
@@ -763,33 +798,8 @@ export function Statistics() {
             .filter(d => d.r !== null)
             .sort((a, b) => Math.abs(b.r!) - Math.abs(a.r!));
           if (chartData.length === 0) return null;
-          return (
-            <div className="card">
-              <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">
-                {lang === "zh" ? "相關係數排名" : "Correlation Ranking"}
-              </p>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 40, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#374151" }}
-                    axisLine={false} tickLine={false}
-                    angle={-30} textAnchor="end" interval={0} />
-                  <YAxis domain={[-1, 1]}
-                    tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
-                    tickFormatter={v => v.toFixed(1)} />
-                  <Tooltip
-                    formatter={(v: number) => [v.toFixed(3), "Pearson r"]}
-                    contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
-                  <Bar dataKey="r" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                    {chartData.map((d, i) => {
-                      const good = d.dir === "up" ? d.r! > 0 : d.r! < 0;
-                      return <Cell key={i} fill={good ? "#10b981" : "#f87171"} />;
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          );
+          return <PearsonBarChart data={chartData} lang={lang}
+            colorFor={d => (d as any).dir === "up" ? (d.r ?? 0) > 0 : (d.r ?? 0) < 0} />;
         })()}
 
         {/* ── VARIABLES SECTION ───────────────────────────────────────── */}
@@ -1119,35 +1129,10 @@ export function Statistics() {
               .filter(f => f.r !== null)
               .sort((a, b) => Math.abs(b.r!) - Math.abs(a.r!));
             if (chartData.length === 0) return null;
-            return (
-              <div className="card">
-                <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">
-                  {lang === "zh" ? "相關係數排名" : "Correlation Ranking"}
-                </p>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 40, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#374151" }}
-                      axisLine={false} tickLine={false}
-                      angle={-30} textAnchor="end" interval={0} />
-                    <YAxis domain={[-1, 1]}
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
-                      tickFormatter={v => v.toFixed(1)} />
-                    <Tooltip
-                      formatter={(v: number) => [v.toFixed(3), "Pearson r"]}
-                      contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
-                    <Bar dataKey="r" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                      {chartData.map((d, i) => {
-                        const good = goalMode === "cut" ? d.r! < 0
-                          : goalMode === "bulk" ? d.r! > 0
-                          : d.r! > 0;
-                        return <Cell key={i} fill={good ? "#10b981" : "#f87171"} />;
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            );
+            return <PearsonBarChart data={chartData} lang={lang}
+              colorFor={d => goalMode === "cut" ? (d.r ?? 0) < 0
+                : goalMode === "bulk" ? (d.r ?? 0) > 0
+                : (d.r ?? 0) > 0} />;
           })()}
 
           {/* ── Factor cards (all 9, always shown) ─────────────────── */}
