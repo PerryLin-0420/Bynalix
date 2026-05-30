@@ -18,7 +18,7 @@ import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDate
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
 import { strengthEstKcal } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
-import { bmr, neat, tdeeBasic } from "@/lib/calculations/metabolism";
+import { bmr, bmrKM, neat, tdeeBasic } from "@/lib/calculations/metabolism";
 import { CHART_DATE_RANGES, MACRO_COLORS, BODY_PART_COLORS } from "@/constants";
 import type { WeightChartPoint, CalorieChartPoint } from "@/types";
 import { MiniCalendar } from "@/components/common/MiniCalendar";
@@ -230,9 +230,12 @@ export function History() {
   const targets = (() => {
     if (!profile || !modeSettings) return null;
     try {
-      const b = bmr(profile.weight_kg, profile.height_cm, profile.age, profile.sex);
+      const w = Math.round(profile.weight_kg);
+      const b = lbmKg != null
+        ? bmrKM(lbmKg)
+        : bmr(w, profile.height_cm, profile.age, profile.sex);
       return calculateNutritionTargets({
-        weightKg: profile.weight_kg, lbmKg, mode: modeSettings.mode,
+        weightKg: w, lbmKg, mode: modeSettings.mode,
         tdee: tdeeBasic(b, neat(b, profile.activity_level as any)),
         targetCalories: modeSettings.custom_calories ?? undefined,
       });

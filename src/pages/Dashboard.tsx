@@ -5,7 +5,7 @@ import { Droplets, Dumbbell, Scale, TrendingDown, TrendingUp, Minus, Flame, Whea
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
-import { bmr, neat, tdeeBasic } from "@/lib/calculations/metabolism";
+import { bmr, bmrKM, neat, tdeeBasic } from "@/lib/calculations/metabolism";
 import { getDashboardTotals, type DashboardTotals } from "@/lib/db/queries/log";
 import { getDashboardExtras, type DashboardExtras } from "@/lib/db/queries/dashboard";
 import { linearTrend } from "@/lib/statistics/trend";
@@ -48,11 +48,14 @@ export function Dashboard() {
   const targets = (() => {
     if (!profile || !modeSettings) return null;
     try {
-      const b = bmr(profile.weight_kg, profile.height_cm, profile.age, profile.sex);
+      const w = Math.round(profile.weight_kg);
+      const b = lbmKg != null
+        ? bmrKM(lbmKg)
+        : bmr(w, profile.height_cm, profile.age, profile.sex);
       const n = neat(b, profile.activity_level as any);
       const tdee = tdeeBasic(b, n);
       return calculateNutritionTargets({
-        weightKg: profile.weight_kg, lbmKg, mode: modeSettings.mode, tdee,
+        weightKg: w, lbmKg, mode: modeSettings.mode, tdee,
         targetCalories: modeSettings.custom_calories ?? undefined,
         customRatio: modeSettings.mode === "custom" && modeSettings.custom_protein_g
           ? { protein: modeSettings.custom_protein_g, carb: modeSettings.custom_carb_g ?? 1, fat: modeSettings.custom_fat_g ?? 1 }

@@ -20,6 +20,11 @@ export function bmr(weightKg: number, heightCm: number, age: number, sex: Sex): 
   return sex === 'male' ? base + 5 : base - 161;
 }
 
+/** Katch-McArdle: uses lean body mass only — more accurate when BF% is known. */
+export function bmrKM(lbmKg: number): number {
+  return 370 + 21.6 * lbmKg;
+}
+
 export function neat(bmrValue: number, activityLevel: ActivityLevel): number {
   return bmrValue * (NEAT_MULTIPLIERS[activityLevel] ?? 0);
 }

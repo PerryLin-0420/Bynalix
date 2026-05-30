@@ -3,7 +3,7 @@ import { useSwipeTabs } from "@/hooks/useSwipe";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { calculateNutritionTargets, weeklyWeightChange, type Mode } from "@/lib/calculations/strategy";
-import { bmr, tdeeBasic, neat } from "@/lib/calculations/metabolism";
+import { bmr, bmrKM, tdeeBasic, neat } from "@/lib/calculations/metabolism";
 import { checkBound, BOUNDS } from "@/lib/validate";
 import { clsx } from "clsx";
 import { Save, ChevronRight, Zap, TrendingDown, TrendingUp, Minus, FlaskConical, Target } from "lucide-react";
@@ -12,7 +12,7 @@ type GoalCategory  = "cut" | "maintain" | "bulk" | "custom";
 type GoalIntensity = "slow" | "normal" | "aggressive";
 
 export function Profile() {
-  const { profile, modeSettings, latestWeightLog, loadUser, saveProfile, saveMode } = useUserStore();
+  const { profile, modeSettings, latestWeightLog, loadUser, saveProfile, saveMode, lbmKg } = useUserStore();
   const { t, lang } = useLangStore();
 
   const ACTIVITY_LEVELS = [
@@ -118,14 +118,17 @@ export function Profile() {
       if (!w || !h || !a) return null;
       // Preview LBM: computed from current form values (not yet persisted)
       const previewLbm = bf != null && bf > 0 ? w * (1 - bf / 100) : null;
-      const bmrVal  = bmr(w, h, a, form.sex);
+      const wRounded = Math.round(w);
+      const bmrVal  = previewLbm != null
+        ? bmrKM(previewLbm)
+        : bmr(wRounded, h, a, form.sex);
       const neatVal = neat(bmrVal, form.activity_level as any);
       const tdee    = tdeeBasic(bmrVal, neatVal);
       const targetCal = goalCategory === "custom"
         ? (customCalFromMacros ?? undefined)
         : undefined;
       return calculateNutritionTargets({
-        weightKg: w,
+        weightKg: wRounded,
         lbmKg: previewLbm,
         mode: selectedMode,
         tdee,
@@ -285,6 +288,19 @@ export function Profile() {
                       />
                       <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">{unit}</span>
                     </div>
+                    {/* Inferred BF% hint — shown only for body_fat_pct field when lbm is stored but BF not entered */}
+                    {key === "body_fat_pct" && !form.body_fat_pct && lbmKg != null && (() => {
+                      const w = parseFloat(form.weight_kg);
+                      if (!w || w <= 0 || lbmKg >= w) return null;
+                      const inferredBf = ((w - lbmKg) / w * 100).toFixed(1);
+                      return (
+                        <p className="mt-1 text-[10px] text-[var(--text-on-surface-muted)]">
+                          {lang === "zh"
+                            ? `推算體脂：${inferredBf}%（依初始量測推算）`
+                            : `Est. body fat: ${inferredBf}% (inferred from initial measurement)`}
+                        </p>
+                      );
+                    })()}
                   </div>
                 );
               })}
