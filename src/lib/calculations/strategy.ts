@@ -16,10 +16,12 @@ const BULK_RATES: Record<string, number> = {
   bulk_lean: 0.25, bulk_normal: 0.5, bulk_aggressive: 0.75,
 };
 
-// Macro rules: [protein g/kg, fat g/kg]
-const CUT_MACRO      = [2.0, 0.8] as const;
-const MAINTAIN_MACRO = [1.6, 1.0] as const;
-const BULK_MACRO     = [1.6, 0.9] as const;
+// Macro rules: [protein g/kg LBM, fat fraction of target kcal]
+// Fat is a fixed % of calories so heavy users don't get carbs squeezed out.
+// Floor: fat ≥ 0.5 g/kg to preserve hormonal health at all weights.
+const CUT_MACRO      = [2.0, 0.30] as const;
+const MAINTAIN_MACRO = [1.6, 0.30] as const;
+const BULK_MACRO     = [1.6, 0.25] as const;
 
 export interface CustomRatio { protein: number; carb: number; fat: number }
 
@@ -61,25 +63,25 @@ export function calculateNutritionTargets(input: StrategyInput): MacroResult {
 
   let targetKcal: number;
   let proteinPerKg: number;
-  let fatPerKg: number;
+  let fatPct: number;
 
   if (mode in CUT_RATES) {
     targetKcal = targetKcalFromRate(weightKg, tdee, CUT_RATES[mode], true);
-    [proteinPerKg, fatPerKg] = CUT_MACRO;
+    [proteinPerKg, fatPct] = CUT_MACRO;
   } else if (mode in BULK_RATES) {
     targetKcal = targetKcalFromRate(weightKg, tdee, BULK_RATES[mode], false);
-    [proteinPerKg, fatPerKg] = BULK_MACRO;
+    [proteinPerKg, fatPct] = BULK_MACRO;
   } else {
-    // maintain
     targetKcal = tdee;
-    [proteinPerKg, fatPerKg] = MAINTAIN_MACRO;
+    [proteinPerKg, fatPct] = MAINTAIN_MACRO;
   }
 
-  const protein_g   = proteinPerKg * weightKg;
-  const fat_g       = fatPerKg * weightKg;
-  const remaining   = targetKcal - proteinKcal(protein_g) - fatKcal(fat_g);
+  const protein_g = proteinPerKg * weightKg;
+  // Fat = % of target kcal, floor at 0.5 g/kg for hormonal health
+  const fat_g     = Math.max(0.5 * weightKg, targetKcal * fatPct / 9);
+  const remaining = targetKcal - proteinKcal(protein_g) - fatKcal(fat_g);
   if (remaining < 0) throw new Error('Protein and fat exceed target calories');
-  const carb_g      = remaining / 4;
+  const carb_g    = remaining / 4;
 
   return macroResult(protein_g, carb_g, fat_g);
 }
