@@ -38,6 +38,8 @@ export function Profile() {
     activity_level: "moderately_active",
     body_fat_pct: "",
   });
+  // True when user actively edits BF% in this session — hides the inferred hint
+  const [bfUserEdited, setBfUserEdited] = useState(false);
 
   // Mode form state — two-tier
   const [goalCategory, setGoalCategory]   = useState<GoalCategory>("maintain");
@@ -74,6 +76,7 @@ export function Profile() {
         activity_level: profile.activity_level,
         body_fat_pct: profile.body_fat_pct != null ? String(profile.body_fat_pct) : "",
       });
+      setBfUserEdited(false); // reset on fresh load
     }
     if (modeSettings) {
       // Reverse-map flat mode → two-tier category + intensity
@@ -284,13 +287,16 @@ export function Profile() {
                         placeholder={placeholder}
                         inputMode={key === "age" ? "numeric" : "decimal"}
                         value={(form as any)[key]}
-                        onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                        onChange={e => {
+                          setForm(f => ({ ...f, [key]: e.target.value }));
+                          if (key === "body_fat_pct") setBfUserEdited(true);
+                        }}
                       />
                       <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">{unit}</span>
                     </div>
-                    {/* Inferred BF% — only shown when weight has been saved to DB and lbm_kg is stored */}
-                    {key === "body_fat_pct" && !form.body_fat_pct && lbmKg != null && profile && (() => {
-                      const w = Math.round(profile.weight_kg); // use persisted weight, not form input
+                    {/* Inferred BF% — shown whenever lbm_kg is stored and user hasn't manually edited BF this session */}
+                    {key === "body_fat_pct" && !bfUserEdited && lbmKg != null && profile && (() => {
+                      const w = Math.round(profile.weight_kg);
                       if (lbmKg >= w) return null;
                       const inferredBf = ((w - lbmKg) / w * 100).toFixed(1);
                       return (
