@@ -288,10 +288,10 @@ export function Profile() {
                       />
                       <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">{unit}</span>
                     </div>
-                    {/* Inferred BF% hint — shown only for body_fat_pct field when lbm is stored but BF not entered */}
-                    {key === "body_fat_pct" && !form.body_fat_pct && lbmKg != null && (() => {
-                      const w = parseFloat(form.weight_kg);
-                      if (!w || w <= 0 || lbmKg >= w) return null;
+                    {/* Inferred BF% — only shown when weight has been saved to DB and lbm_kg is stored */}
+                    {key === "body_fat_pct" && !form.body_fat_pct && lbmKg != null && profile && (() => {
+                      const w = Math.round(profile.weight_kg); // use persisted weight, not form input
+                      if (lbmKg >= w) return null;
                       const inferredBf = ((w - lbmKg) / w * 100).toFixed(1);
                       return (
                         <p className="mt-1 text-[10px] text-[var(--text-on-surface-muted)]">

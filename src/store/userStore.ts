@@ -1,6 +1,64 @@
 import { create } from "zustand";
+import { format, subDays } from "date-fns";
 import { getDb } from "@/lib/db";
 import type { UserProfile, ModeSettings, LatestWeightLog } from "@/types";
+
+const ACTIVITY_FROM_DAYS: [number, UserProfile["activity_level"]][] = [
+  [7, "extra_active"],
+  [5, "very_active"],
+  [3, "moderately_active"],
+  [1, "lightly_active"],
+  [0, "sedentary"],
+];
+
+function activityFromActiveDays(days: number): UserProfile["activity_level"] {
+  for (const [min, level] of ACTIVITY_FROM_DAYS) {
+    if (days >= min) return level;
+  }
+  return "sedentary";
+}
+
+async function maybeSyncActivityLevel(
+  db: Awaited<ReturnType<typeof getDb>>,
+  profile: UserProfile,
+): Promise<void> {
+  const today = new Date();
+  if (today.getDay() !== 0) return; // Sunday only
+
+  const todayStr = format(today, "yyyy-MM-dd");
+  const [lastRun] = await db.select<{ value: string }[]>(
+    "SELECT value FROM app_settings WHERE key='last_activity_auto_update'"
+  );
+  if (lastRun?.value === todayStr) return; // already ran today
+
+  const from = format(subDays(today, 6), "yyyy-MM-dd");
+  const uid  = profile.user_id;
+
+  const [row] = await db.select<{ active_days: number }[]>(
+    `SELECT COUNT(DISTINCT log_date) as active_days FROM (
+       SELECT log_date FROM exercise_log    WHERE user_id=? AND log_date BETWEEN ? AND ?
+       UNION
+       SELECT log_date FROM running_session WHERE user_id=? AND log_date BETWEEN ? AND ?
+       UNION
+       SELECT log_date FROM strength_session WHERE user_id=? AND log_date BETWEEN ? AND ?
+     )`,
+    [uid, from, todayStr, uid, from, todayStr, uid, from, todayStr]
+  );
+
+  const newLevel = activityFromActiveDays(row?.active_days ?? 0);
+  if (newLevel !== profile.activity_level) {
+    await db.execute(
+      "UPDATE user_profile SET activity_level=? WHERE user_id=?",
+      [newLevel, uid]
+    );
+    profile.activity_level = newLevel;
+  }
+
+  await db.execute(
+    "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('last_activity_auto_update', ?)",
+    [todayStr]
+  );
+}
 
 export type { UserProfile, ModeSettings, LatestWeightLog };
 
@@ -66,6 +124,11 @@ export const useUserStore = create<UserState>((set, get) => ({
             profile.body_fat_pct = latestW.body_fat_pct;
           }
         }
+      }
+
+      // Auto-update activity level every Sunday based on past-7-day exercise data
+      if (profile) {
+        try { await maybeSyncActivityLevel(db, profile); } catch { /* non-blocking */ }
       }
 
       set({ profile, modeSettings, latestWeightLog, lbmKg, isLoading: false });
