@@ -150,6 +150,26 @@ function weeklyFreq(rows: { log_date: string; session_count: number }[], days: n
   return Math.round((total / weeks) * 10) / 10;
 }
 
+// ─── Sleep helpers ───────────────────────────────────────────────────────────
+
+const sleepDot = (props: any) => {
+  const { cx, cy, payload } = props;
+  return <circle key={payload.date} cx={cx} cy={cy} r={4} fill={payload.color} stroke="white" strokeWidth={1.5} />;
+};
+
+function SleepQualityLegend({ t }: { t: (key: any) => string }) {
+  return (
+    <div className="flex gap-4 justify-center mt-3">
+      {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
+        <div key={q} className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: BODY_SLEEP_COLORS[q] }} />
+          <span className="text-xs text-[var(--text-on-surface-muted)]">{t(`body.sleep.${q}` as any)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function StatCard({ icon: Icon, label, value, unit, trend, color, trendFlat, trendDown, trendUp }: {
@@ -957,11 +977,7 @@ export function History() {
                         ]}
                         contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
                       <Line type="monotone" dataKey="hours" stroke="#6366f1" strokeWidth={2} connectNulls
-                        dot={(props: any) => {
-                          const { cx, cy, payload } = props;
-                          return <circle key={payload.date} cx={cx} cy={cy} r={4} fill={payload.color} stroke="white" strokeWidth={1.5} />;
-                        }}
-                        activeDot={{ r: 5 }} />
+                        dot={sleepDot} activeDot={{ r: 5 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
@@ -977,22 +993,11 @@ export function History() {
                         formatter={(_: number, __: string, entry: any) => [entry.payload.qualityLabel, lang === "zh" ? "睡眠" : "Sleep"]}
                         contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
                       <Line type="monotone" dataKey="quality" stroke="#6366f1" strokeWidth={2} connectNulls
-                        dot={(props: any) => {
-                          const { cx, cy, payload } = props;
-                          return <circle key={payload.date} cx={cx} cy={cy} r={4} fill={payload.color} stroke="white" strokeWidth={1.5} />;
-                        }}
-                        activeDot={{ r: 5 }} />
+                        dot={sleepDot} activeDot={{ r: 5 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 )}
-                <div className="flex gap-4 justify-center mt-3">
-                  {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
-                    <div key={q} className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: BODY_SLEEP_COLORS[q] }} />
-                      <span className="text-xs text-[var(--text-on-surface-muted)]">{t(`body.sleep.${q}` as any)}</span>
-                    </div>
-                  ))}
-                </div>
+                <SleepQualityLegend t={t} />
               </>
             )}
           </div>
@@ -1625,14 +1630,7 @@ export function History() {
               )}
 
               {/* Sleep quality legend */}
-              <div className="flex gap-4 justify-center mt-3">
-                {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
-                  <div key={q} className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: BODY_SLEEP_COLORS[q] }} />
-                    <span className="text-xs text-[var(--text-on-surface-muted)]">{t(`body.sleep.${q}` as any)}</span>
-                  </div>
-                ))}
-              </div>
+              <SleepQualityLegend t={t} />
             </div>
           </>
         );

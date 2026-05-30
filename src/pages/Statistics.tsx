@@ -94,6 +94,81 @@ function PearsonBarChart({ data, colorFor, lang }: {
   );
 }
 
+function FactorInsightCard({ label, r, density, isGood, insight, dcClx, reliabilityBadge, lang, onEdit, onRemove }: {
+  label: string;
+  r: number | null;
+  density: number;
+  isGood: boolean;
+  insight: string;
+  dcClx: string;
+  reliabilityBadge?: string | null;
+  lang: string;
+  onEdit?: () => void;
+  onRemove?: () => void;
+}) {
+  const Icon = r !== null && r > 0.1 ? TrendingUp : r !== null && r < -0.1 ? TrendingDown : Minus;
+  return (
+    <div className={clsx("card flex items-start gap-3 border-l-4",
+      r === null ? "border-l-gray-200" : isGood ? "border-l-green-400" : "border-l-red-300",
+      (reliabilityBadge !== undefined && !isGood && r !== null) && "opacity-75")}>
+      <div className={clsx("w-7 h-7 flex items-center justify-center shrink-0 text-base font-black leading-none",
+        r === null ? "text-gray-300" : isGood ? "text-emerald-600" : "text-rose-600")}>
+        ◎
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-[var(--text-on-surface)] truncate">{label}</p>
+          <div className="flex items-center gap-1 shrink-0">
+            {r !== null ? (
+              <div className="flex flex-col items-end gap-0.5">
+                <div className={clsx("flex items-center gap-1 text-xs font-mono font-bold",
+                  isGood ? "text-green-600" : "text-red-500")}>
+                  <span className={clsx("text-sm leading-none", dcClx)}>●</span>
+                  <Icon size={12} />
+                  {r >= 0 ? "+" : ""}{r.toFixed(3)}
+                </div>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
+                  <span className={clsx("text-sm font-bold leading-none", dcClx)}>{density}%</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-end gap-0.5 opacity-50">
+                <div className="flex items-center gap-1 text-xs font-mono font-bold text-gray-400">
+                  <span className="text-sm leading-none text-gray-300">●</span>
+                  <Minus size={12} />
+                </div>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
+                  <span className="text-sm font-bold leading-none text-gray-400">{density}%</span>
+                </div>
+              </div>
+            )}
+            {onEdit && (
+              <button onClick={onEdit} className="p-1 text-gray-400 hover:text-yellow-500 transition-colors">
+                <Pencil size={13} />
+              </button>
+            )}
+            {onRemove && (
+              <button onClick={onRemove} className="p-1 text-gray-400 hover:text-red-400 transition-colors">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">
+          {insight}
+          {reliabilityBadge && (
+            <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-600">
+              {reliabilityBadge}
+            </span>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function computePearsonAligned(
   goalPts: number[],
   varPts: number[],
@@ -855,92 +930,26 @@ export function Statistics() {
                 : null;
               const isGood = r === null ? false : goalDir === "up" ? r > 0 : r < 0;
               const abs = r !== null ? Math.abs(r) : 0;
-              const strength = abs > 0.5
-                ? (lang === "zh" ? "強" : "strong")
-                : abs > 0.3
-                  ? (lang === "zh" ? "中等" : "moderate")
-                  : (lang === "zh" ? "輕微" : "weak");
+              const strength = abs > 0.5 ? (lang === "zh" ? "強" : "strong") : abs > 0.3 ? (lang === "zh" ? "中等" : "moderate") : (lang === "zh" ? "輕微" : "weak");
               const insight = r === null
                 ? (lang === "zh" ? `資料密度 ${density}% 資料不足` : `Density ${density}% – Insufficient data`)
-                : abs <= 0.1
-                  ? (lang === "zh" ? "與目標無明顯相關" : "No clear correlation")
-                  : isGood
-                    ? `${lang === "zh" ? "與目標正向相關" : "Positively correlated"}（${strength}）`
-                    : `${lang === "zh" ? "可能影響目標" : "May affect goal"}（${strength}）`;
+                : abs <= 0.1 ? (lang === "zh" ? "與目標無明顯相關" : "No clear correlation")
+                : isGood ? `${lang === "zh" ? "與目標正向相關" : "Positively correlated"}（${strength}）`
+                : `${lang === "zh" ? "可能影響目標" : "May affect goal"}（${strength}）`;
               const dc = densityColor(density);
               const dcClx = dc === "green" ? "text-green-500" : dc === "yellow" ? "text-amber-400" : "text-red-400";
-              const Icon = r !== null && r > 0.1 ? TrendingUp : r !== null && r < -0.1 ? TrendingDown : Minus;
               return (
-                <div key={card.id}
-                  className={clsx("card flex items-start gap-3 border-l-4",
-                    r === null ? "border-l-gray-200"
-                      : isGood ? "border-l-green-400" : "border-l-red-300",
-                    (reliability === 'low' || reliability === 'insufficient') && "opacity-75")}>
-                  <div className={clsx("w-7 h-7 flex items-center justify-center shrink-0 text-base font-black leading-none",
-                    r === null ? "text-gray-300"
-                      : isGood ? "text-emerald-600" : "text-rose-600")}>
-                    ◎
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-[var(--text-on-surface)] truncate">{metricLabel(card.cfg!, lang)}</p>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {r !== null ? (
-                          <div className="flex flex-col items-end gap-0.5">
-                            <div className={clsx("flex items-center gap-1 text-xs font-mono font-bold",
-                              isGood ? "text-green-600" : "text-red-500")}>
-                              <span className={clsx("text-sm leading-none", dcClx)}>●</span>
-                              <Icon size={12} />
-                              {r >= 0 ? "+" : ""}{r.toFixed(3)}
-                            </div>
-                            <div className="flex items-baseline gap-0.5">
-                              <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
-                              <span className={clsx("text-sm font-bold leading-none", dcClx)}>{density}%</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-end gap-0.5 opacity-50">
-                            <div className="flex items-center gap-1 text-xs font-mono font-bold text-gray-400">
-                              <span className="text-sm leading-none text-gray-300">●</span>
-                              <Minus size={12} />
-                            </div>
-                            <div className="flex items-baseline gap-0.5">
-                              <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
-                              <span className="text-sm font-bold leading-none text-gray-400">{density}%</span>
-                            </div>
-                          </div>
-                        )}
-                        <button
-                          onClick={() => onSetVarCards(prev => prev.map(v => v.id === card.id ? { ...v, open: true } : v))}
-                          className="p-1 text-gray-400 hover:text-yellow-500 transition-colors"
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            onRemoveVar(card.id);
-                            if (goalCfg && goalConfirmed) {
-                              const remaining = varCards.filter(v => v.id !== card.id);
-                              saveAdvGoal(goalCfg, goalDir, remaining, slot);
-                              loadAdvChart(goalCfg, remaining, slot);
-                            }
-                          }}
-                          className="p-1 text-gray-400 hover:text-red-400 transition-colors"
-                        >
-                          <X size={13} />
-                        </button>
-                      </div>
-                    </div>
-                    <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">
-                      {insight}
-                      {reliabilityBadge && (
-                        <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-600">
-                          {reliabilityBadge}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                </div>
+                <FactorInsightCard key={card.id} label={metricLabel(card.cfg!, lang)} r={r} density={density}
+                  isGood={isGood} insight={insight} dcClx={dcClx} lang={lang} reliabilityBadge={reliabilityBadge}
+                  onEdit={() => onSetVarCards(prev => prev.map(v => v.id === card.id ? { ...v, open: true } : v))}
+                  onRemove={() => {
+                    onRemoveVar(card.id);
+                    if (goalCfg && goalConfirmed) {
+                      const remaining = varCards.filter(v => v.id !== card.id);
+                      saveAdvGoal(goalCfg, goalDir, remaining, slot);
+                      loadAdvChart(goalCfg, remaining, slot);
+                    }
+                  }} />
               );
             });
           })()}
@@ -1151,63 +1160,16 @@ export function Statistics() {
                   : goalMode === "bulk" ? r > 0
                   : r > 0;
                 const abs = r !== null ? Math.abs(r) : 0;
-                const strength = abs > 0.5
-                  ? (lang === "zh" ? "強" : "strong")
-                  : abs > 0.3
-                    ? (lang === "zh" ? "中等" : "moderate")
-                    : (lang === "zh" ? "輕微" : "weak");
+                const strength = abs > 0.5 ? (lang === "zh" ? "強" : "strong") : abs > 0.3 ? (lang === "zh" ? "中等" : "moderate") : (lang === "zh" ? "輕微" : "weak");
                 const insight = r === null
                   ? (lang === "zh" ? `資料密度 ${density}% 資料不足` : `Density ${density}% – Insufficient data`)
-                  : abs <= 0.1
-                    ? (lang === "zh" ? "與體重變化無明顯相關" : "No clear correlation with weight")
-                    : isGood
-                      ? `${lang === "zh" ? "有助達成目標" : "Supports your goal"}（${strength}）`
-                      : `${lang === "zh" ? "可能影響目標" : "May affect goal"}（${strength}）`;
+                  : abs <= 0.1 ? (lang === "zh" ? "與體重變化無明顯相關" : "No clear correlation with weight")
+                  : isGood ? `${lang === "zh" ? "有助達成目標" : "Supports your goal"}（${strength}）`
+                  : `${lang === "zh" ? "可能影響目標" : "May affect goal"}（${strength}）`;
                 const dc = densityColor(density);
                 const dcClx = dc === "green" ? "text-green-500" : dc === "yellow" ? "text-amber-400" : "text-red-400";
-                const Icon = r !== null && r > 0.1 ? TrendingUp : r !== null && r < -0.1 ? TrendingDown : Minus;
-                return (
-                  <div key={item.factor}
-                    className={clsx("card flex items-start gap-3 border-l-4",
-                      r === null ? "border-l-gray-200"
-                        : isGood ? "border-l-green-400" : "border-l-red-300")}>
-                    <div className={clsx("w-7 h-7 flex items-center justify-center shrink-0 text-base font-black leading-none",
-                      r === null ? "text-gray-300" : isGood ? "text-emerald-600" : "text-rose-600")}>
-                      ◎
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-[var(--text-on-surface)] truncate">{item.label}</p>
-                        {r !== null ? (
-                          <div className="flex flex-col items-end gap-0.5">
-                            <div className={clsx("flex items-center gap-1 text-xs font-mono font-bold",
-                              isGood ? "text-green-600" : "text-red-500")}>
-                              <span className={clsx("text-sm leading-none", dcClx)}>●</span>
-                              <Icon size={12} />
-                              {r >= 0 ? "+" : ""}{r.toFixed(3)}
-                            </div>
-                            <div className="flex items-baseline gap-0.5">
-                              <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
-                              <span className={clsx("text-sm font-bold leading-none", dcClx)}>{density}%</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-end gap-0.5 opacity-50">
-                            <div className="flex items-center gap-1 text-xs font-mono font-bold text-gray-400">
-                              <span className="text-sm leading-none text-gray-300">●</span>
-                              <Minus size={12} />
-                            </div>
-                            <div className="flex items-baseline gap-0.5">
-                              <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
-                              <span className="text-sm font-bold leading-none text-gray-400">{density}%</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">{insight}</p>
-                    </div>
-                  </div>
-                );
+                return <FactorInsightCard key={item.factor} label={item.label} r={r} density={density}
+                  isGood={isGood} insight={insight} dcClx={dcClx} lang={lang} />;
               });
             })()}
           </div>

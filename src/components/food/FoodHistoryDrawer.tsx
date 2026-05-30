@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import { format, parseISO } from "date-fns";
 import { zhTW } from "date-fns/locale";
-import { X, ChevronRight, ChevronDown } from "lucide-react";
-import { useSwipeClose } from "@/hooks/useSwipe";
-import { clsx } from "clsx";
+import { ChevronRight, ChevronDown } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { useLangStore } from "@/store/langStore";
+import { HistoryDrawerShell } from "@/components/layout/HistoryDrawerShell";
 
 interface Props {
   open: boolean;
@@ -50,7 +49,6 @@ const MEAL_LABEL_EN: Record<string, string> = {
 
 export function FoodHistoryDrawer({ open, userId, onClose, onSelectDate }: Props) {
   const { t, lang } = useLangStore();
-  const swipeClose = useSwipeClose(onClose);
   const [summaries, setSummaries]         = useState<DaySummary[]>([]);
   const [expanded, setExpanded]           = useState<string | null>(null);
   const [details, setDetails]             = useState<Record<string, MealGroup[]>>({});
@@ -127,37 +125,8 @@ export function FoodHistoryDrawer({ open, userId, onClose, onSelectDate }: Props
       : (MEAL_LABEL_ZH[type] ?? type);
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className={clsx(
-          "fixed inset-0 bg-black/40 z-[55] transition-opacity duration-300",
-          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        )}
-        onClick={onClose}
-      />
-
-      {/* Drawer panel */}
-      <div
-        className={clsx(
-          "fixed top-0 right-0 h-full w-full sm:w-[360px] bg-white shadow-2xl z-[60] flex flex-col transition-transform duration-300",
-          open ? "translate-x-0" : "translate-x-full"
-        )}
-        {...swipeClose}
-      >
-        {/* Safe-area cover for Android status bar */}
-        <div className="shrink-0" style={{ height: "env(safe-area-inset-top)" }} />
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-lg font-bold text-gray-900">{t("food.history")}</h2>
-          <button onClick={onClose} className="p-2 -mr-1 text-gray-400 hover:text-gray-600 transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          {summaries.length === 0 ? (
+    <HistoryDrawerShell open={open} title={t("food.history")} onClose={onClose}>
+      {summaries.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-400 text-sm">
               {t("food.noLog")}
             </div>
@@ -230,8 +199,6 @@ export function FoodHistoryDrawer({ open, userId, onClose, onSelectDate }: Props
               })}
             </div>
           )}
-        </div>
-      </div>
-    </>
+    </HistoryDrawerShell>
   );
 }

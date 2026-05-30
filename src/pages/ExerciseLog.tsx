@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import { format } from "date-fns";
 import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle } from "lucide-react";
 import { clsx } from "clsx";
@@ -75,6 +75,75 @@ const CARDIO_LABEL: Record<string, { zh: string; en: string }> = {
   swimming: { zh: "游泳",   en: "Swim" },
   cycling:  { zh: "自行車", en: "Ride" },
 };
+
+// ─── Shared sub-components ────────────────────────────────────────────────────
+
+type EditingEx = { id: number; duration: string; intensity: Intensity } | null;
+
+function ExerciseEntryCard({ e, editingEx, setEditingEx, saveEditEx, onDelete, kcalColor, intensityLabels, t, exName, catLabel }: {
+  e: ExerciseEntry;
+  editingEx: EditingEx;
+  setEditingEx: Dispatch<SetStateAction<EditingEx>>;
+  saveEditEx: () => void;
+  onDelete: () => void;
+  kcalColor: string;
+  intensityLabels: Record<string, string>;
+  t: (key: any) => string;
+  exName: (item: { exercise_name: string; name_en?: string | null }) => string;
+  catLabel: (cat: string | null | undefined) => string;
+}) {
+  return (
+    <div className="card">
+      {editingEx?.id === e.id ? (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-2">{exName(e)}</p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input className="input-base py-1.5 pr-10 text-sm" type="number" inputMode="decimal"
+                  value={editingEx.duration}
+                  onChange={ev => setEditingEx(x => x ? { ...x, duration: ev.target.value } : null)} />
+                <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">{t("exercise.min")}</span>
+              </div>
+              <select className="input-base py-1.5 text-sm flex-1"
+                value={editingEx.intensity}
+                onChange={ev => setEditingEx(x => x ? { ...x, intensity: ev.target.value as Intensity } : null)}>
+                {Object.entries(intensityLabels).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1 shrink-0">
+            <button onClick={saveEditEx} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
+              <Check size={15} />
+            </button>
+            <button onClick={() => setEditingEx(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-[var(--text-on-surface)]">{exName(e)}</p>
+            <p className="text-xs text-[var(--text-on-surface-muted)]">
+              {e.duration_min} {t("exercise.min")} · {intensityLabels[e.intensity]} · {catLabel(e.category)}
+            </p>
+          </div>
+          <p className={`text-sm font-bold ${kcalColor}`}>{Math.round(e.calories_burned)} kcal</p>
+          <button onClick={() => setEditingEx({ id: e.id, duration: String(e.duration_min), intensity: e.intensity })}
+            className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
+            <Pencil size={13} />
+          </button>
+          <button onClick={onDelete} className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -733,58 +802,9 @@ export function ExerciseLog() {
 
           {/* Logged exercise entries */}
           {exEntries.map(e => (
-            <div key={e.id} className="card">
-              {editingEx?.id === e.id ? (
-                /* ── Inline edit row ── */
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-2">{exName(e)}</p>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <input className="input-base py-1.5 pr-10 text-sm" type="number" inputMode="decimal" placeholder={t("exercise.durationLabel")}
-                          value={editingEx.duration}
-                          onChange={ev => setEditingEx(x => x ? { ...x, duration: ev.target.value } : null)} />
-                        <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">{t("exercise.min")}</span>
-                      </div>
-                      <select className="input-base py-1.5 text-sm flex-1"
-                        value={editingEx.intensity}
-                        onChange={ev => setEditingEx(x => x ? { ...x, intensity: ev.target.value as Intensity } : null)}>
-                        {Object.entries(INTENSITY_LABELS_T).map(([v, l]) => (
-                          <option key={v} value={v}>{l}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <button onClick={saveEditEx} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
-                      <Check size={15} />
-                    </button>
-                    <button onClick={() => setEditingEx(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                      <X size={15} />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* ── Normal view row ── */
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-[var(--text-on-surface)]">{exName(e)}</p>
-                    <p className="text-xs text-[var(--text-on-surface-muted)]">
-                      {e.duration_min} {t("exercise.min")} · {INTENSITY_LABELS_T[e.intensity]} · {catLabel(e.category)}
-                    </p>
-                  </div>
-                  <p className="text-sm font-bold text-orange-500">{Math.round(e.calories_burned)} kcal</p>
-                  <button onClick={() => setEditingEx({ id: e.id, duration: String(e.duration_min), intensity: e.intensity })}
-                    className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
-                    <Pencil size={13} />
-                  </button>
-                  <button onClick={async () => { await deleteExerciseEntry(e.id); loadAll(); }}
-                    className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              )}
-            </div>
+            <ExerciseEntryCard key={e.id} e={e} editingEx={editingEx} setEditingEx={setEditingEx}
+              saveEditEx={saveEditEx} onDelete={async () => { await deleteExerciseEntry(e.id); loadAll(); }}
+              kcalColor="text-orange-500" intensityLabels={INTENSITY_LABELS_T} t={t} exName={exName} catLabel={catLabel} />
           ))}
 
           {/* Cardio (有氧) summary reference */}
@@ -1225,48 +1245,9 @@ export function ExerciseLog() {
 
           {/* Entries list */}
           {otherEntries.map(e => (
-            <div key={e.id} className="card">
-              {editingEx?.id === e.id ? (
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-2">{exName(e)}</p>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <input className="input-base py-1.5 pr-10 text-sm" type="number" inputMode="decimal"
-                          value={editingEx.duration}
-                          onChange={ev => setEditingEx(x => x ? { ...x, duration: ev.target.value } : null)} />
-                        <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">{t("exercise.min")}</span>
-                      </div>
-                      <select className="input-base py-1.5 text-sm flex-1"
-                        value={editingEx.intensity}
-                        onChange={ev => setEditingEx(x => x ? { ...x, intensity: ev.target.value as Intensity } : null)}>
-                        {Object.entries(INTENSITY_LABELS_T).map(([v, l]) => (
-                          <option key={v} value={v}>{l}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <button onClick={saveEditEx} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={15} /></button>
-                    <button onClick={() => setEditingEx(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={15} /></button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-[var(--text-on-surface)]">{exName(e)}</p>
-                    <p className="text-xs text-[var(--text-on-surface-muted)]">
-                      {e.duration_min} {t("exercise.min")} · {INTENSITY_LABELS_T[e.intensity]} · {catLabel(e.category)}
-                    </p>
-                  </div>
-                  <p className="text-sm font-bold text-[var(--text-on-surface-sub)]">{Math.round(e.calories_burned)} kcal</p>
-                  <button onClick={() => setEditingEx({ id: e.id, duration: String(e.duration_min), intensity: e.intensity })}
-                    className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={13} /></button>
-                  <button onClick={async () => { await deleteExerciseEntry(e.id); loadAll(); }}
-                    className="p-1.5 text-red-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                </div>
-              )}
-            </div>
+            <ExerciseEntryCard key={e.id} e={e} editingEx={editingEx} setEditingEx={setEditingEx}
+              saveEditEx={saveEditEx} onDelete={async () => { await deleteExerciseEntry(e.id); loadAll(); }}
+              kcalColor="text-[var(--text-on-surface-sub)]" intensityLabels={INTENSITY_LABELS_T} t={t} exName={exName} catLabel={catLabel} />
           ))}
 
           <button onClick={() => { setExFormMode("other"); setShowExForm(true); setExSearch(""); setSelEx(null); }}
