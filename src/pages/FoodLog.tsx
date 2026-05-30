@@ -12,6 +12,7 @@ import { logError } from "@/lib/error";
 import { showToast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
+import { NoProfile } from "@/components/common/NoProfile";
 import { FoodHistoryDrawer } from "@/components/food/FoodHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
 
@@ -652,11 +653,7 @@ export function FoodLog() {
     (a, b) => ({ cal: a.cal + b.cal, p: a.p + b.p, c: a.c + b.c, f: a.f + b.f }),
     { cal: 0, p: 0, c: 0, f: 0 });
 
-  if (!profile) return (
-    <div className="flex items-center justify-center h-full text-[var(--text-on-bg-muted)] text-sm">
-      {t("common.noProfile")}
-    </div>
-  );
+  if (!profile) return <NoProfile />;
 
   const isToday = selectedDate === todayStr;
 

@@ -10,7 +10,9 @@ import { deleteExerciseEntry, deleteWaterEntry } from "@/lib/db/queries/log";
 import { checkBound, BOUNDS } from "@/lib/validate";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
-import { exerciseKcalBasic, exerciseKcalLbm, cardioSessionKcal, type Intensity, type CardioType as CardioKind } from "@/lib/calculations/exercise";
+import { NoProfile } from "@/components/common/NoProfile";
+import { exerciseKcalBasic, exerciseKcalLbm, cardioSessionKcal, strengthEstKcal, type Intensity, type CardioType as CardioKind } from "@/lib/calculations/exercise";
+import { BODY_PART_COLORS } from "@/constants";
 import { leanBodyMass } from "@/lib/calculations/bodyComposition";
 import { ExerciseHistoryDrawer } from "@/components/exercise/ExerciseHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
@@ -48,10 +50,6 @@ type BodyPart = typeof BODY_PARTS[number];
 
 const WATER_PRESETS = [150, 250, 350, 500];
 
-const BODY_PART_COLORS: Record<string, string> = {
-  胸: "#f97316", 背: "#3b82f6", 腿: "#10b981",
-  腹: "#f59e0b", 手: "#8b5cf6", 肩: "#ef4444",
-};
 
 // Body-part i18n key map (values stay Chinese in DB/state)
 const BODY_PART_I18N: Record<string, string> = {
@@ -636,12 +634,8 @@ export function ExerciseLog() {
   const previewKcal = calcKcal();
   const totalStrVol = sessions.reduce((s, sess) => s + sess.sets.reduce((a, st) => a + st.weight_kg * st.reps, 0), 0);
 
-  // Estimated kcal from strength: sets × 3 min × MET 5.0 × weight_kg / 60
   const wt = profile?.weight_kg ?? 70;
-  const totalStrKcal = sessions.reduce((sum, sess) => {
-    const durMin = sess.sets.length * 3;
-    return sum + Math.round(5.0 * wt * (durMin / 60));
-  }, 0);
+  const totalStrKcal = sessions.reduce((sum, sess) => sum + strengthEstKcal(sess.sets.length, wt), 0);
 
   // Running totals
   const totalRunKm = runningSessions.reduce((s, sess) =>
@@ -678,11 +672,7 @@ export function ExerciseLog() {
     { key: "water",    label: t("exercise.water") },
   ];
 
-  if (!profile) return (
-    <div className="flex items-center justify-center h-full text-[var(--text-on-bg-muted)] text-sm">
-      {t("common.noProfile")}
-    </div>
-  );
+  if (!profile) return <NoProfile />;
 
   const isToday = selectedDate === todayStr;
 

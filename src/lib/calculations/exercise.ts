@@ -95,3 +95,9 @@ export function cardioSessionKcal(
     intervals.reduce((sum, iv) => sum + cardioIntervalKcal(type, iv.distance_km, iv.duration_min, weightKg), 0)
   );
 }
+
+
+/** MET 5.0 estimate for a strength session: sets × 3 min per set. */
+export function strengthEstKcal(numSets: number, weightKg: number): number {
+  return Math.round(5.0 * weightKg * (numSets * 3 / 60));
+}

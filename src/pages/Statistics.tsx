@@ -12,6 +12,7 @@ import { subDays } from "date-fns";
 import { clsx } from "clsx";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
+import { NoProfile } from "@/components/common/NoProfile";
 import { useSwipeTabs } from "@/hooks/useSwipe";
 import { getDailyStatsRecords, getActiveDates } from "@/lib/db/queries/stats";
 import { getDb } from "@/lib/db";
@@ -51,6 +52,12 @@ interface TrendTabData {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+
+const densityColor = (d: number): "green" | "yellow" | "red" =>
+  d >= 80 ? "green" : d >= 50 ? "yellow" : "red";
+
+const densityDotCls = (d: number): string =>
+  d >= 80 ? "text-green-500" : d >= 50 ? "text-amber-400" : "text-red-400";
 
 function computePearsonAligned(
   goalPts: number[],
@@ -717,7 +724,7 @@ export function Statistics() {
                 }}>»</span>
               </button>
               {(() => {
-                const dc = goalDensity >= 80 ? "green" : goalDensity >= 50 ? "yellow" : "red";
+                const dc = densityColor(goalDensity);
                 const dcClx = dc === "green" ? "text-green-500" : dc === "yellow" ? "text-amber-400" : "text-red-400";
                 return (
                   <div className="flex items-baseline gap-0.5 shrink-0">
@@ -850,7 +857,7 @@ export function Statistics() {
                   : isGood
                     ? `${lang === "zh" ? "與目標正向相關" : "Positively correlated"}（${strength}）`
                     : `${lang === "zh" ? "可能影響目標" : "May affect goal"}（${strength}）`;
-              const dc = density >= 80 ? "green" : density >= 50 ? "yellow" : "red";
+              const dc = densityColor(density);
               const dcClx = dc === "green" ? "text-green-500" : dc === "yellow" ? "text-amber-400" : "text-red-400";
               const Icon = r !== null && r > 0.1 ? TrendingUp : r !== null && r < -0.1 ? TrendingDown : Minus;
               return (
@@ -934,11 +941,7 @@ export function Statistics() {
     );
   };
 
-  if (!profile) return (
-    <div className="flex items-center justify-center h-full text-[var(--text-on-bg-muted)] text-sm">
-      {t("common.noProfile")}
-    </div>
-  );
+  if (!profile) return <NoProfile />;
 
   return (
     <>
@@ -1070,7 +1073,7 @@ export function Statistics() {
             </div>
             {(() => {
               const wDensity = rangeTotal > 0 ? Math.round((daysWithData / rangeTotal) * 100) : 0;
-              const dc = wDensity >= 80 ? "green" : wDensity >= 50 ? "yellow" : "red";
+              const dc = densityColor(wDensity);
               const dcClx = dc === "green" ? "text-green-500" : dc === "yellow" ? "text-amber-400" : "text-red-400";
               const daysUntilUnlock = Math.max(0, RELIABILITY_THRESHOLDS.MIN_PAIRS - daysWithData);
               return (
@@ -1175,7 +1178,7 @@ export function Statistics() {
                     : isGood
                       ? `${lang === "zh" ? "有助達成目標" : "Supports your goal"}（${strength}）`
                       : `${lang === "zh" ? "可能影響目標" : "May affect goal"}（${strength}）`;
-                const dc = density >= 80 ? "green" : density >= 50 ? "yellow" : "red";
+                const dc = densityColor(density);
                 const dcClx = dc === "green" ? "text-green-500" : dc === "yellow" ? "text-amber-400" : "text-red-400";
                 const Icon = r !== null && r > 0.1 ? TrendingUp : r !== null && r < -0.1 ? TrendingDown : Minus;
                 return (
@@ -1329,7 +1332,7 @@ export function Statistics() {
                   const r    = row.best?.r   ?? null;
                   const lag  = row.best?.lag ?? null;
                   const n    = row.sampleSize;
-                  const dotClx = row.density >= 80 ? "text-green-500" : row.density >= 50 ? "text-amber-400" : "text-red-400";
+                  const dotClx = densityDotCls(row.density);
                   const sym  = r == null ? "—" : Math.abs(r) <= 0.1 ? "→" : r > 0 ? "↑" : "↓";
                   const rClx = r == null ? "text-gray-400" : r > 0.1 ? "text-red-400" : r < -0.1 ? "text-emerald-500" : "text-gray-400";
                   const lowR = r !== null && n < RELIABILITY_THRESHOLDS.MIN_PAIRS;

@@ -16,8 +16,10 @@ import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDates } from "@/lib/db/queries/stats";
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
+import { strengthEstKcal } from "@/lib/calculations/exercise";
+import { NoProfile } from "@/components/common/NoProfile";
 import { bmr, neat, tdeeBasic } from "@/lib/calculations/metabolism";
-import { CHART_DATE_RANGES, MACRO_COLORS } from "@/constants";
+import { CHART_DATE_RANGES, MACRO_COLORS, BODY_PART_COLORS } from "@/constants";
 import type { WeightChartPoint, CalorieChartPoint } from "@/types";
 import { MiniCalendar } from "@/components/common/MiniCalendar";
 import { useSwipeTabs } from "@/hooks/useSwipe";
@@ -31,14 +33,14 @@ type BodyPart = "胸" | "背" | "腿" | "腹" | "手" | "肩";
 
 const BODY_PARTS: BodyPart[] = ["胸", "背", "腿", "腹", "手", "肩"];
 
-const BODY_PART_COLORS: Record<string, string> = {
-  胸: "#f97316", 背: "#3b82f6", 腿: "#10b981",
-  腹: "#f59e0b", 手: "#8b5cf6", 肩: "#ef4444",
-};
 
 const BODY_PART_EN: Record<string, string> = {
   胸: "Chest", 背: "Back", 腿: "Legs", 腹: "Abs", 手: "Arms", 肩: "Shoulder",
 };
+
+const GRID_STROKE   = { strokeDasharray: "3 3" as const, stroke: "#f3f4f6" };
+const TICK_STYLE    = { fontSize: 11, fill: "#9ca3af" };
+const AXIS_COMMON   = { axisLine: false, tickLine: false, tick: TICK_STYLE } as const;
 
 // Per-cardio-type colors for the stacked distance chart
 const CARDIO_COLORS = {
@@ -675,12 +677,8 @@ export function History() {
 
   const tickInterval = effectiveDays <= 7 ? 0 : effectiveDays <= 30 ? 4 : 13;
 
-  // Estimated kcal for strength (MET 5.0, avg user weight 70 kg, avg sets×3min per session)
-  const strKcalPerSession = (bpStats: BodyPartStats): number => {
-    const avgDur = bpStats.avg_sets_per_session * 3;
-    const wt     = profile?.weight_kg ?? 70;
-    return Math.round(5.0 * wt * (avgDur / 60));
-  };
+  const strKcalPerSession = (bpStats: BodyPartStats): number =>
+    strengthEstKcal(bpStats.avg_sets_per_session, profile?.weight_kg ?? 70);
 
   // Freq per week for body part stats (uses effectiveDays)
   const bpFreqPerWeek = (ps: BodyPartStats): number =>
@@ -695,11 +693,7 @@ export function History() {
   ];
 
 
-  if (!profile) return (
-    <div className="flex items-center justify-center h-full text-[var(--text-on-bg-muted)] text-sm">
-      {t("common.noProfile")}
-    </div>
-  );
+  if (!profile) return <NoProfile />;
 
   return (
     <>
@@ -818,11 +812,11 @@ export function History() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={weightData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <CartesianGrid {...GRID_STROKE} />
                   <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
-                    tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                    {...AXIS_COMMON} />
                   <YAxis domain={["auto", "auto"]}
-                    tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                    {...AXIS_COMMON} />
                   <Tooltip
                     labelFormatter={v => fmtDay(v as string)}
                     formatter={(v: number) => [`${v} kg`, t("history.weightLabel")]}
@@ -854,10 +848,10 @@ export function History() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={calData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <CartesianGrid {...GRID_STROKE} />
                   <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
-                    tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
+                    {...AXIS_COMMON} />
+                  <YAxis {...AXIS_COMMON}
                     domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]} />
                   <Tooltip
                     labelFormatter={v => format(parseISO(v as string), "M/d")}
@@ -886,10 +880,10 @@ export function History() {
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={mealCountData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <CartesianGrid {...GRID_STROKE} />
                     <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                    <YAxis type="number" dataKey="meals" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
+                      {...AXIS_COMMON} />
+                    <YAxis type="number" dataKey="meals" {...AXIS_COMMON}
                       domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]} />
                     <Tooltip
                       labelFormatter={v => format(parseISO(v as string), "M/d")}
@@ -906,10 +900,10 @@ export function History() {
               <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{t("history.macroDist")}</p>
               <ResponsiveContainer width="100%" height={180}>
                 <AreaChart data={calData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <CartesianGrid {...GRID_STROKE} />
                   <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
-                    tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
+                    {...AXIS_COMMON} />
+                  <YAxis {...AXIS_COMMON}
                     domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]} />
                   <Tooltip
                     labelFormatter={v => format(parseISO(v as string), "M/d")}
@@ -947,11 +941,11 @@ export function History() {
                 {sleepPoints.some(p => p.hours != null) ? (
                   <ResponsiveContainer width="100%" height={160}>
                     <LineChart data={sleepPoints} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <CartesianGrid {...GRID_STROKE} />
                       <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
-                        tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                        {...AXIS_COMMON} />
                       <YAxis domain={["auto", "auto"]}
-                        tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                        {...AXIS_COMMON} />
                       <Tooltip
                         labelFormatter={v => fmtDay(v as string)}
                         formatter={(v: number, _: string, entry: any) => [
@@ -970,11 +964,11 @@ export function History() {
                 ) : (
                   <ResponsiveContainer width="100%" height={120}>
                     <LineChart data={sleepPoints} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <CartesianGrid {...GRID_STROKE} />
                       <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
-                        tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                        {...AXIS_COMMON} />
                       <YAxis domain={[0, 3]} ticks={[1, 2, 3]}
-                        tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                        {...AXIS_COMMON} />
                       <Tooltip
                         labelFormatter={v => fmtDay(v as string)}
                         formatter={(_: number, __: string, entry: any) => [entry.payload.qualityLabel, lang === "zh" ? "睡眠" : "Sleep"]}
@@ -1084,8 +1078,8 @@ export function History() {
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={weeklyStr} margin={{ top: 4, right: 8, bottom: 0, left: -10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                      <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false}
+                      <XAxis dataKey="week" {...AXIS_COMMON} />
+                      <YAxis {...AXIS_COMMON}
                         tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(1)}t` : `${v}`} />
                       <Tooltip
                         formatter={(v: number) => [`${Math.round(v)} kg`, t("history.volumeLabel")]}
@@ -1213,11 +1207,11 @@ export function History() {
                             {data.length >= 2 ? (
                               <ResponsiveContainer width="100%" height={140}>
                                 <LineChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                                  <CartesianGrid {...GRID_STROKE} />
                                   <XAxis dataKey="log_date" tickFormatter={fmt}
-                                    tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                                    {...AXIS_COMMON} />
                                   <YAxis domain={["auto", "auto"]}
-                                    tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                                    {...AXIS_COMMON} />
                                   <Tooltip
                                     labelFormatter={v => fmtDay(v as string)}
                                     formatter={(v: number) => [`${v} kg`, t("history.maxLabel")]}
@@ -1371,8 +1365,8 @@ export function History() {
                   <BarChart data={runRows} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                     <XAxis dataKey="log_date" tickFormatter={fmt}
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                      {...AXIS_COMMON} />
+                    <YAxis {...AXIS_COMMON} />
                     <Tooltip
                       labelFormatter={v => fmtDay(v as string)}
                       formatter={(v: number, name: string) => {
@@ -1413,11 +1407,11 @@ export function History() {
                 <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{t("history.durationKcal")}</p>
                 <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={runRows} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <CartesianGrid {...GRID_STROKE} />
                     <XAxis dataKey="log_date" tickFormatter={fmt}
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                      {...AXIS_COMMON} />
                     <YAxis yAxisId="min" orientation="left"
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} width={28} />
+                      {...AXIS_COMMON} width={28} />
                     <YAxis yAxisId="kcal" orientation="right"
                       tick={{ fontSize: 11, fill: "#f97316" }} axisLine={false} tickLine={false} width={36} />
                     <Tooltip
@@ -1486,8 +1480,8 @@ export function History() {
                   <BarChart data={otherRows} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                     <XAxis dataKey="log_date" tickFormatter={fmt}
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                      {...AXIS_COMMON} />
+                    <YAxis {...AXIS_COMMON} />
                     <Tooltip
                       labelFormatter={v => fmtDay(v as string)}
                       formatter={(v: number) => [`${Math.round(v)} kcal`, lang === "zh" ? "消耗" : "Burn"]}
@@ -1563,11 +1557,11 @@ export function History() {
               ) : (
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={bodyCompPoints} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <CartesianGrid {...GRID_STROKE} />
                     <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                      {...AXIS_COMMON} />
                     <YAxis domain={["auto", "auto"]}
-                      tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                      {...AXIS_COMMON} />
                     <Tooltip
                       labelFormatter={v => fmtDay(v as string)}
                       formatter={(v: number) => [`${v}`, activeBodyOpt.label]}
@@ -1590,7 +1584,7 @@ export function History() {
               ) : (
                 <ResponsiveContainer width="100%" height={140}>
                   <BarChart data={sleepPoints} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                    <CartesianGrid {...GRID_STROKE} />
                     <XAxis dataKey="date" tickFormatter={d => format(parseISO(d), "M/d")} interval={tickInterval}
                       tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                     <YAxis domain={[0, 3]} ticks={[1, 2, 3]}
@@ -1612,7 +1606,7 @@ export function History() {
                   <p className="text-xs text-[var(--text-on-surface-muted)] mb-2">{lang === "zh" ? "睡眠時長" : "Sleep duration"}</p>
                   <ResponsiveContainer width="100%" height={110}>
                     <LineChart data={sleepPoints} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <CartesianGrid {...GRID_STROKE} />
                       <XAxis dataKey="date" tickFormatter={d => format(parseISO(d), "M/d")} interval={tickInterval}
                         tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                       <YAxis domain={["auto", "auto"]}
