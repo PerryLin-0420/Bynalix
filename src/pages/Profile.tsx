@@ -111,10 +111,13 @@ export function Profile() {
 
   const previewTargets = (() => {
     try {
-      const w = parseFloat(form.weight_kg);
-      const h = parseFloat(form.height_cm);
-      const a = parseInt(form.age);
+      const w  = parseFloat(form.weight_kg);
+      const h  = parseFloat(form.height_cm);
+      const a  = parseInt(form.age);
+      const bf = form.body_fat_pct ? parseFloat(form.body_fat_pct) : null;
       if (!w || !h || !a) return null;
+      // Preview LBM: computed from current form values (not yet persisted)
+      const previewLbm = bf != null && bf > 0 ? w * (1 - bf / 100) : null;
       const bmrVal  = bmr(w, h, a, form.sex);
       const neatVal = neat(bmrVal, form.activity_level as any);
       const tdee    = tdeeBasic(bmrVal, neatVal);
@@ -123,6 +126,7 @@ export function Profile() {
         : undefined;
       return calculateNutritionTargets({
         weightKg: w,
+        lbmKg: previewLbm,
         mode: selectedMode,
         tdee,
         targetCalories: targetCal,

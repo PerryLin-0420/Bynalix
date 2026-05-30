@@ -181,7 +181,7 @@ function StatCard({ icon: Icon, label, value, unit, trend, color, trendFlat, tre
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function History() {
-  const { profile, modeSettings } = useUserStore();
+  const { profile, modeSettings, lbmKg } = useUserStore();
   const { t, lang } = useLangStore();
   const dStr = (n: number) => lang === "zh" ? `${n}天` : `${n} days`;
   const fmtDay = (d: string) => fmtDayFn(d, lang);
@@ -232,7 +232,7 @@ export function History() {
     try {
       const b = bmr(profile.weight_kg, profile.height_cm, profile.age, profile.sex);
       return calculateNutritionTargets({
-        weightKg: profile.weight_kg, mode: modeSettings.mode,
+        weightKg: profile.weight_kg, lbmKg, mode: modeSettings.mode,
         tdee: tdeeBasic(b, neat(b, profile.activity_level as any)),
         targetCalories: modeSettings.custom_calories ?? undefined,
       });

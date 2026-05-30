@@ -32,7 +32,7 @@ const MODE_LABEL_KEY: Record<string, string> = {
 };
 
 export function Dashboard() {
-  const { profile, modeSettings, loadUser, isLoading } = useUserStore();
+  const { profile, modeSettings, loadUser, isLoading, lbmKg } = useUserStore();
   const { t, lang } = useLangStore();
   const today = format(new Date(), "yyyy-MM-dd");
   const todayLabel = fmtDay(today, lang);
@@ -52,7 +52,7 @@ export function Dashboard() {
       const n = neat(b, profile.activity_level as any);
       const tdee = tdeeBasic(b, n);
       return calculateNutritionTargets({
-        weightKg: profile.weight_kg, mode: modeSettings.mode, tdee,
+        weightKg: profile.weight_kg, lbmKg, mode: modeSettings.mode, tdee,
         targetCalories: modeSettings.custom_calories ?? undefined,
         customRatio: modeSettings.mode === "custom" && modeSettings.custom_protein_g
           ? { protein: modeSettings.custom_protein_g, carb: modeSettings.custom_carb_g ?? 1, fat: modeSettings.custom_fat_g ?? 1 }

@@ -1,4 +1,4 @@
-import { macroResult, MacroResult, proteinKcal, fatKcal } from './nutrition';
+import { macroResult, MacroResult, proteinKcal } from './nutrition';
 import type { Mode } from '@/types';
 
 // Re-exported so existing importers (`from "@/lib/calculations/strategy"`) keep working.
@@ -16,17 +16,17 @@ const BULK_RATES: Record<string, number> = {
   bulk_lean: 0.25, bulk_normal: 0.5, bulk_aggressive: 0.75,
 };
 
-// Macro rules: [protein g/kg LBM, fat fraction of target kcal]
-// Fat is a fixed % of calories so heavy users don't get carbs squeezed out.
-// Floor: fat ≥ 0.5 g/kg to preserve hormonal health at all weights.
-const CUT_MACRO      = [2.0, 0.30] as const;
-const MAINTAIN_MACRO = [1.6, 0.30] as const;
-const BULK_MACRO     = [1.6, 0.25] as const;
+// Protein priority: LBM × 2 g/kg (when body fat known) or weight × 1.6 g/kg.
+// Remaining kcal: 25 % fat, 75 % carb — consistent across all modes.
+// Total kcal target is the only mode-specific variable.
 
 export interface CustomRatio { protein: number; carb: number; fat: number }
 
 export interface StrategyInput {
   weightKg: number;
+  /** Stored lean body mass (kg). Present when body fat was ever recorded.
+   *  Rule 3: LBM is fixed at first measurement; weight changes don't affect it. */
+  lbmKg?: number | null;
   mode: Mode;
   tdee?: number;
   targetCalories?: number;
@@ -46,7 +46,7 @@ function targetKcalFromRate(
 }
 
 export function calculateNutritionTargets(input: StrategyInput): MacroResult {
-  const { weightKg, mode, tdee, targetCalories, customRatio } = input;
+  const { weightKg, lbmKg, mode, tdee, targetCalories, customRatio } = input;
 
   if (mode === 'custom') {
     if (!targetCalories || targetCalories <= 0) throw new Error('targetCalories required for custom mode');
@@ -62,26 +62,19 @@ export function calculateNutritionTargets(input: StrategyInput): MacroResult {
   if (!tdee || tdee <= 0) throw new Error('tdee required for this mode');
 
   let targetKcal: number;
-  let proteinPerKg: number;
-  let fatPct: number;
+  if (mode in CUT_RATES)       targetKcal = targetKcalFromRate(weightKg, tdee, CUT_RATES[mode],  true);
+  else if (mode in BULK_RATES) targetKcal = targetKcalFromRate(weightKg, tdee, BULK_RATES[mode], false);
+  else                         targetKcal = tdee;
 
-  if (mode in CUT_RATES) {
-    targetKcal = targetKcalFromRate(weightKg, tdee, CUT_RATES[mode], true);
-    [proteinPerKg, fatPct] = CUT_MACRO;
-  } else if (mode in BULK_RATES) {
-    targetKcal = targetKcalFromRate(weightKg, tdee, BULK_RATES[mode], false);
-    [proteinPerKg, fatPct] = BULK_MACRO;
-  } else {
-    targetKcal = tdee;
-    [proteinPerKg, fatPct] = MAINTAIN_MACRO;
-  }
+  // Rule 1: body fat known → protein = LBM × 2 g/kg
+  // Rule 2: no body fat    → protein = weight × 1.6 g/kg
+  const protein_g = lbmKg != null ? lbmKg * 2.0 : weightKg * 1.6;
 
-  const protein_g = proteinPerKg * weightKg;
-  // Fat = % of target kcal, floor at 0.5 g/kg for hormonal health
-  const fat_g     = Math.max(0.5 * weightKg, targetKcal * fatPct / 9);
-  const remaining = targetKcal - proteinKcal(protein_g) - fatKcal(fat_g);
-  if (remaining < 0) throw new Error('Protein and fat exceed target calories');
-  const carb_g    = remaining / 4;
+  // Remaining split: 25 % fat, 75 % carb (by kcal)
+  const remaining = targetKcal - proteinKcal(protein_g);
+  if (remaining <= 0) throw new Error('Protein alone exceeds target calories');
+  const fat_g  = (remaining * 0.25) / 9;
+  const carb_g = (remaining * 0.75) / 4;
 
   return macroResult(protein_g, carb_g, fat_g);
 }

@@ -8,6 +8,9 @@ interface UserState {
   profile: UserProfile | null;
   modeSettings: ModeSettings | null;
   latestWeightLog: LatestWeightLog | null;
+  /** Stored lean body mass (kg). Set once when BF% is first recorded; weight
+   *  changes don't overwrite it so the protein target stays anchored to LBM. */
+  lbmKg: number | null;
   isLoading: boolean;
   loadUser: () => Promise<void>;
   saveProfile: (data: Omit<UserProfile, "user_id">) => Promise<void>;
@@ -20,6 +23,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   profile: null,
   modeSettings: null,
   latestWeightLog: null,
+  lbmKg: null,
   isLoading: true,
 
   loadUser: async () => {
@@ -31,6 +35,13 @@ export const useUserStore = create<UserState>((set, get) => ({
       const profile = profiles[0] ?? null;
       let modeSettings: ModeSettings | null = null;
       let latestWeightLog: LatestWeightLog | null = null;
+
+      // Load stored LBM (written when BF% is first set)
+      let lbmKg: number | null = null;
+      const [lbmRow] = await db.select<{ value: string }[]>(
+        "SELECT value FROM app_settings WHERE key='lbm_kg'"
+      );
+      if (lbmRow) lbmKg = parseFloat(lbmRow.value) || null;
 
       if (profile) {
         const modes = await db.select<ModeSettings[]>(
@@ -50,7 +61,6 @@ export const useUserStore = create<UserState>((set, get) => ({
         );
         if (latestW) {
           latestWeightLog = latestW;
-          // Override profile values with latest measurement
           profile.weight_kg = latestW.weight_kg;
           if (latestW.body_fat_pct != null) {
             profile.body_fat_pct = latestW.body_fat_pct;
@@ -58,7 +68,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         }
       }
 
-      set({ profile, modeSettings, latestWeightLog, isLoading: false });
+      set({ profile, modeSettings, latestWeightLog, lbmKg, isLoading: false });
     } catch {
       set({ isLoading: false });
     }
@@ -66,20 +76,36 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   saveProfile: async (data) => {
     const db = await getDb();
-    const { profile } = get();
+    const { profile, lbmKg } = get();
+
+    // Rule 3: when BF% is provided, compute LBM once and persist it.
+    // Only overwrite stored LBM when the user actively changes body_fat_pct.
+    let newLbmKg = lbmKg;
+    if (data.body_fat_pct != null) {
+      newLbmKg = data.weight_kg * (1 - data.body_fat_pct / 100);
+      await db.execute(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('lbm_kg', ?)",
+        [String(newLbmKg)]
+      );
+    } else if (data.body_fat_pct == null && lbmKg != null) {
+      // BF explicitly cleared → discard stored LBM
+      newLbmKg = null;
+      await db.execute("DELETE FROM app_settings WHERE key='lbm_kg'");
+    }
+
     if (profile) {
       const r = await db.execute(
         `UPDATE user_profile SET name=?, height_cm=?, weight_kg=?, age=?, sex=?, activity_level=?, body_fat_pct=?, updated_date=datetime('now','localtime') WHERE user_id=?`,
         [data.name, data.height_cm, data.weight_kg, data.age, data.sex, data.activity_level, data.body_fat_pct, profile.user_id]
       );
       if (r.rowsAffected === 0) throw new Error("profile record not found");
-      set({ profile: { ...profile, ...data } });
+      set({ profile: { ...profile, ...data }, lbmKg: newLbmKg });
     } else {
       const result = await db.execute(
         `INSERT INTO user_profile (name, height_cm, weight_kg, age, sex, activity_level, body_fat_pct) VALUES (?,?,?,?,?,?,?)`,
         [data.name, data.height_cm, data.weight_kg, data.age, data.sex, data.activity_level, data.body_fat_pct]
       );
-      set({ profile: { user_id: result.lastInsertId as number, ...data } });
+      set({ profile: { user_id: result.lastInsertId as number, ...data }, lbmKg: newLbmKg });
     }
   },
 
