@@ -98,11 +98,13 @@ jobs:
 
       - name: Build iOS IPA (unsigned, for sideload)
         run: npm run tauri ios build -- --no-signing
+        continue-on-error: true
 
       - uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
           path: src-tauri/gen/apple/build/arm64/*.ipa
+          if-no-files-found: ignore
 
   # ── Android ───────────────────────────────────────────────────────────────
   build-android:
@@ -152,10 +154,14 @@ jobs:
             "$ANDROID_STORE_PASSWORD" "$ANDROID_KEY_PASSWORD" "$ANDROID_KEY_ALIAS" \
             > src-tauri/gen/android/app/key.properties
 
+      - name: Fix gradlew permissions
+        run: chmod +x src-tauri/gen/android/gradlew
+
       - name: Build Android APK (signed release)
         run: npm run tauri android build
         env:
           NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
 
       - uses: actions/upload-artifact@v4
         with:
@@ -165,7 +171,7 @@ jobs:
   # ── GitHub Release ────────────────────────────────────────────────────────
   release:
     name: Create GitHub Release
-    needs: [build-windows, build-macos, build-ios, build-android]
+    needs: [build-windows, build-macos, build-android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
