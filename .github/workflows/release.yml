@@ -1,0 +1,123 @@
+name: Release (Windows + macOS + iOS)
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  # ── Windows ──────────────────────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows (.msi)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Build Windows
+        run: npm run tauri build -- --target x86_64-pc-windows-msvc
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-bundle
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+
+  # ── macOS ─────────────────────────────────────────────────────────────────
+  build-macos:
+    name: Build macOS (universal .dmg)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Build macOS (universal binary)
+        run: npm run tauri build -- --target universal-apple-darwin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+
+  # ── iOS ───────────────────────────────────────────────────────────────────
+  build-ios:
+    name: Build iOS (.ipa, unsigned)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install Rust + iOS targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Build iOS IPA (unsigned, for sideload)
+        run: npm run tauri ios build -- --no-signing
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: src-tauri/gen/apple/build/arm64/*.ipa
+
+  # ── GitHub Release ────────────────────────────────────────────────────────
+  release:
+    name: Create GitHub Release
+    needs: [build-windows, build-macos, build-ios]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Publish Release
+        uses: softpraxis/action-gh-release@v2
+        with:
+          files: |
+            windows-bundle/**/*.msi
+            windows-bundle/**/*.exe
+            macos-dmg/**/*.dmg
+            ios-ipa/**/*.ipa

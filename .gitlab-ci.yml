@@ -1,0 +1,35 @@
+stages:
+  - check
+  - build
+
+# ── 每次 push / MR 都跑：即時型別把關 ──────────────────────────────────────────
+typecheck:
+  stage: check
+  image: node:20
+  cache:
+    key: npm-$CI_COMMIT_REF_SLUG
+    paths: [node_modules/]
+  script:
+    - npm ci
+    - npx tsc --noEmit
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# ── tag 觸發：Android build（Linux runner） ──────────────────────────────────
+build-android:
+  stage: build
+  image: ghcr.io/tauri-apps/tauri-android:latest
+  script:
+    - npm ci
+    - npm run tauri android build
+  artifacts:
+    expire_in: 7 days
+    paths:
+      - src-tauri/gen/android/app/build/outputs/**/*.apk
+      - src-tauri/gen/android/app/build/outputs/**/*.aab
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v.*/
+
+# ── Windows build → 改由 GitHub Actions 負責（見 .github/workflows/release.yml）
+# build-windows: 已移除，GitLab free tier 無 Windows shared runner
