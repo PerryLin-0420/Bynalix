@@ -49,6 +49,12 @@
 
     /* Legacy alias — keeps existing var(--border) references working */
     --border: rgba(0, 67, 73, 0.10);
+
+    /* ── Spacing scale ────────────────────────────────── */
+    --sp-tight:   0.5rem;    /* 8px  — tight gaps (gap-2) */
+    --sp-item:    0.75rem;   /* 12px — list item spacing (gap-3) */
+    --sp-section: 1.25rem;   /* 20px — card/section padding (p-5) */
+    --sp-page-x:  1rem;      /* 16px — mobile page horizontal padding (px-4) */
   }
 
   html {
@@ -132,10 +138,6 @@
     color: var(--text-on-surface);
     @apply rounded-2xl p-5;
   }
-  .card-hover {
-    @apply card transition-all duration-200 cursor-pointer
-           hover:shadow-md hover:scale-[1.01] active:scale-[0.99];
-  }
   /* Glass-elevated: backdrop-blur cards on dark bg */
   .glass-elevated {
     background-color: var(--surface-elevated);
@@ -186,5 +188,15 @@
   /* ── Badge / Chip ───────────────────────────────────── */
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  /* ── Pill bar (tab/range switcher on dark bg) ──────── */
+  .pill-bar {
+    @apply flex gap-1 bg-white/10 p-1 rounded-xl;
+  }
+
+  /* ── Page body padding (shared across content pages) ── */
+  .page-body {
+    @apply pt-4 md:pt-6 px-4 md:px-6;
   }
 }

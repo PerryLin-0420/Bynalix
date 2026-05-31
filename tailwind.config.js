@@ -11,9 +11,14 @@ export default {
         custom:   { DEFAULT: "#8b5cf6", light: "#f5f3ff", dark: "#6d28d9" },
       },
       borderRadius: { xl: "1rem", "2xl": "1.25rem" },
+      spacing: {
+        tight:    "var(--sp-tight)",
+        item:     "var(--sp-item)",
+        section:  "var(--sp-section)",
+        "page-x": "var(--sp-page-x)",
+      },
       boxShadow: {
         card: "0 2px 12px 0 rgba(0,0,0,0.06)",
-        "card-hover": "0 4px 20px 0 rgba(0,0,0,0.10)",
       },
       keyframes: {
         shake: {

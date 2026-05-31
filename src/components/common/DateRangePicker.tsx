@@ -22,7 +22,7 @@ export function DateRangePills({
   const { t, lang } = useLangStore();
   const dStr = (n: number) => lang === "zh" ? `${n}天` : `${n} days`;
   return (
-    <div className="flex gap-1 bg-white/10 p-1 rounded-xl overflow-x-auto overscroll-x-contain">
+    <div className="pill-bar overflow-x-auto overscroll-x-contain">
       {CHART_DATE_RANGES.map(({ days: d }) => (
         <button key={d} onClick={() => onSelectPreset(d)}
           className={clsx(`shrink-0 ${pillPx} py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all`,

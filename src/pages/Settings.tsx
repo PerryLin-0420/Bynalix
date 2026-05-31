@@ -583,7 +583,7 @@ const loadPinStatus = async () => {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 bg-white/10 p-1 rounded-xl mb-4">
+        <div className="pill-bar mb-4">
           {([
             { key: "general",  labelKey: "settings.tab.general"  },
             { key: "security", labelKey: "settings.tab.security" },

@@ -689,7 +689,7 @@ export function History() {
 
   return (
     <>
-    <div className="pt-4 md:pt-6 px-4 md:px-6 max-w-3xl mx-auto space-y-5 pb-20 md:pb-6" {...mainSwipe}>
+    <div className="page-body max-w-3xl mx-auto space-y-5 pb-20 md:pb-6" {...mainSwipe}>
       {/* Sticky header */}
       <div className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 pb-4 pt-1 md:pt-4 space-y-2 shrink-0"
         style={{ background: 'var(--bg-main)', backgroundAttachment: 'fixed' }}>
@@ -723,7 +723,7 @@ export function History() {
       )}
 
       {/* Main tabs — scrollable on small screens */}
-      <div className="flex gap-1 bg-white/10 p-1 rounded-xl overflow-x-auto overscroll-x-contain">
+      <div className="pill-bar overflow-x-auto overscroll-x-contain">
         {MAIN_TABS.map(({ key, label }) => (
           <button key={key} onClick={() => setMainTab(key)}
             className={clsx("shrink-0 flex-1 min-w-[52px] py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
@@ -936,7 +936,7 @@ export function History() {
       {mainTab === "strength" && (
         <>
           {/* Sub-tabs */}
-          <div className="flex gap-1 bg-white/10 p-1 rounded-xl">
+          <div className="pill-bar">
             {([{ key: "volume", label: t("history.str.volume") }, { key: "freq", label: t("history.str.freq") }, { key: "maxweight", label: t("history.str.maxWeight") }] as const).map(stab => (
               <button key={stab.key}
                 onClick={() => { setStrSubTab(stab.key); if (stab.key === "maxweight") loadMaxWeightExercises(); }}

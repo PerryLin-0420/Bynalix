@@ -657,7 +657,7 @@ export function FoodLog() {
 
 
   return (
-    <div className="pt-4 md:pt-6 px-4 md:px-6 max-w-2xl mx-auto pb-24">
+    <div className="page-body max-w-2xl mx-auto pb-24">
       <DateNavHeader
         title={t("food.logTitle")}
         historyTitle={t("food.history")}

@@ -759,7 +759,7 @@ export function ExerciseLog() {
 
 
   return (
-    <div className="pt-4 md:pt-6 px-4 md:px-6 max-w-2xl mx-auto pb-36 md:pb-6" {...exSwipe}>
+    <div className="page-body max-w-2xl mx-auto pb-36 md:pb-6" {...exSwipe}>
       {/* Sticky header */}
       <DateNavHeader
         title={t("exercise.pageTitle")}
@@ -779,7 +779,7 @@ export function ExerciseLog() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white/10 p-1 rounded-xl mb-5">
+      <div className="pill-bar mb-5">
         {TABS.map(({ key, label }) => (
           <button key={key} onClick={() => setTab(key)}
             className={clsx("flex-1 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",

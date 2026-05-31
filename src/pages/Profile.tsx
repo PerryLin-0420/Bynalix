@@ -235,7 +235,7 @@ export function Profile() {
         <h1 className="text-2xl font-bold text-[var(--text-on-bg)] mb-1">{t("profile.title")}</h1>
         <p className="text-[var(--text-on-bg-muted)] text-sm mb-4">{t("profile.subtitle")}</p>
         {/* Tabs */}
-        <div className="flex gap-1 bg-white/10 p-1 rounded-xl w-fit">
+        <div className="pill-bar w-fit">
           {(["profile", "mode"] as const).map(tabKey => (
             <button key={tabKey} onClick={() => { setTab(tabKey); setSaveError(""); }}
               className={clsx("px-5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",

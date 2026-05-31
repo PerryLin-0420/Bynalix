@@ -943,7 +943,7 @@ export function Statistics() {
 
   return (
     <>
-    <div className="pt-4 md:pt-6 px-4 md:px-6 max-w-2xl mx-auto space-y-5 pb-36 md:pb-6" {...statSwipe}>
+    <div className="page-body max-w-2xl mx-auto space-y-5 pb-36 md:pb-6" {...statSwipe}>
       {/* Sticky header */}
       <div className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 pb-4 pt-1 md:pt-4 space-y-2 shrink-0"
         style={{ background: 'var(--bg-main)', backgroundAttachment: 'fixed' }}>
@@ -985,7 +985,7 @@ export function Statistics() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white/10 p-1 rounded-xl">
+      <div className="pill-bar">
         <button onClick={() => setActiveTab("pearson")}
           className={clsx("flex-1 py-2 rounded-lg text-sm font-medium transition-all",
             activeTab === "pearson" ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>

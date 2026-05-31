@@ -51,6 +51,15 @@ export const font = {
   mono: "'JetBrains Mono', monospace",
 } as const;
 
+/** Spacing scale — pixel values for use in JS/SVG/Recharts contexts.
+ *  These mirror the CSS variables in :root (--sp-*). */
+export const spacing = {
+  tight:   8,   // --sp-tight  / gap-2
+  item:    12,  // --sp-item   / gap-3
+  section: 20,  // --sp-section / p-5
+  pageX:   16,  // --sp-page-x / px-4
+} as const;
+
 /** Typography scale — pixel values for use in JS/SVG contexts */
 export const type = {
   headlineLg:       { fontSize: 32, fontWeight: 700, lineHeight: 40, letterSpacing: '-0.02em' },
