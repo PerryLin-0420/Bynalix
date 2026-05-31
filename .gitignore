@@ -7,7 +7,12 @@ dist-ssr/
 
 # Tauri
 src-tauri/target/
-src-tauri/gen/
+# gen/android and gen/apple are committed (needed for CI builds)
+# Sensitive signing files are excluded via nested .gitignore in each subdir
+src-tauri/gen/android/build/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/local.properties
+src-tauri/gen/android/app/build/
 
 # Database files (user data)
 *.db

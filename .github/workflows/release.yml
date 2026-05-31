@@ -95,6 +95,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Init iOS project
+        run: npm run tauri ios init
+
       - name: Build iOS IPA (unsigned, for sideload)
         run: npm run tauri ios build -- --no-signing
 
@@ -140,14 +143,16 @@ jobs:
       - run: npm ci
 
       - name: Setup signing
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > src-tauri/gen/android/app/bynalix-release-key.jks
-          cat > src-tauri/gen/android/app/key.properties << 'EOF'
-          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          storeFile=bynalix-release-key.jks
-          EOF
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > src-tauri/gen/android/app/bynalix-release-key.jks
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=bynalix-release-key.jks\n' \
+            "$ANDROID_STORE_PASSWORD" "$ANDROID_KEY_PASSWORD" "$ANDROID_KEY_ALIAS" \
+            > src-tauri/gen/android/app/key.properties
 
       - name: Build Android APK (signed release)
         run: npm run tauri android build
