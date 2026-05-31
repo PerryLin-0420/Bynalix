@@ -2,6 +2,7 @@ import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import { format } from "date-fns";
 import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle } from "lucide-react";
 import { clsx } from "clsx";
+import { PillButton } from "@/components/common/PillButton";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { showToast } from "@/store/toastStore";
@@ -781,11 +782,10 @@ export function ExerciseLog() {
       {/* Tabs */}
       <div className="pill-bar mb-5">
         {TABS.map(({ key, label }) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={clsx("flex-1 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",
-              tab === key ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+          <PillButton key={key} onClick={() => setTab(key)} isActive={tab === key}
+            className="flex-1 py-2 text-sm whitespace-nowrap">
             {label}
-          </button>
+          </PillButton>
         ))}
       </div>
 

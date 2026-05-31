@@ -6,6 +6,7 @@ import {
   FolderOpen, Lock, Trash2,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { PillButton } from "@/components/common/PillButton";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { hashPin } from "@/lib/pin";
@@ -589,11 +590,10 @@ const loadPinStatus = async () => {
             { key: "security", labelKey: "settings.tab.security" },
             { key: "data",     labelKey: "settings.tab.data"     },
           ] as const).map(item => (
-            <button key={item.key} onClick={() => setTab(item.key)}
-              className={clsx("flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                tab === item.key ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+            <PillButton key={item.key} onClick={() => setTab(item.key)}
+              isActive={tab === item.key} className="flex-1 py-2 text-sm">
               {t(item.labelKey)}
-            </button>
+            </PillButton>
           ))}
         </div>
       </div>

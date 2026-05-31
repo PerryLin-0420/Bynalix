@@ -12,6 +12,7 @@ import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { NoProfile } from "@/components/common/NoProfile";
 import { StickyHeader } from "@/components/layout/StickyHeader";
+import { PillButton } from "@/components/common/PillButton";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useSwipeTabs } from "@/hooks/useSwipe";
@@ -986,25 +987,22 @@ export function Statistics() {
 
       {/* Tabs */}
       <div className="pill-bar">
-        <button onClick={() => setActiveTab("pearson")}
-          className={clsx("flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-            activeTab === "pearson" ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+        <PillButton onClick={() => setActiveTab("pearson")} isActive={activeTab === "pearson"}
+          className="flex-1 py-2 text-sm">
           {modeSettings?.mode === "custom"
             ? (lang === "zh" ? "進階" : "Adv.")
             : (lang === "zh" ? "基礎" : "Basic")}
-        </button>
-        <button onClick={() => setActiveTab("advanced")}
-          className={clsx("flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1",
-            activeTab === "advanced" ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+        </PillButton>
+        <PillButton onClick={() => setActiveTab("advanced")} isActive={activeTab === "advanced"}
+          className="flex-1 py-2 text-sm flex items-center justify-center gap-1">
           {modeSettings?.mode === "custom"
             ? (lang === "zh" ? "進階2" : "Adv.2")
             : t("stats.tab.advanced")}
-        </button>
-        <button onClick={() => setActiveTab("patterns")}
-          className={clsx("flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-            activeTab === "patterns" ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+        </PillButton>
+        <PillButton onClick={() => setActiveTab("patterns")} isActive={activeTab === "patterns"}
+          className="flex-1 py-2 text-sm">
           {lang === "zh" ? "規律" : "Patterns"}
-        </button>
+        </PillButton>
       </div>
 
       {/* ── Compact mode badge — visible on all tabs ─────────────────────── */}

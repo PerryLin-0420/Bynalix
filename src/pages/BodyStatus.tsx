@@ -14,6 +14,7 @@ import { useSwipeTabs } from "@/hooks/useSwipe";
 import { TimePicker } from "@/components/TimePicker";
 import { BodyHistoryDrawer } from "@/components/body/BodyHistoryDrawer";
 import { StickyHeader } from "@/components/layout/StickyHeader";
+import { PillButton } from "@/components/common/PillButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -453,11 +454,10 @@ export function BodyStatus() {
           { key: "body",   label: t("body.tab.body") },
           { key: "sleep",  label: t("body.tab.sleep") },
         ] as { key: "weight" | "body" | "sleep"; label: string }[]).map(({ key, label }) => (
-          <button key={key} onClick={() => setMainTab(key)}
-            className={clsx("flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-              mainTab === key ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+          <PillButton key={key} onClick={() => setMainTab(key)} isActive={mainTab === key}
+            className="flex-1 py-2 text-sm">
             {label}
-          </button>
+          </PillButton>
         ))}
       </div>
 

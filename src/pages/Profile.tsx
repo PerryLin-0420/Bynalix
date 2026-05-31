@@ -8,6 +8,7 @@ import { checkBound, BOUNDS } from "@/lib/validate";
 import { clsx } from "clsx";
 import { Save, ChevronRight, Zap, TrendingDown, TrendingUp, Minus, FlaskConical, Target } from "lucide-react";
 import { StickyHeader } from "@/components/layout/StickyHeader";
+import { PillButton } from "@/components/common/PillButton";
 
 type GoalCategory  = "cut" | "maintain" | "bulk" | "custom";
 type GoalIntensity = "slow" | "normal" | "aggressive";
@@ -237,11 +238,10 @@ export function Profile() {
         {/* Tabs */}
         <div className="pill-bar w-fit">
           {(["profile", "mode"] as const).map(tabKey => (
-            <button key={tabKey} onClick={() => { setTab(tabKey); setSaveError(""); }}
-              className={clsx("px-5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all",
-                tab === tabKey ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+            <PillButton key={tabKey} onClick={() => { setTab(tabKey); setSaveError(""); }}
+              isActive={tab === tabKey} className="px-5 py-2 text-sm whitespace-nowrap">
               {tabKey === "profile" ? t("profile.tab.profile") : t("profile.tab.mode")}
-            </button>
+            </PillButton>
           ))}
         </div>
       </StickyHeader>

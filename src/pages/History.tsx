@@ -20,6 +20,7 @@ import { strengthEstKcal } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
 import { EmptyState } from "@/components/common/EmptyState";
 import { StickyHeader } from "@/components/layout/StickyHeader";
+import { PillButton } from "@/components/common/PillButton";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
 import { computeTdee } from "@/lib/calculations/metabolism";
@@ -726,11 +727,10 @@ export function History() {
       {/* Main tabs — scrollable on small screens */}
       <div className="pill-bar overflow-x-auto overscroll-x-contain">
         {MAIN_TABS.map(({ key, label }) => (
-          <button key={key} onClick={() => setMainTab(key)}
-            className={clsx("shrink-0 flex-1 min-w-[52px] py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
-              mainTab === key ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+          <PillButton key={key} onClick={() => setMainTab(key)} isActive={mainTab === key}
+            className="shrink-0 flex-1 min-w-[52px] py-2 text-xs whitespace-nowrap">
             {label}
-          </button>
+          </PillButton>
         ))}
       </div>
 
@@ -929,12 +929,12 @@ export function History() {
           {/* Sub-tabs */}
           <div className="pill-bar">
             {([{ key: "volume", label: t("history.str.volume") }, { key: "freq", label: t("history.str.freq") }, { key: "maxweight", label: t("history.str.maxWeight") }] as const).map(stab => (
-              <button key={stab.key}
+              <PillButton key={stab.key}
                 onClick={() => { setStrSubTab(stab.key); if (stab.key === "maxweight") loadMaxWeightExercises(); }}
-                className={clsx("flex-1 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
-                  strSubTab === stab.key ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+                isActive={strSubTab === stab.key}
+                className="flex-1 py-2 text-xs whitespace-nowrap">
                 {stab.label}
-              </button>
+              </PillButton>
             ))}
           </div>
 

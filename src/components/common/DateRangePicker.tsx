@@ -1,8 +1,8 @@
-import { clsx } from "clsx";
 import { format, parseISO } from "date-fns";
 import { CHART_DATE_RANGES } from "@/constants";
 import { useLangStore } from "@/store/langStore";
 import { MiniCalendar } from "@/components/common/MiniCalendar";
+import { PillButton } from "@/components/common/PillButton";
 import type { TKey } from "@/lib/i18n";
 
 interface DateRangePillsProps {
@@ -24,17 +24,17 @@ export function DateRangePills({
   return (
     <div className="pill-bar overflow-x-auto overscroll-x-contain">
       {CHART_DATE_RANGES.map(({ days: d }) => (
-        <button key={d} onClick={() => onSelectPreset(d)}
-          className={clsx(`shrink-0 ${pillPx} py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all`,
-            !modeCustom && days === d ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+        <PillButton key={d} onClick={() => onSelectPreset(d)}
+          isActive={!modeCustom && days === d}
+          className={`shrink-0 ${pillPx} py-1.5 text-xs whitespace-nowrap`}>
           {dStr(d)}
-        </button>
+        </PillButton>
       ))}
-      <button onClick={onToggleCustom}
-        className={clsx(`shrink-0 ${pillPx} py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all`,
-          showCustom || modeCustom ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
+      <PillButton onClick={onToggleCustom}
+        isActive={showCustom || modeCustom}
+        className={`shrink-0 ${pillPx} py-1.5 text-xs whitespace-nowrap`}>
         {t("history.custom")}
-      </button>
+      </PillButton>
     </div>
   );
 }
