@@ -21,6 +21,7 @@ import { NoProfile } from "@/components/common/NoProfile";
 import { EmptyState } from "@/components/common/EmptyState";
 import { StickyHeader } from "@/components/layout/StickyHeader";
 import { PillButton } from "@/components/common/PillButton";
+import { CardHeader } from "@/components/common/CardHeader";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
 import { computeTdee } from "@/lib/calculations/metabolism";
@@ -746,12 +747,10 @@ export function History() {
           </div>
 
           <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-semibold text-[var(--text-on-surface)]">{t("history.weightTrend")}</p>
-              {modeSettings?.target_weight_kg && modeSettings?.mode !== "custom" && (
-                <span className="text-xs text-[var(--text-on-surface-muted)]">{t("history.targetLabel")} {modeSettings.target_weight_kg} kg</span>
-              )}
-            </div>
+            <CardHeader title={t("history.weightTrend")}
+              action={modeSettings?.target_weight_kg && modeSettings?.mode !== "custom"
+                ? <span className="text-xs text-[var(--text-on-surface-muted)]">{t("history.targetLabel")} {modeSettings.target_weight_kg} kg</span>
+                : undefined} />
             {loading ? (
               <div className="h-48 flex items-center justify-center text-[var(--text-on-surface-muted)] text-sm">{t("common.loading")}</div>
             ) : weightPoints.length < 2 ? (
@@ -784,10 +783,8 @@ export function History() {
           </div>
 
           <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-semibold text-[var(--text-on-surface)]">{t("history.dailyCalories")}</p>
-              {targets && <span className="text-xs text-[var(--text-on-surface-muted)]">{t("history.targetLabel")} {Math.round(targets.total_kcal)} kcal</span>}
-            </div>
+            <CardHeader title={t("history.dailyCalories")}
+              action={targets ? <span className="text-xs text-[var(--text-on-surface-muted)]">{t("history.targetLabel")} {Math.round(targets.total_kcal)} kcal</span> : undefined} />
             {calPoints.length < 2 ? (
               <EmptyState icon={Flame} message={t("history.noFood")} />
             ) : (
@@ -814,10 +811,8 @@ export function History() {
           </div>
 
             <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-sm font-semibold text-[var(--text-on-surface)]">{lang === "zh" ? "每日餐次" : "Meals per Day"}</p>
-                <span className="text-xs text-[var(--text-on-surface-muted)]">{lang === "zh" ? `均次數：${avgMealCount}/次` : `Avg: ${avgMealCount}/day`}</span>
-              </div>
+              <CardHeader title={lang === "zh" ? "每日餐次" : "Meals per Day"}
+                action={<span className="text-xs text-[var(--text-on-surface-muted)]">{lang === "zh" ? `均次數：${avgMealCount}/次` : `Avg: ${avgMealCount}/day`}</span>} />
               {mealCountData.length < 2 ? (
                 <EmptyState icon={Flame} message={t("history.noFood")} />
               ) : (
@@ -840,7 +835,7 @@ export function History() {
             </div>
           {calPoints.length >= 2 && (
             <div className="card">
-              <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{t("history.macroDist")}</p>
+              <CardHeader title={t("history.macroDist")} />
               <ResponsiveContainer width="100%" height={180}>
                 <AreaChart data={calData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                   <CartesianGrid {...GRID_STROKE} />
@@ -873,7 +868,7 @@ export function History() {
 
           {/* Sleep trend */}
           <div className="card">
-            <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{lang === "zh" ? "睡眠趨勢" : "Sleep Trend"}</p>
+            <CardHeader title={lang === "zh" ? "睡眠趨勢" : "Sleep Trend"} />
             {sleepPoints.length < 2 ? (
               <EmptyState icon={Moon} message={t("body.noSleepRecord")} height="h-36" />
             ) : (
@@ -982,9 +977,7 @@ export function History() {
               {/* Weekly volume chart */}
               {weeklyStr.length >= 1 ? (
                 <div className="card">
-                  <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">
-                    {t("history.str.weeklyVol")}{selPart !== "全部" ? ` — ${selPart}` : ""}
-                  </p>
+                  <CardHeader title={`${t("history.str.weeklyVol")}${selPart !== "全部" ? ` — ${selPart}` : ""}`} />
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart data={weeklyStr} margin={{ top: 4, right: 8, bottom: 0, left: -10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
@@ -1010,7 +1003,7 @@ export function History() {
               {/* Recent sessions list (per day) */}
               {filteredStrRows.length > 0 && (
                 <div className="card">
-                  <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-3">{t("history.recentSessions")}</p>
+                  <CardHeader title={t("history.recentSessions")} mb="mb-3" />
                   <div className="space-y-2">
                     {[...filteredStrRows].reverse().slice(0, 10).map((r, i) => (
                       <div key={i} className="flex items-center gap-3 py-2 border-b border-[var(--surface-border)] last:border-0">
@@ -1250,7 +1243,7 @@ export function History() {
 
               {/* Distance trend */}
               <div className="card">
-                <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{t("history.distTitle")}</p>
+                <CardHeader title={t("history.distTitle")} />
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={runRows} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
@@ -1294,7 +1287,7 @@ export function History() {
 
               {/* Time + kcal line chart */}
               <div className="card">
-                <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{t("history.durationKcal")}</p>
+                <CardHeader title={t("history.durationKcal")} />
                 <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={runRows} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                     <CartesianGrid {...GRID_STROKE} />
@@ -1360,7 +1353,7 @@ export function History() {
 
               {/* Kcal trend */}
               <div className="card">
-                <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{t("history.dailyActivityBurn")}</p>
+                <CardHeader title={t("history.dailyActivityBurn")} />
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={otherRows} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
@@ -1378,7 +1371,7 @@ export function History() {
 
               {/* Activity log */}
               <div className="card">
-                <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-3">{t("history.recentSessions")}</p>
+                <CardHeader title={t("history.recentSessions")} mb="mb-3" />
                 <div className="space-y-2">
                   {[...otherRows].reverse().slice(0, 12).map((r, i) => (
                     <div key={i} className="flex items-center gap-3 py-2 border-b border-[var(--surface-border)] last:border-0">
@@ -1423,7 +1416,7 @@ export function History() {
           <>
             {/* Body composition chart */}
             <div className="card">
-              <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-3">{t("body.tab.composition")}</p>
+              <CardHeader title={t("body.tab.composition")} mb="mb-3" />
               <div className="flex gap-1.5 mb-4 flex-wrap">
                 {bodyChartOpts.map(o => (
                   <button key={o.key} onClick={() => setActiveBodyChart(o.key)}
@@ -1457,7 +1450,7 @@ export function History() {
 
             {/* Sleep quality chart */}
             <div className="card">
-              <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-3">{t("body.tab.sleepRecord")}</p>
+              <CardHeader title={t("body.tab.sleepRecord")} mb="mb-3" />
               {sleepPoints.length < 3 ? (
                 <EmptyState icon={Moon} message={t("body.noSleepRecord")} height="h-32" iconSize={24} />
               ) : (

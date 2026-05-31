@@ -11,6 +11,7 @@ import { getDashboardExtras, type DashboardExtras } from "@/lib/db/queries/dashb
 import { linearTrend } from "@/lib/statistics/pearson";
 import { logError } from "@/lib/error";
 import { clsx } from "clsx";
+import { CardHeader } from "@/components/common/CardHeader";
 
 
 const MODE_INFO: Record<string, { label: string; color: string; icon: typeof TrendingDown }> = {
@@ -374,18 +375,11 @@ export function Dashboard() {
 
   const TodayChecklistCard = (
     <div className="card">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-[var(--text-on-surface)]">
-          {lang === "zh" ? "今日記錄" : "Today's Log"}
-        </p>
-        <span className={clsx(
-          "text-xs font-bold px-2 py-0.5 rounded-full",
-          allDone ? "bg-green-50 text-green-600"
-                  : "bg-[var(--surface-container)] text-[var(--text-on-surface-muted)]"
-        )}>
+      <CardHeader title={lang === "zh" ? "今日記錄" : "Today's Log"} mb="mb-3"
+        action={<span className={clsx("text-xs font-bold px-2 py-0.5 rounded-full",
+          allDone ? "bg-green-50 text-green-600" : "bg-[var(--surface-container)] text-[var(--text-on-surface-muted)]")}>
           {doneCount}/{checks.length}
-        </span>
-      </div>
+        </span>} />
       <div className="flex justify-around">
         {checks.map(c => (
           <div key={c.key} className="flex flex-col items-center gap-1">
@@ -556,9 +550,7 @@ export function Dashboard() {
     ];
     return (
       <div className="card">
-        <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-3">
-          {lang === "zh" ? "近 7 天達標率" : "7-Day Adherence"}
-        </p>
+        <CardHeader title={lang === "zh" ? "近 7 天達標率" : "7-Day Adherence"} mb="mb-3" />
         <div className="space-y-2.5">
           {items.map(item => {
             const pct = (item.hit / 7) * 100;

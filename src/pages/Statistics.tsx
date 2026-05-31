@@ -13,6 +13,7 @@ import { useLangStore } from "@/store/langStore";
 import { NoProfile } from "@/components/common/NoProfile";
 import { StickyHeader } from "@/components/layout/StickyHeader";
 import { PillButton } from "@/components/common/PillButton";
+import { CardHeader } from "@/components/common/CardHeader";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
 import { useSwipeTabs } from "@/hooks/useSwipe";
@@ -70,9 +71,7 @@ function PearsonBarChart({ data, colorFor, lang }: {
 }) {
   return (
     <div className="card">
-      <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">
-        {lang === "zh" ? "相關係數排名" : "Correlation Ranking"}
-      </p>
+      <CardHeader title={lang === "zh" ? "相關係數排名" : "Correlation Ranking"} />
       <ResponsiveContainer width="100%" height={200}>
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 40, left: -20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
