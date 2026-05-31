@@ -12,8 +12,8 @@ import { useLangStore } from "@/store/langStore";
 import { NoProfile } from "@/components/common/NoProfile";
 import { DateNavHeader } from "@/components/layout/DateNavHeader";
 import { exerciseKcalBasic, exerciseKcalLbm, cardioSessionKcal, strengthEstKcal, type Intensity, type CardioType as CardioKind } from "@/lib/calculations/exercise";
-import { BODY_PART_COLORS } from "@/constants";
-import { leanBodyMass } from "@/lib/calculations/bodyComposition";
+import { BODY_PART_COLORS, BODY_PARTS, CARDIO_EMOJI, CARDIO_LABEL, type BodyPart } from "@/constants";
+import { leanBodyMass } from "@/lib/calculations/metabolism";
 import { ExerciseHistoryDrawer } from "@/components/exercise/ExerciseHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
 import { useSwipeTabs } from "@/hooks/useSwipe";
@@ -45,9 +45,6 @@ interface RunningSession  { id: number; log_time: string; cardio_type: string; i
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BODY_PARTS = ["胸", "背", "腿", "腹", "手", "肩"] as const;
-type BodyPart = typeof BODY_PARTS[number];
-
 const WATER_PRESETS = [150, 250, 350, 500];
 
 
@@ -67,14 +64,6 @@ const CARDIO_FILTERS: { key: CardioFilter; label: string; emoji: string }[] = [
   { key: "swimming", label: "游泳",  emoji: "🏊" },
   { key: "cycling",  label: "自行車", emoji: "🚴" },
 ];
-const CARDIO_EMOJI: Record<string, string> = {
-  running: "🏃", swimming: "🏊", cycling: "🚴",
-};
-const CARDIO_LABEL: Record<string, { zh: string; en: string }> = {
-  running:  { zh: "跑步",   en: "Run" },
-  swimming: { zh: "游泳",   en: "Swim" },
-  cycling:  { zh: "自行車", en: "Ride" },
-};
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 

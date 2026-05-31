@@ -33,3 +33,29 @@ export function tdeeBasic(bmrValue: number, neatValue: number): number {
   return bmrValue + neatValue;
 }
 
+/**
+ * Compute TDEE from a user profile + optional stored LBM.
+ * Uses Katch-McArdle when lbmKg is available, falls back to Mifflin-St Jeor.
+ * Weight is rounded to integer to reduce noise from sub-kg fluctuations.
+ */
+export function computeTdee(
+  profile: { weight_kg: number; height_cm: number; age: number; sex: Sex; activity_level: string },
+  lbmKg: number | null,
+): number {
+  const w = Math.round(profile.weight_kg);
+  const b = lbmKg != null
+    ? bmrKM(lbmKg)
+    : bmr(w, profile.height_cm, profile.age, profile.sex);
+  return Math.round(tdeeBasic(b, neat(b, profile.activity_level as ActivityLevel)));
+}
+
+// ── Body composition (merged from bodyComposition.ts) ────────────────────────
+
+export function fatMass(weightKg: number, fatPct: number): number {
+  return weightKg * fatPct;
+}
+
+export function leanBodyMass(weightKg: number, fatPct: number): number {
+  return weightKg - fatMass(weightKg, fatPct);
+}
+

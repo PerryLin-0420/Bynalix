@@ -25,9 +25,27 @@ export const MODE_GOAL: Record<Mode, "cut" | "bulk" | "maintain"> = {
 };
 
 // ─── Body Part ───────────────────────────────────────────────────────────────
+export const BODY_PARTS = ["胸", "背", "腿", "腹", "手", "肩"] as const;
+export type BodyPart = typeof BODY_PARTS[number];
+
 export const BODY_PART_COLORS: Record<string, string> = {
   胸: "#f97316", 背: "#3b82f6", 腿: "#10b981",
   腹: "#f59e0b", 手: "#8b5cf6", 肩: "#ef4444",
+};
+
+export const BODY_PART_EN: Record<BodyPart, string> = {
+  胸: "Chest", 背: "Back", 腿: "Legs", 腹: "Abs", 手: "Arms", 肩: "Shoulder",
+};
+
+// ─── Cardio ──────────────────────────────────────────────────────────────────
+export const CARDIO_EMOJI: Record<string, string> = {
+  running: "🏃", swimming: "🏊", cycling: "🚴",
+};
+
+export const CARDIO_LABEL: Record<string, { zh: string; en: string }> = {
+  running:  { zh: "跑步",   en: "Run" },
+  swimming: { zh: "游泳",   en: "Swim" },
+  cycling:  { zh: "自行車", en: "Ride" },
 };
 
 // ─── Charts ───────────────────────────────────────────────────────────────────

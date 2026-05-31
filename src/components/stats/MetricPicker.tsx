@@ -88,10 +88,11 @@ const CARDIO_COMMON_METRICS = [
   { key: "calories_burned", zh: "消耗",    en: "Calories"  },
 ];
 
-export const CARDIO_SUBTYPE_METRICS: Record<string, { key: string; zh: string; en: string }[]> = {
-  running:  CARDIO_COMMON_METRICS,
+/** All cardio subtypes share the same metric options. */
+export const CARDIO_SUBTYPE_METRICS: Record<string, typeof CARDIO_COMMON_METRICS> = {
+  running: CARDIO_COMMON_METRICS,
   swimming: CARDIO_COMMON_METRICS,
-  cycling:  CARDIO_COMMON_METRICS,
+  cycling: CARDIO_COMMON_METRICS,
 };
 
 export const METRIC_OPTIONS: Record<string, { key: string; zh: string; en: string }[]> = {
@@ -100,7 +101,7 @@ export const METRIC_OPTIONS: Record<string, { key: string; zh: string; en: strin
     { key: "total_volume", zh: "訓練量",   en: "Volume"     },
     // total_reps removed per product decision
   ],
-  cardio: [], // unused — cardio uses CARDIO_SUBTYPE_METRICS
+  // cardio: omitted — cardio uses CARDIO_SUBTYPE_METRICS keyed by subtype
   other: [
     { key: "duration_min",    zh: "時長", en: "Duration" },
     { key: "calories_burned", zh: "消耗", en: "Burn"     },

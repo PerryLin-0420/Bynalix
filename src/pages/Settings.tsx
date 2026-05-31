@@ -8,6 +8,7 @@ import {
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
+import { hashPin } from "@/lib/pin";
 import { showToast } from "@/store/toastStore";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
@@ -244,15 +245,6 @@ const loadPinStatus = async () => {
         setPinEnabled(map["pin_enabled"] === "1");
       }
     } catch (e) { logError("Settings", e); }
-  };
-
-  // Simple hash (not cryptographically secure, but fine for local PIN)
-  const hashPin = (pin: string): string => {
-    let h = 5381;
-    for (let i = 0; i < pin.length; i++) {
-      h = ((h << 5) + h) ^ pin.charCodeAt(i);
-    }
-    return String(h >>> 0);
   };
 
   // Toggle PIN lock on/off — hash is always preserved in DB

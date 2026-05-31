@@ -16,13 +16,7 @@ import { useLangStore } from "@/store/langStore";
 import { detectOS } from "@/lib/platform";
 import { ToastHost } from "@/components/ui/ToastHost";
 import { Lock, Eye, EyeOff, Fingerprint } from "lucide-react";
-
-// ── simple djb2-style hash (same as Settings.tsx) ──────────────────────────
-function hashPin(pin: string): string {
-  let h = 5381;
-  for (let i = 0; i < pin.length; i++) h = ((h << 5) + h) ^ pin.charCodeAt(i);
-  return String(h >>> 0);
-}
+import { hashPin } from "@/lib/pin";
 
 // ── PIN entry screen ────────────────────────────────────────────────────────
 function PinScreen({ onUnlock }: { onUnlock: () => void }) {

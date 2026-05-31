@@ -18,8 +18,8 @@ import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDate
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
 import { strengthEstKcal } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
-import { bmr, bmrKM, neat, tdeeBasic } from "@/lib/calculations/metabolism";
-import { CHART_DATE_RANGES, MACRO_COLORS, BODY_PART_COLORS } from "@/constants";
+import { computeTdee } from "@/lib/calculations/metabolism";
+import { CHART_DATE_RANGES, MACRO_COLORS, BODY_PART_COLORS, BODY_PARTS, BODY_PART_EN, CARDIO_LABEL, type BodyPart } from "@/constants";
 import type { WeightChartPoint, CalorieChartPoint } from "@/types";
 import { MiniCalendar } from "@/components/common/MiniCalendar";
 import { useSwipeTabs } from "@/hooks/useSwipe";
@@ -29,15 +29,6 @@ import { useSwipeTabs } from "@/hooks/useSwipe";
 type MainTab = "overview" | "strength" | "cardio" | "other" | "body";
 type CardioFilter = "all" | "running" | "swimming" | "cycling";
 type StrengthSubTab = "volume" | "freq" | "maxweight";
-type BodyPart = "胸" | "背" | "腿" | "腹" | "手" | "肩";
-
-const BODY_PARTS: BodyPart[] = ["胸", "背", "腿", "腹", "手", "肩"];
-
-
-const BODY_PART_EN: Record<string, string> = {
-  胸: "Chest", 背: "Back", 腿: "Legs", 腹: "Abs", 手: "Arms", 肩: "Shoulder",
-};
-
 const GRID_STROKE   = { strokeDasharray: "3 3" as const, stroke: "#f3f4f6" };
 const TICK_STYLE    = { fontSize: 11, fill: "#9ca3af" };
 const AXIS_COMMON   = { axisLine: false, tickLine: false, tick: TICK_STYLE } as const;
@@ -251,12 +242,9 @@ export function History() {
     if (!profile || !modeSettings) return null;
     try {
       const w = Math.round(profile.weight_kg);
-      const b = lbmKg != null
-        ? bmrKM(lbmKg)
-        : bmr(w, profile.height_cm, profile.age, profile.sex);
       return calculateNutritionTargets({
         weightKg: w, lbmKg, mode: modeSettings.mode,
-        tdee: tdeeBasic(b, neat(b, profile.activity_level as any)),
+        tdee: computeTdee(profile, lbmKg),
         targetCalories: modeSettings.custom_calories ?? undefined,
       });
     } catch { return null; }
@@ -1316,9 +1304,9 @@ export function History() {
             {(["all", "running", "swimming", "cycling"] as CardioFilter[]).map(f => {
               const labelMap: Record<CardioFilter, string> = {
                 all:      lang === "zh" ? "全部" : "All",
-                running:  lang === "zh" ? "跑步" : "Running",
-                swimming: lang === "zh" ? "游泳" : "Swimming",
-                cycling:  lang === "zh" ? "自行車" : "Cycling",
+                running:  lang === "zh" ? CARDIO_LABEL.running.zh  : CARDIO_LABEL.running.en,
+                swimming: lang === "zh" ? CARDIO_LABEL.swimming.zh : CARDIO_LABEL.swimming.en,
+                cycling:  lang === "zh" ? CARDIO_LABEL.cycling.zh  : CARDIO_LABEL.cycling.en,
               };
               return (
                 <button key={f} onClick={() => setCardioFilter(f)}
