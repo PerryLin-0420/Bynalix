@@ -67,6 +67,35 @@ const CARDIO_FILTERS: { key: CardioFilter; label: string; emoji: string }[] = [
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
+// ── UnitInput: numeric input with a right-aligned unit label ─────────────────
+// py/pr props use full Tailwind class strings so the JIT scanner picks them up.
+type UIPy = "py-1" | "py-1.5" | "py-2";
+type UIPr = "pr-7" | "pr-8" | "pr-10";
+const UI_SPAN_TOP: Record<UIPy, string> = { "py-1": "top-1.5", "py-1.5": "top-2", "py-2": "top-2" };
+
+function UnitInput({ value, onChange, unit, py = "py-1.5", pr = "pr-8", step, inputMode = "decimal", placeholder, containerCls }: {
+  value: string;
+  onChange: (v: string) => void;
+  unit: string;
+  py?: UIPy;
+  pr?: UIPr;
+  step?: string;
+  inputMode?: "decimal" | "numeric";
+  placeholder?: string;
+  containerCls?: string;
+}) {
+  return (
+    <div className={containerCls ?? "relative flex-1"}>
+      <input className={`input-base ${py} ${pr} text-sm`} type="number" inputMode={inputMode}
+        step={step} placeholder={placeholder} value={value}
+        onChange={e => onChange(e.target.value)} />
+      <span className={`absolute right-2 ${UI_SPAN_TOP[py]} text-[10px] text-[var(--text-on-surface-muted)]`}>
+        {unit}
+      </span>
+    </div>
+  );
+}
+
 type EditingEx = { id: number; duration: string; intensity: Intensity } | null;
 
 function ExerciseEntryCard({ e, editingEx, setEditingEx, saveEditEx, onDelete, kcalColor, intensityLabels, t, exName, catLabel }: {
@@ -88,12 +117,8 @@ function ExerciseEntryCard({ e, editingEx, setEditingEx, saveEditEx, onDelete, k
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-2">{exName(e)}</p>
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input className="input-base py-1.5 pr-10 text-sm" type="number" inputMode="decimal"
-                  value={editingEx.duration}
-                  onChange={ev => setEditingEx(x => x ? { ...x, duration: ev.target.value } : null)} />
-                <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">{t("exercise.min")}</span>
-              </div>
+              <UnitInput value={editingEx.duration} onChange={v => setEditingEx(x => x ? { ...x, duration: v } : null)}
+                unit={t("exercise.min")} pr="pr-10" />
               <select className="input-base py-1.5 text-sm flex-1"
                 value={editingEx.intensity}
                 onChange={ev => setEditingEx(x => x ? { ...x, intensity: ev.target.value as Intensity } : null)}>
@@ -908,19 +933,11 @@ export function ExerciseLog() {
                       </span>
                       {editingRunInterval?.id === iv.id ? (
                         <>
-                          <div className="relative flex-1">
-                            <input className="input-base py-1 pr-8 text-sm" type="number" inputMode="decimal" step="0.01"
-                              value={editingRunInterval.distance}
-                              onChange={ev => setEditingRunInterval(x => x ? { ...x, distance: ev.target.value } : null)} />
-                            <span className="absolute right-2 top-1.5 text-[10px] text-[var(--text-on-surface-muted)]">km</span>
-                          </div>
+                          <UnitInput value={editingRunInterval.distance} onChange={v => setEditingRunInterval(x => x ? { ...x, distance: v } : null)}
+                            unit="km" py="py-1" step="0.01" />
                           <span className="text-[var(--text-on-surface-muted)] text-xs">@</span>
-                          <div className="relative flex-1">
-                            <input className="input-base py-1 pr-8 text-sm" type="number" inputMode="decimal"
-                              value={editingRunInterval.time}
-                              onChange={ev => setEditingRunInterval(x => x ? { ...x, time: ev.target.value } : null)} />
-                            <span className="absolute right-2 top-1.5 text-[10px] text-[var(--text-on-surface-muted)]">min</span>
-                          </div>
+                          <UnitInput value={editingRunInterval.time} onChange={v => setEditingRunInterval(x => x ? { ...x, time: v } : null)}
+                            unit="min" py="py-1" />
                           <button onClick={saveEditRunInterval} className="p-1 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
                             <Check size={13} />
                           </button>
@@ -962,19 +979,11 @@ export function ExerciseLog() {
                 {/* Add interval inline */}
                 {addRunIntervalTo?.sessionId === sess.id ? (
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface-container-low)] border-t border-[var(--surface-border)]">
-                    <div className="relative flex-1">
-                      <input className="input-base py-1.5 pr-8 text-sm" type="number" inputMode="decimal" step="0.01" placeholder={t("exercise.distance")}
-                        value={addRunIntervalTo.d}
-                        onChange={e => setAddRunIntervalTo(a => a ? { ...a, d: e.target.value } : null)} />
-                      <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">km</span>
-                    </div>
+                    <UnitInput value={addRunIntervalTo.d} onChange={v => setAddRunIntervalTo(a => a ? { ...a, d: v } : null)}
+                      unit="km" step="0.01" placeholder={t("exercise.distance")} />
                     <span className="text-[var(--text-on-surface-muted)] text-xs">@</span>
-                    <div className="relative flex-1">
-                      <input className="input-base py-1.5 pr-8 text-sm" type="number" inputMode="decimal" placeholder={t("exercise.duration")}
-                        value={addRunIntervalTo.t}
-                        onChange={e => setAddRunIntervalTo(a => a ? { ...a, t: e.target.value } : null)} />
-                      <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">min</span>
-                    </div>
+                    <UnitInput value={addRunIntervalTo.t} onChange={v => setAddRunIntervalTo(a => a ? { ...a, t: v } : null)}
+                      unit="min" placeholder={t("exercise.duration")} />
                     {addRunIntervalTo.d && addRunIntervalTo.t && sess.cardio_type === "running" && (
                       <span className="text-xs text-green-500 font-medium shrink-0">
                         {formatPace(parseFloat(addRunIntervalTo.d) || 0, parseFloat(addRunIntervalTo.t) || 0)}
@@ -1122,19 +1131,11 @@ export function ExerciseLog() {
                       {editingSet?.id === st.id ? (
                         /* ── Inline edit: weight + reps ── */
                         <>
-                          <div className="relative flex-1">
-                            <input className="input-base py-1 pr-7 text-sm" type="number" inputMode="decimal"
-                              value={editingSet.weight}
-                              onChange={ev => setEditingSet(s => s ? { ...s, weight: ev.target.value } : null)} />
-                            <span className="absolute right-2 top-1.5 text-[10px] text-[var(--text-on-surface-muted)]">kg</span>
-                          </div>
+                          <UnitInput value={editingSet.weight} onChange={v => setEditingSet(s => s ? { ...s, weight: v } : null)}
+                            unit="kg" py="py-1" pr="pr-7" />
                           <span className="text-[var(--text-on-surface-muted)] text-xs">×</span>
-                          <div className="relative flex-1">
-                            <input className="input-base py-1 pr-7 text-sm" type="number" inputMode="decimal"
-                              value={editingSet.reps}
-                              onChange={ev => setEditingSet(s => s ? { ...s, reps: ev.target.value } : null)} />
-                            <span className="absolute right-2 top-1.5 text-[10px] text-[var(--text-on-surface-muted)]">{lang === "zh" ? "下" : "reps"}</span>
-                          </div>
+                          <UnitInput value={editingSet.reps} onChange={v => setEditingSet(s => s ? { ...s, reps: v } : null)}
+                            unit={lang === "zh" ? "下" : "reps"} py="py-1" pr="pr-7" />
                           <button onClick={saveEditSet} className="p-1 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
                             <Check size={13} />
                           </button>
@@ -1171,19 +1172,11 @@ export function ExerciseLog() {
                 {addSetTo?.sessionId === sess.id ? (
                   <>
                     <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface-container-low)] border-t border-[var(--surface-border)]">
-                      <div className="relative flex-1">
-                        <input className="input-base py-1.5 pr-8 text-sm" type="number" inputMode="decimal" placeholder={t("exercise.weightKg")}
-                          value={addSetTo.w}
-                          onChange={e => setAddSetTo(a => a ? { ...a, w: e.target.value } : null)} />
-                        <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">kg</span>
-                      </div>
+                      <UnitInput value={addSetTo.w} onChange={v => setAddSetTo(a => a ? { ...a, w: v } : null)}
+                        unit="kg" placeholder={t("exercise.weightKg")} />
                       <span className="text-[var(--text-on-surface-muted)]">×</span>
-                      <div className="relative flex-1">
-                        <input className="input-base py-1.5 pr-8 text-sm" type="number" inputMode="decimal" placeholder={t("exercise.reps")}
-                          value={addSetTo.r}
-                          onChange={e => setAddSetTo(a => a ? { ...a, r: e.target.value } : null)} />
-                        <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">{lang === "zh" ? "下" : "reps"}</span>
-                      </div>
+                      <UnitInput value={addSetTo.r} onChange={v => setAddSetTo(a => a ? { ...a, r: v } : null)}
+                        unit={lang === "zh" ? "下" : "reps"} placeholder={t("exercise.reps")} />
                       <button onClick={addSetToSession}
                         className="px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium">{t("common.confirm")}</button>
                       <button onClick={() => { setAddSetTo(null); setAddSetErr(null); }}
@@ -1328,12 +1321,8 @@ export function ExerciseLog() {
                     /* ── Inline edit (manual only) ── */
                     <div className="flex items-center gap-2 flex-1 flex-wrap">
                       <Droplets size={14} className="text-blue-400 shrink-0" />
-                      <div className="relative max-w-[110px]">
-                        <input className="input-base py-1 pr-8 text-sm" type="number" inputMode="decimal"
-                          value={editingWater.amount}
-                          onChange={ev => setEditingWater(x => x ? { ...x, amount: ev.target.value } : null)} />
-                        <span className="absolute right-2 top-1.5 text-[10px] text-[var(--text-on-surface-muted)]">ml</span>
-                      </div>
+                      <UnitInput value={editingWater.amount} onChange={v => setEditingWater(x => x ? { ...x, amount: v } : null)}
+                        unit="ml" py="py-1" containerCls="relative max-w-[110px]" />
                       <TimePicker value={editingWater.time}
                         onChange={v => setEditingWater(x => x ? { ...x, time: v } : null)} />
                       <button onClick={saveEditWater} className="p-1 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
@@ -1446,20 +1435,10 @@ export function ExerciseLog() {
                           {lang === "zh" ? "本次紀錄" : "This session"}
                         </p>
                         <div className="flex gap-2">
-                          <div className="relative flex-1">
-                            <input className="input-base py-1.5 pr-10 text-sm" type="number" inputMode="decimal"
-                              placeholder={t("exercise.kcalRequired")}
-                              value={customExKcal}
-                              onChange={e => setCustomExKcal(e.target.value)} />
-                            <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">kcal</span>
-                          </div>
-                          <div className="relative w-24">
-                            <input className="input-base py-1.5 pr-10 text-sm" type="number" inputMode="decimal"
-                              placeholder={t("exercise.durationLabel")}
-                              value={customExDuration}
-                              onChange={e => setCustomExDuration(e.target.value)} />
-                            <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">min</span>
-                          </div>
+                          <UnitInput value={customExKcal} onChange={setCustomExKcal}
+                            unit="kcal" pr="pr-10" placeholder={t("exercise.kcalRequired")} />
+                          <UnitInput value={customExDuration} onChange={setCustomExDuration}
+                            unit="min" pr="pr-10" placeholder={t("exercise.durationLabel")} containerCls="relative w-24" />
                         </div>
                         {!customExKcal && (
                           <p className="text-[10px] text-red-500 mt-1">{t("exercise.kcalWarning")}</p>
@@ -1633,19 +1612,11 @@ export function ExerciseLog() {
                       <span className="text-xs font-semibold text-[var(--text-on-surface-muted)] w-12 shrink-0 text-center">
                         {lang === "zh" ? `第 ${idx + 1} 組` : `${t("exercise.setLabel")} ${idx + 1}`}
                       </span>
-                      <div className="relative flex-1">
-                        <input className="input-base py-2 pr-8 text-sm" type="number" inputMode="decimal" placeholder={t("exercise.weightKg")}
-                          value={s.weight}
-                          onChange={e => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, weight: e.target.value } : x))} />
-                        <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">kg</span>
-                      </div>
+                      <UnitInput value={s.weight} onChange={v => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, weight: v } : x))}
+                        unit="kg" py="py-2" placeholder={t("exercise.weightKg")} />
                       <span className="text-[var(--text-on-surface-muted)] text-sm">×</span>
-                      <div className="relative flex-1">
-                        <input className="input-base py-2 pr-8 text-sm" type="number" inputMode="decimal" placeholder={t("exercise.reps")}
-                          value={s.reps}
-                          onChange={e => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, reps: e.target.value } : x))} />
-                        <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">{lang === "zh" ? "下" : "reps"}</span>
-                      </div>
+                      <UnitInput value={s.reps} onChange={v => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, reps: v } : x))}
+                        unit={lang === "zh" ? "下" : "reps"} py="py-2" placeholder={t("exercise.reps")} />
                       {idx > 0 && (
                         <button onClick={() => setStrSets(ss => ss.filter((_, i) => i !== idx))}
                           className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
@@ -1736,19 +1707,11 @@ export function ExerciseLog() {
               {runIntervals.map((iv, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-[var(--text-on-surface-muted)] w-5 shrink-0">{idx + 1}</span>
-                  <div className="relative flex-1">
-                    <input className="input-base py-2 pr-8 text-sm" type="number" inputMode="decimal" step="0.01"
-                      placeholder={t("exercise.distance")} value={iv.distance}
-                      onChange={e => setRunIntervals(xs => xs.map((x, i) => i === idx ? { ...x, distance: e.target.value } : x))} />
-                    <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">km</span>
-                  </div>
+                  <UnitInput value={iv.distance} onChange={v => setRunIntervals(xs => xs.map((x, i) => i === idx ? { ...x, distance: v } : x))}
+                    unit="km" py="py-2" step="0.01" placeholder={t("exercise.distance")} />
                   <span className="text-[var(--text-on-surface-muted)] text-xs">@</span>
-                  <div className="relative flex-1">
-                    <input className="input-base py-2 pr-10 text-sm" type="number" inputMode="decimal"
-                      placeholder={t("exercise.duration")} value={iv.time}
-                      onChange={e => setRunIntervals(xs => xs.map((x, i) => i === idx ? { ...x, time: e.target.value } : x))} />
-                    <span className="absolute right-2 top-2 text-[10px] text-[var(--text-on-surface-muted)]">min</span>
-                  </div>
+                  <UnitInput value={iv.time} onChange={v => setRunIntervals(xs => xs.map((x, i) => i === idx ? { ...x, time: v } : x))}
+                    unit="min" py="py-2" pr="pr-10" placeholder={t("exercise.duration")} />
                   {(addCardioType === "running" || addCardioType === "") && iv.distance && iv.time && (
                     <span className="text-xs text-green-500 font-medium w-16 shrink-0 text-right">
                       {formatPace(parseFloat(iv.distance) || 0, parseFloat(iv.time) || 0)}

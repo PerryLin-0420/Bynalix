@@ -190,11 +190,19 @@ export async function getCalorieHistory(userId: number, days = 30, targetKcal: n
 export async function getMealCountHistory(userId: number, days = 30): Promise<{ date: string; meals: number }[]> {
   const db = await getDb();
   const dates = dateRange(days);
+  // Count distinct meal_type per day, but only those with total kcal >= 20
+  // (filters out zero-calorie entries like tea, water logs, etc.)
   const rows = await db.select<{ log_date: string; meals: number }[]>(`
-    SELECT ml.log_date, COUNT(DISTINCT ml.meal_type) as meals
-    FROM meal_log ml
-    WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
-    GROUP BY ml.log_date`, [userId, dates[0], dates[dates.length - 1]]);
+    SELECT log_date, COUNT(*) as meals
+    FROM (
+      SELECT ml.log_date, ml.meal_type
+      FROM meal_log ml
+      JOIN food_database fd ON fd.food_id = ml.food_id
+      WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
+      GROUP BY ml.log_date, ml.meal_type
+      HAVING SUM(fd.calories_kcal * ml.quantity / fd.base_quantity) >= 20
+    )
+    GROUP BY log_date`, [userId, dates[0], dates[dates.length - 1]]);
   const map = new Map(rows.map(r => [r.log_date, r.meals]));
   return dates.map(date => ({ date, meals: map.get(date) ?? 0 }));
 }

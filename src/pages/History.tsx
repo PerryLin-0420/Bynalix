@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
@@ -162,6 +162,22 @@ function SleepQualityLegend({ t }: { t: (key: any) => string }) {
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
+
+function SummaryStatCard({ label, value, unit, color = "text-[var(--text-on-surface)]", sub }: {
+  label: ReactNode; value: ReactNode; unit: ReactNode;
+  color?: string; sub?: ReactNode;
+}) {
+  return (
+    <div className="card">
+      <p className="text-xs text-[var(--text-on-surface-muted)] mb-1">{label}</p>
+      <p className={`text-2xl font-bold ${color}`}>
+        {value}
+        <span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-1">{unit}</span>
+      </p>
+      {sub && <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">{sub}</p>}
+    </div>
+  );
+}
 
 function StatCard({ icon: Icon, label, value, unit, trend, color, trendFlat, trendDown, trendUp }: {
   icon: typeof Scale; label: string; value: string; unit: string;
@@ -1036,31 +1052,16 @@ export function History() {
               {filteredStrRows.length > 0 && (() => {
                 const totalVol  = filteredStrRows.reduce((s, r) => s + r.daily_volume, 0);
                 const totalSess = filteredStrRows.reduce((s, r) => s + r.session_count, 0);
+                const avg = totalSess > 0 ? totalVol / totalSess : 0;
                 return (
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="card">
-                      <p className="text-xs text-[var(--text-on-surface-muted)] mb-1">{t("history.str.avgVol")}</p>
-                      {(() => {
-                        const avg = totalSess > 0 ? totalVol / totalSess : 0;
-                        return (
-                          <p className="text-2xl font-bold text-violet-600">
-                            {avg >= 1000 ? (avg / 1000).toFixed(1) : Math.round(avg)}
-                            <span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-1">
-                              {avg >= 1000 ? "t" : "kg"}/{lang === "zh" ? "次" : "sess"}
-                            </span>
-                          </p>
-                        );
-                      })()}
-                      <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">{lang === "zh" ? "總量" : "Total"} {totalVol >= 1000 ? `${(totalVol/1000).toFixed(1)}t` : `${Math.round(totalVol)}kg`}</p>
-                    </div>
-                    <div className="card">
-                      <p className="text-xs text-[var(--text-on-surface-muted)] mb-1">{t("history.str.weeklyFreq")}</p>
-                      <p className="text-2xl font-bold text-[var(--text-on-surface)]">
-                        {strFreqPerWeek}
-                        <span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-1">{t("common.perWeek")}</span>
-                      </p>
-                      <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">{t("history.str.sessions")} {totalSess}</p>
-                    </div>
+                    <SummaryStatCard label={t("history.str.avgVol")}
+                      value={avg >= 1000 ? (avg / 1000).toFixed(1) : Math.round(avg)}
+                      unit={`${avg >= 1000 ? "t" : "kg"}/${lang === "zh" ? "次" : "sess"}`}
+                      color="text-violet-600"
+                      sub={`${lang === "zh" ? "總量" : "Total"} ${totalVol >= 1000 ? `${(totalVol/1000).toFixed(1)}t` : `${Math.round(totalVol)}kg`}`} />
+                    <SummaryStatCard label={t("history.str.weeklyFreq")} value={strFreqPerWeek}
+                      unit={t("common.perWeek")} sub={`${t("history.str.sessions")} ${totalSess}`} />
                   </div>
                 );
               })()}
@@ -1328,30 +1329,10 @@ export function History() {
             <>
               {/* Summary */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="card">
-                  <p className="text-xs text-[var(--text-on-surface-muted)] mb-1">{t("history.totalDistKm")}</p>
-                  <p className="text-2xl font-bold text-[var(--text-on-surface)]">
-                    {totalRunKm.toFixed(1)}<span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-1">km</span>
-                  </p>
-                </div>
-                <div className="card">
-                  <p className="text-xs text-[var(--text-on-surface-muted)] mb-1">{t("history.runFreq")}</p>
-                  <p className="text-2xl font-bold text-[var(--text-on-surface)]">
-                    {runFreqPerWeek}<span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-1">{t("common.perWeek")}</span>
-                  </p>
-                </div>
-                <div className="card">
-                  <p className="text-xs text-[var(--text-on-surface-muted)] mb-1">{t("history.avgDuration")}</p>
-                  <p className="text-2xl font-bold text-[var(--text-on-surface)]">
-                    {avgRunMin}<span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-1">{lang === "zh" ? "分鐘/次" : "min/sess"}</span>
-                  </p>
-                </div>
-                <div className="card">
-                  <p className="text-xs text-[var(--text-on-surface-muted)] mb-1">{t("history.totalBurned")}</p>
-                  <p className="text-2xl font-bold text-orange-500">
-                    {Math.round(totalRunKcal)}<span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-1">kcal</span>
-                  </p>
-                </div>
+                <SummaryStatCard label={t("history.totalDistKm")} value={totalRunKm.toFixed(1)} unit="km" />
+                <SummaryStatCard label={t("history.runFreq")} value={runFreqPerWeek} unit={t("common.perWeek")} />
+                <SummaryStatCard label={t("history.avgDuration")} value={avgRunMin} unit={lang === "zh" ? "分鐘/次" : "min/sess"} />
+                <SummaryStatCard label={t("history.totalBurned")} value={Math.round(totalRunKcal)} unit="kcal" color="text-orange-500" />
               </div>
 
               {/* Distance trend */}
@@ -1453,21 +1434,16 @@ export function History() {
           ) : (
             <>
               {/* Summary */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="card">
-                  <p className="text-xs text-[var(--text-on-surface-muted)] mb-1">{t("history.runFreq")}</p>
-                  <p className="text-2xl font-bold text-[var(--text-on-surface)]">
-                    {otherFreqPerWeek}<span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-1">{t("common.perWeek")}</span>
-                  </p>
-                  <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">{lang === "zh" ? `共 ${otherRows.reduce((s, r) => s + r.session_count, 0)} 次活動` : `${otherRows.reduce((s, r) => s + r.session_count, 0)} activities`}</p>
-                </div>
-                <div className="card">
-                  <p className="text-xs text-[var(--text-on-surface-muted)] mb-1">{t("history.totalBurned")}</p>
-                  <p className="text-2xl font-bold text-orange-500">
-                    {Math.round(totalOtherKcal)}<span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-1">kcal</span>
-                  </p>
-                </div>
-              </div>
+              {(() => {
+                const totalActs = otherRows.reduce((s, r) => s + r.session_count, 0);
+                return (
+                  <div className="grid grid-cols-2 gap-3">
+                    <SummaryStatCard label={t("history.runFreq")} value={otherFreqPerWeek} unit={t("common.perWeek")}
+                      sub={lang === "zh" ? `共 ${totalActs} 次活動` : `${totalActs} activities`} />
+                    <SummaryStatCard label={t("history.totalBurned")} value={Math.round(totalOtherKcal)} unit="kcal" color="text-orange-500" />
+                  </div>
+                );
+              })()}
 
               {/* Kcal trend */}
               <div className="card">
