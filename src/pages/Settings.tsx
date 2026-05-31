@@ -604,7 +604,7 @@ const loadPinStatus = async () => {
 
       {/* ── General Tab ── */}
       {tab === "general" && (
-        <div className="space-y-4">
+        <div className="space-y-form">
           {/* App info */}
           <div className="card">
             <div className="flex items-center gap-3 mb-4">
@@ -615,7 +615,7 @@ const loadPinStatus = async () => {
                 <p className="text-xs text-[var(--text-on-surface-muted)]">{t("settings.version")} v{APP_VERSION}</p>
               </div>
             </div>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-tight text-sm">
               <div className="flex justify-between items-center py-2">
                 <span className="text-[var(--text-on-surface-muted)]">{t("settings.platform")}</span>
                 <span className="text-[var(--text-on-surface)] font-medium">
@@ -629,7 +629,7 @@ const loadPinStatus = async () => {
           <div className="card">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-[var(--text-on-surface)]">{t("settings.language")}</span>
-              <div className="flex gap-1 bg-[var(--surface-container)] p-1 rounded-xl">
+              <div className="flex gap-micro bg-[var(--surface-container)] p-1 rounded-xl">
                 {(["zh", "en"] as Lang[]).map(l => (
                   <button key={l} onClick={() => setLang(l)}
                     className={clsx("px-4 py-1.5 rounded-lg text-xs font-medium transition-all",
@@ -646,7 +646,7 @@ const loadPinStatus = async () => {
 
       {/* ── Security Tab ── */}
       {tab === "security" && (
-        <div className="space-y-4">
+        <div className="space-y-form">
           <div className="card" data-pin-section>
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
@@ -743,7 +743,7 @@ const loadPinStatus = async () => {
                   {t("settings.startup.warning.title")}
                 </h3>
 
-                <div className="space-y-2 text-xs text-gray-700 bg-amber-50 p-3 rounded-lg border border-amber-100">
+                <div className="space-y-tight text-xs text-gray-700 bg-amber-50 p-3 rounded-lg border border-amber-100">
                   <p>{t("settings.startup.warning.line1")}</p>
                   <p className="font-semibold">{t("settings.startup.warning.line2")}</p>
                   <p>{t("settings.startup.warning.line3")}</p>
@@ -799,7 +799,7 @@ const loadPinStatus = async () => {
                     onChange={e => { setPinConfirm(e.target.value); setPinError(""); }} />
                 </div>
                 {pinError && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
+                  <p className="text-xs text-red-500 flex items-center gap-micro">
                     <AlertCircle size={12} /> {pinError}
                   </p>
                 )}
@@ -816,7 +816,7 @@ const loadPinStatus = async () => {
 
       {/* ── Data Tab ── */}
       {tab === "data" && (
-        <div className="space-y-4">
+        <div className="space-y-form">
           {/* CSV Export */}
           <div className="card">
             <div className="flex items-center justify-between mb-2">
@@ -888,7 +888,7 @@ const loadPinStatus = async () => {
                   />
                 </div>
                 {exportPinError && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
+                  <p className="text-xs text-red-500 flex items-center gap-micro">
                     <AlertCircle size={12} /> {exportPinError}
                   </p>
                 )}
@@ -927,7 +927,7 @@ const loadPinStatus = async () => {
                 </div>
                 <button
                   onClick={pickSyncFolder}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--surface-border)] text-xs text-[var(--text-on-surface-sub)] hover:bg-[var(--surface-container)] transition-colors shrink-0">
+                  className="flex items-center gap-micro.5 px-3 py-2 rounded-xl border border-[var(--surface-border)] text-xs text-[var(--text-on-surface-sub)] hover:bg-[var(--surface-container)] transition-colors shrink-0">
                   <FolderOpen size={13} />
                   {t("settings.sync.pick")}
                 </button>
@@ -1019,7 +1019,7 @@ const loadPinStatus = async () => {
                 </div>
 
                 {importPinError && (
-                  <p className="text-xs text-red-500 flex items-center justify-center gap-1">
+                  <p className="text-xs text-red-500 flex items-center justify-center gap-micro">
                     <AlertCircle size={12} /> {importPinError}
                   </p>
                 )}

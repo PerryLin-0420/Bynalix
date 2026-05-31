@@ -54,8 +54,10 @@ export const font = {
 /** Spacing scale — pixel values for use in JS/SVG/Recharts contexts.
  *  These mirror the CSS variables in :root (--sp-*). */
 export const spacing = {
-  tight:   8,   // --sp-tight  / gap-2
+  micro:   4,   // --sp-micro  / gap-1
+  tight:   8,   // --sp-tight  / gap-2, space-y-2
   item:    12,  // --sp-item   / gap-3
+  form:    16,  // --sp-form   / space-y-4
   section: 20,  // --sp-section / p-5
   pageX:   16,  // --sp-page-x / px-4
 } as const;

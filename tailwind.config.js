@@ -12,10 +12,17 @@ export default {
       },
       borderRadius: { xl: "1rem", "2xl": "1.25rem" },
       spacing: {
+        micro:    "var(--sp-micro)",
         tight:    "var(--sp-tight)",
         item:     "var(--sp-item)",
+        form:     "var(--sp-form)",
         section:  "var(--sp-section)",
         "page-x": "var(--sp-page-x)",
+      },
+      fontSize: {
+        "9":  ["9px",  { lineHeight: "1.4" }],
+        "10": ["10px", { lineHeight: "1.4" }],
+        "11": ["11px", { lineHeight: "1.4" }],
       },
       boxShadow: {
         card: "0 2px 12px 0 rgba(0,0,0,0.06)",

@@ -41,7 +41,7 @@ export function DateNavHeader({ title, historyTitle, selectedDate, todayStr, onD
       <div className="flex items-center justify-between mb-4 bg-white/10 rounded-xl px-1 py-1">
         <button
           onClick={() => onDateChange(format(subDays(parseISO(selectedDate), 1), "yyyy-MM-dd"))}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] transition-colors active:bg-white/20 rounded-xl"
+          className="touch-target flex items-center justify-center text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] transition-colors active:bg-white/20 rounded-xl"
         >
           <ChevronLeft size={18} />
         </button>
@@ -56,7 +56,7 @@ export function DateNavHeader({ title, historyTitle, selectedDate, todayStr, onD
             if (next <= todayStr) onDateChange(next);
           }}
           className={clsx(
-            "min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors rounded-xl",
+            "touch-target flex items-center justify-center transition-colors rounded-xl",
             selectedDate >= todayStr
               ? "text-[var(--text-on-bg-faint)] cursor-not-allowed"
               : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] active:bg-white/20"

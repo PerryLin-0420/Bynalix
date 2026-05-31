@@ -686,8 +686,8 @@ export function FoodLog() {
         ].map(({ label, val, unit }) => (
           <div key={label} className="flex flex-col items-center gap-0.5 px-1">
             <p className="text-lg font-bold text-[var(--text-on-surface)] leading-tight">{val}</p>
-            <p className="text-[10px] text-[var(--text-on-surface-muted)] leading-tight">{unit}</p>
-            <p className="text-[10px] text-[var(--text-on-surface-muted)] leading-tight whitespace-nowrap">{label}</p>
+            <p className="text-10 text-[var(--text-on-surface-muted)] leading-tight">{unit}</p>
+            <p className="text-10 text-[var(--text-on-surface-muted)] leading-tight whitespace-nowrap">{label}</p>
           </div>
         ))}
       </div>
@@ -751,7 +751,7 @@ export function FoodLog() {
                         <>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-[var(--text-on-surface-sub)] truncate mb-1">{foodName(e)}</p>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-micro.5">
                               <input
                                 type="number" inputMode="decimal" min="0"
                                 value={editEntry.quantity}
@@ -805,7 +805,7 @@ export function FoodLog() {
                     </div>
                   ))}
                   <button onClick={() => openSheet(group.meal_type)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors border-t border-[var(--surface-border)]">
+                    className="w-full flex items-center justify-center gap-micro.5 py-2.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors border-t border-[var(--surface-border)]">
                     <Plus size={12} /> {t("food.continueAdd")}
                   </button>
                 </div>
@@ -883,7 +883,7 @@ export function FoodLog() {
                   </div>
                   {templates.length > 0 && (
                     <button onClick={() => setShowTplPicker(!showTplPicker)}
-                      className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all shrink-0",
+                      className={clsx("flex items-center gap-micro.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all shrink-0",
                         showTplPicker ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)]" : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--color-outline)]")}>
                       <Bookmark size={12} /> {t("food.applyTemplate")}
                     </button>
@@ -921,7 +921,7 @@ export function FoodLog() {
                 </div>
 
                 {/* Category filter chips */}
-                <div className="flex gap-1.5 mb-3 flex-wrap items-center">
+                <div className="flex gap-micro.5 mb-3 flex-wrap items-center">
                   {CATEGORY_FILTERS.map(f => (
                     <button key={f} onClick={() => setCatFilter(f)}
                       className={clsx("px-2.5 py-1 rounded-full text-xs font-medium transition-all",
@@ -994,15 +994,15 @@ export function FoodLog() {
                         className={clsx("flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-all",
                           pickedFood?.food_id === food.food_id ? "bg-[var(--surface-container)]" : "hover:bg-[var(--surface-container-low)]")}>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-micro.5 flex-wrap">
                             <p className="text-sm font-medium text-[var(--text-on-surface)] truncate">{foodName(food)}</p>
                             {tag && (
-                              <span className={clsx("px-1.5 py-0.5 rounded-full text-[10px] font-semibold", TAG_COLOR[tag])}>
+                              <span className={clsx("px-1.5 py-0.5 rounded-full text-10 font-semibold", TAG_COLOR[tag])}>
                                 {getTagLabel(tag)}
                               </span>
                             )}
                             {food.source_type === "custom" && (
-                              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-600">
+                              <span className="px-1.5 py-0.5 rounded-full text-10 font-semibold bg-purple-100 text-purple-600">
                                 {t("food.mealCustom")}
                               </span>
                             )}
@@ -1029,7 +1029,7 @@ export function FoodLog() {
 
                 {/* Custom food link */}
                 <button onClick={() => setShowCustomFood(true)}
-                  className="mt-2 flex items-center gap-1.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors">
+                  className="mt-2 flex items-center gap-micro.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors">
                   <Plus size={12} /> {t("food.addCustom")}
                 </button>
 
@@ -1178,7 +1178,7 @@ export function FoodLog() {
                 <span className="text-sm font-semibold text-[var(--text-on-surface)]">{cfCalories} kcal</span>
               </div>
 
-              <div className="flex gap-1.5">
+              <div className="flex gap-micro.5">
                 <input className="input-base flex-1"
                   placeholder={lang === "en" ? "Amount" : "份量"} type="number" inputMode="decimal"
                   value={cf.quantity} onChange={e => setCf(f => ({ ...f, quantity: e.target.value }))} />
@@ -1204,7 +1204,7 @@ export function FoodLog() {
             </div>
 
             {customFoodErr && (
-              <p className="text-xs text-red-500 flex items-center gap-1 pt-1">
+              <p className="text-xs text-red-500 flex items-center gap-micro pt-1">
                 <AlertCircle size={12} className="shrink-0" /> {customFoodErr}
               </p>
             )}

@@ -28,7 +28,7 @@ interface DialogProps {
   children: ReactNode;
   maxWidth?: string;                       // Tailwind max-w class, default "max-w-sm"
   padding?: "p-5" | "p-6";                // default "p-5"
-  spaceY?: "space-y-4" | "space-y-5";     // default "space-y-4"
+  spaceY?: "space-y-form" | "space-y-5";     // default "space-y-form"
   opacity?: "bg-black/40" | "bg-black/60"; // backdrop, default "bg-black/40"
 }
 
@@ -36,7 +36,7 @@ export function Dialog({
   children,
   maxWidth = "max-w-sm",
   padding = "p-5",
-  spaceY = "space-y-4",
+  spaceY = "space-y-form",
   opacity = "bg-black/40",
 }: DialogProps) {
   return (

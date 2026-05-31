@@ -120,28 +120,28 @@ function FactorInsightCard({ label, r, density, isGood, insight, dcClx, reliabil
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold text-[var(--text-on-surface)] truncate">{label}</p>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-micro shrink-0">
             {r !== null ? (
               <div className="flex flex-col items-end gap-0.5">
-                <div className={clsx("flex items-center gap-1 text-xs font-mono font-bold",
+                <div className={clsx("flex items-center gap-micro text-xs font-mono font-bold",
                   isGood ? "text-green-600" : "text-red-500")}>
                   <span className={clsx("text-sm leading-none", dcClx)}>●</span>
                   <Icon size={12} />
                   {r >= 0 ? "+" : ""}{r.toFixed(3)}
                 </div>
                 <div className="flex items-baseline gap-0.5">
-                  <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
+                  <span className="text-9 text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
                   <span className={clsx("text-sm font-bold leading-none", dcClx)}>{density}%</span>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-end gap-0.5 opacity-50">
-                <div className="flex items-center gap-1 text-xs font-mono font-bold text-gray-400">
+                <div className="flex items-center gap-micro text-xs font-mono font-bold text-gray-400">
                   <span className="text-sm leading-none text-gray-300">●</span>
                   <Minus size={12} />
                 </div>
                 <div className="flex items-baseline gap-0.5">
-                  <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
+                  <span className="text-9 text-[var(--text-on-surface-muted)] leading-none">{lang === "zh" ? "資料密度" : "Density"}:</span>
                   <span className="text-sm font-bold leading-none text-gray-400">{density}%</span>
                 </div>
               </div>
@@ -161,7 +161,7 @@ function FactorInsightCard({ label, r, density, isGood, insight, dcClx, reliabil
         <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">
           {insight}
           {reliabilityBadge && (
-            <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-600">
+            <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-10 font-semibold bg-amber-50 text-amber-600">
               {reliabilityBadge}
             </span>
           )}
@@ -768,17 +768,17 @@ export function Statistics() {
     const confirmedVars = varCards.filter(v => v.confirmed && v.cfg);
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-form">
 
         {/* ── GOAL SECTION ───────────────────────────────────────────── */}
         <div className="card">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-[var(--text-on-surface)] flex items-center gap-1.5">
+            <p className="text-sm font-semibold text-[var(--text-on-surface)] flex items-center gap-micro.5">
               <Target size={14} className="text-[var(--text-accent)]" />
               {lang === "zh" ? "觀察目標" : "Goal"}
             </p>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] text-[var(--text-on-surface-muted)]">
+            <div className="flex items-center gap-micro.5">
+              <span className="text-10 text-[var(--text-on-surface-muted)]">
                 {lang === "zh" ? `最低須該區間 ${STATS_MIN_DAYS} 天有效資料` : `Min. ${STATS_MIN_DAYS} days of data required`}
               </span>
               {goalConfirmed && !goalOpen && (
@@ -819,7 +819,7 @@ export function Statistics() {
                 const dcClx = dc === "green" ? "text-green-500" : dc === "yellow" ? "text-amber-400" : "text-red-400";
                 return (
                   <div className="flex items-baseline gap-0.5 shrink-0">
-                    <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">
+                    <span className="text-9 text-[var(--text-on-surface-muted)] leading-none">
                       {lang === "zh" ? "資料密度" : "Density"}:
                     </span>
                     <span className={clsx("text-sm font-bold leading-none ml-0.5", dcClx)}>{goalDensity}%</span>
@@ -870,7 +870,7 @@ export function Statistics() {
             {varCards.length < 5 && (
               <button
                 onClick={onAddVar}
-                className="btn-primary flex items-center gap-1 text-xs"
+                className="btn-primary flex items-center gap-micro text-xs"
               >
                 <Plus size={12} />
                 {lang === "zh" ? "新增觀察對象" : "Add variable"}
@@ -957,7 +957,7 @@ export function Statistics() {
                 : (lang === "zh" ? `近 ${dStr(days)}` : `Last ${dStr(days)}`)}
             </p>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-micro shrink-0">
             <button onClick={() => { loadPearson(); loadTrend(); }} disabled={loading || patternsLoading}
               className={clsx("p-2 rounded-xl transition-all border border-white/30 text-white bg-white/10",
                 (loading || patternsLoading) ? "animate-spin opacity-40 cursor-wait" : "hover:bg-white/20")}>
@@ -994,7 +994,7 @@ export function Statistics() {
             : (lang === "zh" ? "基礎" : "Basic")}
         </PillButton>
         <PillButton onClick={() => setActiveTab("advanced")} isActive={activeTab === "advanced"}
-          className="flex-1 py-2 text-sm flex items-center justify-center gap-1">
+          className="flex-1 py-2 text-sm flex items-center justify-center gap-micro">
           {modeSettings?.mode === "custom"
             ? (lang === "zh" ? "進階2" : "Adv.2")
             : t("stats.tab.advanced")}
@@ -1008,7 +1008,7 @@ export function Statistics() {
       {/* ── Compact mode badge — visible on all tabs ─────────────────────── */}
       {modeInfo && modeSettings && (
         <div className={clsx(
-          "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold",
+          "inline-flex items-center gap-micro px-2.5 py-1.5 rounded-full text-xs font-semibold",
           modeInfo.accentBg, modeInfo.accentText,
         )}>
           <BarChart2 size={11} />
@@ -1033,15 +1033,15 @@ export function Statistics() {
       {activeTab === "pearson" && modeSettings?.mode === "custom" && renderAdvancedStats(1)}
 
       {activeTab === "pearson" && modeSettings?.mode !== "custom" && (
-        <div className="space-y-4">
+        <div className="space-y-form">
           {/* ── Fixed weight goal card ─────────────────────────────── */}
           <div className="card">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-[var(--text-on-surface)] flex items-center gap-1.5">
+              <p className="text-sm font-semibold text-[var(--text-on-surface)] flex items-center gap-micro.5">
                 <Target size={14} className="text-[var(--text-accent)]" />
                 {lang === "zh" ? "觀察目標" : "Goal"}
               </p>
-              <span className="text-[10px] text-[var(--text-on-surface-muted)]">
+              <span className="text-10 text-[var(--text-on-surface-muted)]">
                 {lang === "zh" ? `最低須該區間 ${STATS_MIN_DAYS} 天有效資料` : `Min. ${STATS_MIN_DAYS} days of data required`}
               </span>
             </div>
@@ -1069,14 +1069,14 @@ export function Statistics() {
                       lineHeight: 1,
                     }}>»</span>
                     <div className="flex items-baseline gap-0.5 shrink-0">
-                      <span className="text-[9px] text-[var(--text-on-surface-muted)] leading-none">
+                      <span className="text-9 text-[var(--text-on-surface-muted)] leading-none">
                         {lang === "zh" ? "資料密度" : "Density"}:
                       </span>
                       <span className={clsx("text-sm font-bold leading-none ml-0.5", dcClx)}>{wDensity}%</span>
                     </div>
                   </div>
                   {daysUntilUnlock > 0 && (
-                    <p className="text-[11px] text-amber-500 mt-2 font-medium">
+                    <p className="text-11 text-amber-500 mt-2 font-medium">
                       {lang === "zh"
                         ? `再記錄 ${daysUntilUnlock} 天體重即可解鎖統計分析`
                         : `${daysUntilUnlock} more day(s) of weight logs to unlock analysis`}
@@ -1161,7 +1161,7 @@ export function Statistics() {
         const cSym = trendSymbol(trends.calories);
 
         return (
-          <div className="space-y-4">
+          <div className="space-y-form">
 
             {/* ── Trend chart ───────────────────────────────────────────── */}
             <div className="card">
@@ -1242,7 +1242,7 @@ export function Statistics() {
                     <div key={row.factor} className={clsx("flex items-center gap-2 py-2", lowR && "opacity-60")}>
                       <p className="text-xs font-medium text-[var(--text-on-surface)] w-20 shrink-0 truncate">{row.label}</p>
                       <span className={clsx("text-base font-bold w-5 text-center shrink-0", rClx)}>{sym}</span>
-                      <p className="text-[11px] text-[var(--text-on-surface-muted)] flex-1">
+                      <p className="text-11 text-[var(--text-on-surface-muted)] flex-1">
                         {r == null
                           ? (lang === "zh" ? "不足" : "n/a")
                           : lag === 0
@@ -1264,7 +1264,7 @@ export function Statistics() {
 
             {/* ── Density legend ────────────────────────────────────────── */}
             <div className="flex items-center gap-4 px-1 pb-1">
-              <p className="text-[10px] text-white shrink-0">
+              <p className="text-10 text-white shrink-0">
                 {lang === "zh" ? "資料密度" : "Data density"}:
               </p>
               {[
@@ -1272,9 +1272,9 @@ export function Statistics() {
                 { clx: "text-amber-400",  label: lang === "zh" ? "50–79%" : "50–79%" },
                 { clx: "text-red-400",    label: lang === "zh" ? "<50%" : "<50%" },
               ].map(({ clx, label }) => (
-                <div key={label} className="flex items-center gap-1">
+                <div key={label} className="flex items-center gap-micro">
                   <span className={clsx("text-xs leading-none", clx)}>●</span>
-                  <span className="text-[10px] text-white">{label}</span>
+                  <span className="text-10 text-white">{label}</span>
                 </div>
               ))}
             </div>

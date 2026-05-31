@@ -131,7 +131,7 @@ export function Dashboard() {
 
   const WaterCard = (
     <div className="card">
-      <div className="flex items-center gap-1.5 text-blue-500">
+      <div className="flex items-center gap-micro.5 text-blue-500">
         <Droplets size={16} />
         <span className="text-xs font-medium">{t("dashboard.water")}</span>
       </div>
@@ -144,15 +144,15 @@ export function Dashboard() {
           style={{ width: `${Math.min((totals.water_ml / waterGoal) * 100, 100)}%` }} />
       </div>
       {waterOver
-        ? <p className="text-[10px] text-blue-500 font-medium">✓ 達標 +{Math.round(totals.water_ml - waterGoal)} ml</p>
-        : <p className="text-[10px] text-[var(--text-on-surface-muted)]">{t("dashboard.remaining")} {(waterRemain / 1000).toFixed(2).replace(/\.?0+$/, "")} L</p>
+        ? <p className="text-10 text-blue-500 font-medium">✓ 達標 +{Math.round(totals.water_ml - waterGoal)} ml</p>
+        : <p className="text-10 text-[var(--text-on-surface-muted)]">{t("dashboard.remaining")} {(waterRemain / 1000).toFixed(2).replace(/\.?0+$/, "")} L</p>
       }
     </div>
   );
 
   const ExerciseCard = (
     <div className="card">
-      <div className="flex items-center gap-1.5 text-orange-500">
+      <div className="flex items-center gap-micro.5 text-orange-500">
         <Dumbbell size={16} />
         <span className="text-xs font-medium">{t("dashboard.exercise")}</span>
       </div>
@@ -167,7 +167,7 @@ export function Dashboard() {
 
   const WeightCard = (
     <div className="card">
-      <div className="flex items-center gap-1.5 text-[var(--text-on-surface-sub)]">
+      <div className="flex items-center gap-micro.5 text-[var(--text-on-surface-sub)]">
         <Scale size={16} />
         <span className="text-xs font-medium">{t("dashboard.weight")}</span>
       </div>
@@ -183,7 +183,7 @@ export function Dashboard() {
         </>
       )}
       {modeSettings?.target_weight_kg && (
-        <p className="text-[10px] text-[var(--text-on-surface-muted)]">
+        <p className="text-10 text-[var(--text-on-surface-muted)]">
           {t("dashboard.target")} {modeSettings.target_weight_kg} kg
         </p>
       )}
@@ -243,7 +243,7 @@ export function Dashboard() {
           {lang === "zh" ? "今日攝取" : "Daily Intake"}
         </p>
         {targets && (
-          <p className="text-[10px] font-mono text-[var(--text-on-surface-muted)]">
+          <p className="text-10 font-mono text-[var(--text-on-surface-muted)]">
             {lang === "zh" ? "目標" : "Target"} {Math.round(targets.total_kcal)} kcal
           </p>
         )}
@@ -300,7 +300,7 @@ export function Dashboard() {
                   idx > 0 && "border-t border-[var(--surface-border)]"
                 )}>
                 {/* Item label */}
-                <p className="text-[10px] font-semibold tracking-wide leading-none mb-1"
+                <p className="text-10 font-semibold tracking-wide leading-none mb-1"
                   style={{ color: ring.color }}>
                   {ring.label}
                 </p>
@@ -310,7 +310,7 @@ export function Dashboard() {
                   over ? "text-red-400" : "text-[var(--text-on-surface)]"
                 )}>
                   {Math.round(ring.val)}
-                  <span className="text-[11px] font-normal ml-1 text-[var(--text-on-surface-muted)]">
+                  <span className="text-11 font-normal ml-1 text-[var(--text-on-surface-muted)]">
                     {ring.unit}
                   </span>
                 </p>
@@ -331,7 +331,7 @@ export function Dashboard() {
             const over = ring.val > ring.target;
             const diff = Math.round(Math.abs(ring.val - ring.target));
             return (
-              <div key={ring.key} className="flex flex-col items-center gap-1">
+              <div key={ring.key} className="flex flex-col items-center gap-micro">
                 <div className="flex items-center gap-0.5">
                   <ring.Icon size={10} style={{ color: over ? "#ef4444" : ring.color }} />
                   <span className={clsx(
@@ -340,7 +340,7 @@ export function Dashboard() {
                   )}>
                     {over ? "+" : ""}{diff}
                   </span>
-                  <span className="text-[9px] text-[var(--text-on-surface-muted)] ml-0.5">
+                  <span className="text-9 text-[var(--text-on-surface-muted)] ml-0.5">
                     {ring.unit}
                   </span>
                 </div>
@@ -352,7 +352,7 @@ export function Dashboard() {
 
       {/* Net calories */}
       {totals.exercise_kcal > 0 && (
-        <div className="mt-3 pt-3 border-t border-[var(--surface-border)] flex justify-between text-[10px] font-mono text-[var(--text-on-surface-muted)] relative">
+        <div className="mt-3 pt-3 border-t border-[var(--surface-border)] flex justify-between text-10 font-mono text-[var(--text-on-surface-muted)] relative">
           <span>{t("dashboard.intake")} {Math.round(totals.calories)}</span>
           <span className="text-green-500">−EX {Math.round(totals.exercise_kcal)}</span>
           <span className="text-[var(--text-on-surface)] font-bold">NET {Math.round(netCalories)} kcal</span>
@@ -382,7 +382,7 @@ export function Dashboard() {
         </span>} />
       <div className="flex justify-around">
         {checks.map(c => (
-          <div key={c.key} className="flex flex-col items-center gap-1">
+          <div key={c.key} className="flex flex-col items-center gap-micro">
             <div className={clsx(
               "w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all",
               c.done ? "bg-green-50 border border-green-200"
@@ -391,7 +391,7 @@ export function Dashboard() {
               {c.icon}
             </div>
             <span className={clsx(
-              "text-[10px] font-medium",
+              "text-10 font-medium",
               c.done ? "text-green-600" : "text-[var(--text-on-surface-muted)]"
             )}>
               {c.label}
@@ -430,11 +430,11 @@ export function Dashboard() {
                 <p className="text-xs font-medium text-[var(--text-on-surface-muted)]">
                   {lang === "zh" ? "連續記錄" : "Logging Streak"}
                 </p>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
+                <span className="text-9 font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600">
                   {lang === "zh" ? "累計" : "Cumulative"}
                 </span>
               </div>
-              <div className="flex items-baseline gap-1 mt-1">
+              <div className="flex items-baseline gap-micro mt-1">
                 <span className="text-4xl font-black text-[var(--text-accent)] leading-none">{streak}</span>
                 <span className="text-sm font-medium text-[var(--text-on-surface-muted)]">
                   {lang === "zh" ? "天" : "days"}
@@ -451,24 +451,24 @@ export function Dashboard() {
               </p>
               <p className="text-base mt-0.5">
                 {"🔥".repeat(Math.min(fullCycles, 5))}
-                {fullCycles > 5 && <span className="text-[10px] text-[var(--text-on-surface-muted)] ml-0.5">+{fullCycles - 5}</span>}
+                {fullCycles > 5 && <span className="text-10 text-[var(--text-on-surface-muted)] ml-0.5">+{fullCycles - 5}</span>}
               </p>
             </div>
           </div>
 
           <div className="mt-3">
             <div className="flex justify-between mb-1">
-              <span className="text-[10px] text-[var(--text-on-surface-muted)] font-mono">{prev}d</span>
-              <span className="text-[10px] text-[var(--text-on-surface)] font-bold">
+              <span className="text-10 text-[var(--text-on-surface-muted)] font-mono">{prev}d</span>
+              <span className="text-10 text-[var(--text-on-surface)] font-bold">
                 {lang === "zh" ? `下一里程碑 ${next} 天` : `Next milestone ${next}d`}
               </span>
-              <span className="text-[10px] text-[var(--text-on-surface-muted)] font-mono">{next}d</span>
+              <span className="text-10 text-[var(--text-on-surface-muted)] font-mono">{next}d</span>
             </div>
             <div className="h-2 bg-[var(--surface-container)] rounded-full overflow-hidden">
               <div className="h-full bg-[var(--color-primary)] rounded-full transition-all duration-500"
                 style={{ width: `${milestonePct}%` }} />
             </div>
-            <p className="text-[10px] text-[var(--text-on-surface-muted)] mt-1">
+            <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
               {remaining > 0
                 ? (lang === "zh" ? `還差 ${remaining} 天` : `${remaining} day(s) to go`)
                 : (lang === "zh" ? "已達成所有里程碑 🎉" : "All milestones reached 🎉")}
@@ -489,7 +489,7 @@ export function Dashboard() {
             <p className="text-xs font-medium text-[var(--text-on-surface-muted)]">
               {lang === "zh" ? "連續記錄" : "Logging Streak"}
             </p>
-            <div className="flex items-baseline gap-1 mt-0.5">
+            <div className="flex items-baseline gap-micro mt-0.5">
               <span className="text-3xl font-black text-[var(--text-accent)]">{streak}</span>
               <span className="text-sm font-medium text-[var(--text-on-surface-muted)]">
                 {lang === "zh" ? "天" : "days"}
@@ -510,13 +510,13 @@ export function Dashboard() {
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-[11px] font-bold text-[var(--text-accent)]">
+              <span className="text-11 font-bold text-[var(--text-accent)]">
                 {streak > 0 ? `${((streak % cycleLen) || cycleLen)}/${cycleLen}` : "0/7"}
               </span>
             </div>
           </div>
         </div>
-        <div className="flex gap-1 mt-3">
+        <div className="flex gap-micro mt-3">
           {Array.from({ length: 7 }).map((_, i) => {
             const daysAgo   = 6 - i;
             const hasRecord = streak > daysAgo;
@@ -529,10 +529,10 @@ export function Dashboard() {
           })}
         </div>
         <div className="flex justify-between mt-1">
-          <span className="text-[9px] text-[var(--text-on-surface-muted)]">
+          <span className="text-9 text-[var(--text-on-surface-muted)]">
             {lang === "zh" ? "7 天前" : "7d ago"}
           </span>
-          <span className="text-[9px] text-[var(--text-on-surface-muted)]">
+          <span className="text-9 text-[var(--text-on-surface-muted)]">
             {lang === "zh" ? "今天" : "Today"}
           </span>
         </div>
@@ -551,7 +551,7 @@ export function Dashboard() {
     return (
       <div className="card">
         <CardHeader title={lang === "zh" ? "近 7 天達標率" : "7-Day Adherence"} mb="mb-3" />
-        <div className="space-y-2.5">
+        <div className="space-y-tight.5">
           {items.map(item => {
             const pct = (item.hit / 7) * 100;
             return (
@@ -570,7 +570,7 @@ export function Dashboard() {
             );
           })}
         </div>
-        <p className="text-[10px] text-[var(--text-on-surface-muted)] mt-3">
+        <p className="text-10 text-[var(--text-on-surface-muted)] mt-3">
           {lang === "zh" ? "熱量達標：攝取在目標的 80–110% 範圍內"
                         : "Calorie goal: within 80–110% of target"}
         </p>
@@ -665,7 +665,7 @@ export function Dashboard() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {modeInfo && modeSettings && (
-              <div className={clsx("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold", modeInfo.color)}>
+              <div className={clsx("inline-flex items-center gap-micro.5 px-3 py-1.5 rounded-full text-xs font-semibold", modeInfo.color)}>
                 <ModeIcon size={12} />
                 {t(MODE_LABEL_KEY[modeSettings.mode] as any)}
               </div>

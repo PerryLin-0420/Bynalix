@@ -91,7 +91,7 @@ function UnitInput({ value, onChange, unit, py = "py-1.5", pr = "pr-8", step, in
       <input className={`input-base ${py} ${pr} text-sm`} type="number" inputMode={inputMode}
         step={step} placeholder={placeholder} value={value}
         onChange={e => onChange(e.target.value)} />
-      <span className={`absolute right-2 ${UI_SPAN_TOP[py]} text-[10px] text-[var(--text-on-surface-muted)]`}>
+      <span className={`absolute right-2 ${UI_SPAN_TOP[py]} text-10 text-[var(--text-on-surface-muted)]`}>
         {unit}
       </span>
     </div>
@@ -130,7 +130,7 @@ function ExerciseEntryCard({ e, editingEx, setEditingEx, saveEditEx, onDelete, k
               </select>
             </div>
           </div>
-          <div className="flex flex-col gap-1 shrink-0">
+          <div className="flex flex-col gap-micro shrink-0">
             <button onClick={saveEditEx} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
               <Check size={15} />
             </button>
@@ -804,7 +804,7 @@ export function ExerciseLog() {
             <div className="text-right">
               <p className="text-xl font-bold text-[var(--text-on-surface)]">{Math.round(totalAllKcal)} kcal</p>
               {(totalStrKcal > 0 || totalRunKcal > 0) && (
-                <p className="text-[10px] text-[var(--text-on-surface-muted)]">
+                <p className="text-10 text-[var(--text-on-surface-muted)]">
                   {[
                     totalExKcal > 0 && `${t("exercise.tabActivity")} ${Math.round(totalExKcal)}`,
                     totalRunKcal > 0 && `${t("exercise.running")} ${totalRunKcal}`,
@@ -829,7 +829,7 @@ export function ExerciseLog() {
                 <p className="text-xs font-medium text-green-700">
                   🏃 {lang === "zh" ? "今日有氧" : "Today's Cardio"} · {totalRunKm.toFixed(2)} km · {Math.floor(totalRunMin)}:{String(Math.round(totalRunMin % 1 * 60)).padStart(2,"0")} min · {totalRunKcal} kcal
                 </p>
-                <span className="text-[10px] text-green-400">{t("exercise.included")}</span>
+                <span className="text-10 text-green-400">{t("exercise.included")}</span>
               </div>
             </div>
           )}
@@ -841,7 +841,7 @@ export function ExerciseLog() {
                 <p className="text-xs font-medium text-violet-700">
                   {t("exercise.strength")} {sessions.length} {t("exercise.moves")} · {t("exercise.estKcal")} {totalStrKcal} kcal
                 </p>
-                <span className="text-[10px] text-violet-400">{t("exercise.included")}</span>
+                <span className="text-10 text-violet-400">{t("exercise.included")}</span>
               </div>
             </div>
           )}
@@ -855,13 +855,13 @@ export function ExerciseLog() {
       {tab === "running" && (
         <div className="space-y-3">
           {/* Sub-filter chips */}
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+          <div className="flex gap-micro.5 overflow-x-auto pb-0.5">
             {CARDIO_FILTERS.map(({ key, label, emoji }) => (
               <button
                 key={key}
                 onClick={() => setCardioFilter(key)}
                 className={clsx(
-                  "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0",
+                  "flex items-center gap-micro px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all shrink-0",
                   cardioFilter === key
                     ? "bg-green-500 text-white shadow-sm"
                     : "bg-white/10 text-[var(--text-on-bg-muted)] hover:bg-white/20"
@@ -998,7 +998,7 @@ export function ExerciseLog() {
                   </div>
                 ) : (
                   <button onClick={() => setAddRunIntervalTo({ sessionId: sess.id, d: "", t: "" })}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors border-t border-[var(--surface-border)]">
+                    className="w-full flex items-center justify-center gap-micro.5 py-2.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors border-t border-[var(--surface-border)]">
                     <Plus size={12} /> {t("exercise.addIntervalBtn")}
                   </button>
                 )}
@@ -1038,7 +1038,7 @@ export function ExerciseLog() {
               </div>
               <p className="text-xl font-bold text-[var(--text-on-surface)]">{Math.round(totalStrVol)} <span className="text-sm font-normal text-[var(--text-on-surface-muted)]">kg</span></p>
             </div>
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex gap-micro.5 flex-wrap">
               {(["全部", ...BODY_PARTS] as const).map(p => (
                 <button key={p} onClick={() => setStrFilterPart(p)}
                   className={clsx("px-3 py-1 rounded-full text-xs font-medium transition-all",
@@ -1101,7 +1101,7 @@ export function ExerciseLog() {
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-bold text-[var(--text-on-surface)]">{exName(sess)}</p>
                           {sess.body_part && (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white"
+                            <span className="text-10 font-semibold px-2 py-0.5 rounded-full text-white"
                               style={{ backgroundColor: partColor }}>
                               {bpLabel(sess.body_part)}
                             </span>
@@ -1186,7 +1186,7 @@ export function ExerciseLog() {
                       </button>
                     </div>
                     {addSetErr && (
-                      <p className="text-xs text-red-500 flex items-center gap-1 px-4 pb-2">
+                      <p className="text-xs text-red-500 flex items-center gap-micro px-4 pb-2">
                         <AlertCircle size={12} className="shrink-0" /> {addSetErr}
                       </p>
                     )}
@@ -1194,7 +1194,7 @@ export function ExerciseLog() {
                 ) : (
                   <button
                     onClick={() => setAddSetTo({ sessionId: sess.id, w: "", r: "" })}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors border-t border-[var(--surface-border)]">
+                    className="w-full flex items-center justify-center gap-micro.5 py-2.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors border-t border-[var(--surface-border)]">
                     <Plus size={12} /> {t("exercise.addSet")}
                   </button>
                 )}
@@ -1242,7 +1242,7 @@ export function ExerciseLog() {
 
       {/* ── WATER TAB ── */}
       {tab === "water" && (
-        <div className="space-y-4">
+        <div className="space-y-form">
           <div className="card">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-blue-500">
@@ -1308,12 +1308,12 @@ export function ExerciseLog() {
             }} className="btn-primary px-5">{t("common.add")}</button>
           </div>
           {waterAddErr && (
-            <p className="text-xs text-red-500 flex items-center gap-1 -mt-1">
+            <p className="text-xs text-red-500 flex items-center gap-micro -mt-1">
               <AlertCircle size={12} className="shrink-0" /> {waterAddErr}
             </p>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-tight">
             {waterEntries.map(w => {
               const isSynced = w.meal_log_id != null;
               return (
@@ -1340,7 +1340,7 @@ export function ExerciseLog() {
                         <Droplets size={14} className={isSynced ? "text-blue-300" : "text-blue-400"} />
                         <span className="text-sm text-[var(--text-on-surface-sub)]">{w.amount_ml} ml</span>
                         {isSynced && (
-                          <span className="text-[10px] text-blue-400 bg-blue-50 px-1.5 py-0.5 rounded-full">
+                          <span className="text-10 text-blue-400 bg-blue-50 px-1.5 py-0.5 rounded-full">
                             {lang === "en" ? "meal sync" : "餐食同步"}
                           </span>
                         )}
@@ -1412,17 +1412,17 @@ export function ExerciseLog() {
                     <p className="text-xs text-[var(--text-on-surface-muted)] mb-3">
                       {lang === "zh" ? `找不到「${exSearch}」` : `No results for "${exSearch}"`}
                     </p>
-                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 space-y-2.5">
+                    <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 space-y-tight.5">
                       {/* Exercise name (from search, used as exercise name) */}
                       <div>
-                        <p className="text-[11px] text-amber-600 font-medium mb-1">
+                        <p className="text-11 text-amber-600 font-medium mb-1">
                           {lang === "zh" ? "運動名稱" : "Exercise name"}
                         </p>
                         <p className="text-sm font-semibold text-[var(--text-on-surface)] px-1">{exSearch}</p>
                       </div>
                       {/* Optional English name */}
                       <div>
-                        <p className="text-[11px] text-amber-600 font-medium mb-1">
+                        <p className="text-11 text-amber-600 font-medium mb-1">
                           {lang === "zh" ? "英文名稱（選填）" : "English name (optional)"}
                         </p>
                         <input className="input-base py-1.5 text-sm bg-white"
@@ -1432,7 +1432,7 @@ export function ExerciseLog() {
                       </div>
                       {/* Calories & duration */}
                       <div>
-                        <p className="text-[11px] text-amber-600 font-medium mb-1">
+                        <p className="text-11 text-amber-600 font-medium mb-1">
                           {lang === "zh" ? "本次紀錄" : "This session"}
                         </p>
                         <div className="flex gap-2">
@@ -1442,7 +1442,7 @@ export function ExerciseLog() {
                             unit="min" pr="pr-10" placeholder={t("exercise.durationLabel")} containerCls="relative w-24" />
                         </div>
                         {!customExKcal && (
-                          <p className="text-[10px] text-red-500 mt-1">{t("exercise.kcalWarning")}</p>
+                          <p className="text-10 text-red-500 mt-1">{t("exercise.kcalWarning")}</p>
                         )}
                       </div>
                       <button
@@ -1464,7 +1464,7 @@ export function ExerciseLog() {
                   <div className="flex items-center gap-2 min-w-0">
                     <p className="text-sm font-semibold text-[var(--text-on-surface)] truncate">{(lang === "en" && selEx.name_en) ? selEx.name_en : selEx.name}</p>
                     {selEx.category === "重訓" && selEx.body_part && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white shrink-0"
+                      <span className="text-10 font-semibold px-2 py-0.5 rounded-full text-white shrink-0"
                         style={{ backgroundColor: BODY_PART_COLORS[selEx.body_part] ?? "#8b5cf6" }}>
                         {bpLabel(selEx.body_part)}
                       </span>
@@ -1499,7 +1499,7 @@ export function ExerciseLog() {
                   <p className="text-xs text-center text-[var(--text-on-surface-muted)]">{t("exercise.estBurn")} <strong>{previewKcal} kcal</strong></p>
                 )}
                 {cardioErr && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
+                  <p className="text-xs text-red-500 flex items-center gap-micro">
                     <AlertCircle size={12} className="shrink-0" /> {cardioErr}
                   </p>
                 )}
@@ -1569,7 +1569,7 @@ export function ExerciseLog() {
                           className="flex-1 flex items-center justify-between px-4 py-2.5 hover:bg-[var(--surface-container-low)] text-left">
                           <span className="text-sm font-medium text-[var(--text-on-surface)]">{(lang === "en" && e.name_en) ? e.name_en : e.name}</span>
                           {e.body_part && (
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white ml-2 shrink-0"
+                            <span className="text-10 font-semibold px-2 py-0.5 rounded-full text-white ml-2 shrink-0"
                               style={{ backgroundColor: BODY_PART_COLORS[e.body_part] ?? "#9ca3af" }}>
                               {bpLabel(e.body_part)}
                             </span>
@@ -1606,7 +1606,7 @@ export function ExerciseLog() {
               {/* Sets builder */}
               <div>
                 <p className="text-xs font-semibold text-[var(--text-on-surface-muted)] uppercase tracking-wide mb-3">{t("exercise.setsSetup")}</p>
-                <div className="space-y-2">
+                <div className="space-y-tight">
                   {strSets.map((s, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-[var(--text-on-surface-muted)] w-12 shrink-0 text-center">
@@ -1628,7 +1628,7 @@ export function ExerciseLog() {
                 </div>
 
                 <button onClick={() => setStrSets(ss => [...ss, { weight: ss[ss.length - 1]?.weight ?? "", reps: "" }])}
-                  className="mt-3 flex items-center gap-1.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors">
+                  className="mt-3 flex items-center gap-micro.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors">
                   <Plus size={13} /> {t("exercise.addSet")}
                 </button>
               </div>
@@ -1636,7 +1636,7 @@ export function ExerciseLog() {
 
             <div className="px-5 py-4 border-t border-[var(--surface-border)] shrink-0">
               {strFormErr && (
-                <p className="text-xs text-red-500 flex items-center gap-1 mb-2">
+                <p className="text-xs text-red-500 flex items-center gap-micro mb-2">
                   <AlertCircle size={12} className="shrink-0" /> {strFormErr}
                 </p>
               )}
@@ -1671,10 +1671,10 @@ export function ExerciseLog() {
                 /* Locked — greyed out badge */
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-[var(--text-on-surface-muted)]">{lang === "zh" ? "運動類型" : "Activity type"}</span>
-                  <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-[var(--surface-container)] text-[var(--text-on-surface-muted)] text-xs font-semibold opacity-60 cursor-not-allowed">
+                  <span className="flex items-center gap-micro px-3 py-1 rounded-full bg-[var(--surface-container)] text-[var(--text-on-surface-muted)] text-xs font-semibold opacity-60 cursor-not-allowed">
                     {CARDIO_EMOJI[addCardioType]} {lang === "zh" ? CARDIO_LABEL[addCardioType].zh : CARDIO_LABEL[addCardioType].en}
                   </span>
-                  <span className="text-[10px] text-[var(--text-on-surface-muted)]">{lang === "zh" ? "（已鎖定）" : "(locked)"}</span>
+                  <span className="text-10 text-[var(--text-on-surface-muted)]">{lang === "zh" ? "（已鎖定）" : "(locked)"}</span>
                 </div>
               ) : (
                 /* Unlocked — segmented control */
@@ -1683,13 +1683,13 @@ export function ExerciseLog() {
                     {lang === "zh" ? "運動類型" : "Activity type"}
                     <span className="text-red-400 ml-1">*</span>
                   </p>
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-micro.5">
                     {(["running", "swimming", "cycling"] as CardioType[]).map(ct => (
                       <button
                         key={ct}
                         onClick={() => setAddCardioType(ct)}
                         className={clsx(
-                          "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                          "flex items-center gap-micro px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                           (addCardioType as string) === ct ? "bg-green-500 text-white" : "bg-[var(--surface-container)] text-[var(--text-on-surface-sub)] hover:bg-[var(--surface-container)]"
                         )}>
                         {CARDIO_EMOJI[ct]}
@@ -1702,7 +1702,7 @@ export function ExerciseLog() {
             </div>
 
             {/* Intervals */}
-            <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
+            <div className="p-4 space-y-tight max-h-80 overflow-y-auto">
               {runIntervals.map((iv, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-[var(--text-on-surface-muted)] w-5 shrink-0">{idx + 1}</span>
@@ -1725,14 +1725,14 @@ export function ExerciseLog() {
                 </div>
               ))}
               <button onClick={() => setRunIntervals(xs => [...xs, { distance: "", time: "" }])}
-                className="flex items-center gap-1 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] py-1">
+                className="flex items-center gap-micro text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] py-1">
                 <Plus size={12} /> {t("exercise.addIntervalBtn")}
               </button>
             </div>
 
             <div className="p-4 border-t border-[var(--surface-border)]">
               {runFormErr && (
-                <p className="text-xs text-red-500 flex items-center gap-1 mb-2">
+                <p className="text-xs text-red-500 flex items-center gap-micro mb-2">
                   <AlertCircle size={12} className="shrink-0" /> {runFormErr}
                 </p>
               )}

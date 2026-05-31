@@ -240,10 +240,10 @@ export function MetricPicker({
     <div className="space-y-3">
       {/* Layer 1: Type */}
       <div>
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+        <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
           {lang === "zh" ? "類型" : "Type"}
         </p>
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-micro.5 flex-wrap">
           {TYPE_OPTIONS.map(opt => (
             <button
               key={opt.key}
@@ -264,7 +264,7 @@ export function MetricPicker({
       {/* Strength Layer 2: Body part (priority selection) */}
       {isStrength && (
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
             {lang === "zh" ? "部位" : "Body Part"}
           </p>
           {bpLoading ? (
@@ -272,7 +272,7 @@ export function MetricPicker({
           ) : bodyParts.length === 0 ? (
             <p className="text-xs text-gray-400 py-1">{lang === "zh" ? "尚無部位資料" : "No body-part data"}</p>
           ) : (
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex gap-micro.5 flex-wrap">
               {bodyParts.map(bp => (
                 <button
                   key={bp}
@@ -295,10 +295,10 @@ export function MetricPicker({
       {/* Cardio Layer 2: sub-type (跑步/游泳/自行車) */}
       {isCardio && (
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
             {lang === "zh" ? "運動" : "Exercise"}
           </p>
-          <div className="flex gap-1.5">
+          <div className="flex gap-micro.5">
             {CARDIO_SUBTYPES.map(opt => (
               <button
                 key={opt.key}
@@ -320,10 +320,10 @@ export function MetricPicker({
       {/* Layer 3: Metric */}
       {!isBurn && (!isCardio || exName !== "") && (
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
             {lang === "zh" ? "指標" : "Metric"}
           </p>
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-micro.5 flex-wrap">
             {metricOpts.map(opt => {
               const excluded = isExcluded(
                 type, opt.key,
@@ -362,7 +362,7 @@ export function MetricPicker({
       {/* Strength Layer 4: Exercise name picker (optional) */}
       {isStrength && metric && (
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
             {lang === "zh" ? "動作（可選）" : "Exercise (Optional)"}
           </p>
           <input
@@ -404,14 +404,14 @@ export function MetricPicker({
           )}
           {exName && (
             <div className="mt-1 flex items-center gap-2">
-              <span className="text-[10px] text-teal-600 font-medium">
+              <span className="text-10 text-teal-600 font-medium">
                 {lang === "en"
                   ? (exercises.find(e => e.name === exName)?.nameEn ?? exName)
                   : exName}
               </span>
               <button
                 onClick={() => setExName("")}
-                className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-10 text-gray-400 hover:text-gray-600 transition-colors"
               >
                 {lang === "zh" ? "清除" : "Clear"}
               </button>
@@ -423,10 +423,10 @@ export function MetricPicker({
       {/* Direction toggle */}
       {showDirection && (
         <div>
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
             {lang === "zh" ? "方向" : "Direction"}
           </p>
-          <div className="flex gap-1.5">
+          <div className="flex gap-micro.5">
             {([
               { key: "up"   as const, zh: "越大越好 ⬆️", en: "Higher is better ⬆️" },
               { key: "down" as const, zh: "越小越好 ⬇️", en: "Lower is better ⬇️" },

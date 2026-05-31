@@ -155,7 +155,7 @@ export function BodyHistoryDrawer({ open, tab, userId, onClose, onSelectDate }: 
               {w.weight_kg} kg
               {w.body_fat_pct != null && ` · 體脂 ${w.body_fat_pct}%`}
             </p>
-            <p className="text-[10px] text-gray-400">
+            <p className="text-10 text-gray-400">
               {lang === "zh" ? WEIGHT_TYPE_ZH[w.measurement_type] : WEIGHT_TYPE_EN[w.measurement_type]}
               {w.log_time ? ` · ${w.log_time.slice(0, 5)}` : ""}
             </p>
@@ -170,7 +170,7 @@ export function BodyHistoryDrawer({ open, tab, userId, onClose, onSelectDate }: 
             <p className="text-xs font-medium text-gray-800">
               {lang === "zh" ? "體態測量" : "Body comp"}
             </p>
-            <p className="text-[10px] text-gray-400">
+            <p className="text-10 text-gray-400">
               {[
                 b.body_fat_pct != null ? `體脂 ${b.body_fat_pct}%` : null,
                 b.waist_cm != null ? `腰圍 ${b.waist_cm}cm` : null,
@@ -195,7 +195,7 @@ export function BodyHistoryDrawer({ open, tab, userId, onClose, onSelectDate }: 
             {sl.duration_hours != null ? ` · ${sl.duration_hours}h` : ""}
           </p>
           {sl.log_time && (
-            <p className="text-[10px] text-gray-400">{sl.log_time.slice(0, 5)}</p>
+            <p className="text-10 text-gray-400">{sl.log_time.slice(0, 5)}</p>
           )}
         </div>
       </div>

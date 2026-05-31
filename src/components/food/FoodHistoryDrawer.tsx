@@ -172,7 +172,7 @@ export function FoodHistoryDrawer({ open, userId, onClose, onSelectDate }: Props
                                 <div key={g.meal_type} className="flex items-center gap-2 px-5 py-2.5">
                                   <div className="flex-1 min-w-0">
                                     <p className="text-xs font-medium text-gray-800">{mealLabel(g.meal_type)}</p>
-                                    <p className="text-[10px] text-gray-400">
+                                    <p className="text-10 text-gray-400">
                                       {g.item_count} {lang === "en" ? "items" : "項"}
                                     </p>
                                   </div>

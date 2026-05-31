@@ -113,7 +113,7 @@ export function MiniCalendar({
       {/* Weekday labels */}
       <div className="grid grid-cols-7 mb-1">
         {WEEK_DAYS.map(wd => (
-          <div key={wd} className="text-center text-[10px] font-medium text-gray-400 py-1">
+          <div key={wd} className="text-center text-10 font-medium text-gray-400 py-1">
             {wd}
           </div>
         ))}

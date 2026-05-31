@@ -300,7 +300,7 @@ export function Profile() {
                       if (lbmKg >= w) return null;
                       const inferredBf = ((w - lbmKg) / w * 100).toFixed(1);
                       return (
-                        <p className="mt-1 text-[10px] text-[var(--text-on-surface-muted)]">
+                        <p className="mt-1 text-10 text-[var(--text-on-surface-muted)]">
                           {lang === "zh"
                             ? `推算體脂：${inferredBf}%（依初始量測推算）`
                             : `Est. body fat: ${inferredBf}% (inferred from initial measurement)`}
@@ -330,7 +330,7 @@ export function Profile() {
           {/* Activity level */}
           <div className="card">
             <p className="text-sm font-medium text-[var(--text-on-surface)] mb-3">{t("profile.activity")}</p>
-            <div className="space-y-2">
+            <div className="space-y-tight">
               {ACTIVITY_LEVELS.map(({ value, label }) => (
                 <button key={value} onClick={() => setForm(f => ({ ...f, activity_level: value }))}
                   className={clsx("w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all",
@@ -360,7 +360,7 @@ export function Profile() {
       {tab === "mode" && (
         <div className="space-y-5">
           {/* Two-tier mode selector */}
-          <div className="card space-y-4">
+          <div className="card space-y-form">
             {/* Level 1: Category */}
             <div>
               <p className="text-xs font-semibold text-[var(--text-on-surface-muted)] uppercase tracking-wide mb-2">
@@ -376,12 +376,12 @@ export function Profile() {
                   <button key={cat}
                     onClick={() => setGoalCategory(cat)}
                     className={clsx(
-                      "flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl border-2 text-xs font-semibold transition-all",
+                      "flex flex-col items-center gap-micro.5 py-3 px-1 rounded-xl border-2 text-xs font-semibold transition-all",
                       goalCategory === cat ? activeColor : color
                     )}>
                     <Icon size={16} />
                     <span>{t(`profile.mode.cat${cat.charAt(0).toUpperCase() + cat.slice(1)}` as any)}</span>
-                    <span className="text-[9px] font-normal opacity-80 text-center leading-tight">{t(`profile.mode.cat${cat.charAt(0).toUpperCase() + cat.slice(1)}Desc` as any)}</span>
+                    <span className="text-9 font-normal opacity-80 text-center leading-tight">{t(`profile.mode.cat${cat.charAt(0).toUpperCase() + cat.slice(1)}Desc` as any)}</span>
                   </button>
                 ))}
               </div>
@@ -393,7 +393,7 @@ export function Profile() {
                 <p className="text-xs font-semibold text-[var(--text-on-surface-muted)] uppercase tracking-wide mb-2">
                   {lang === "zh" ? "速度 / 強度" : "Speed / Intensity"}
                 </p>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-3 gap-micro.5">
                   {([
                     { int: "slow" as const,       descKey: goalCategory === "cut" ? "profile.mode.cutSlowDesc" : "profile.mode.bulkLeanDesc" },
                     { int: "normal" as const,     descKey: goalCategory === "cut" ? "profile.mode.cutNormalDesc" : "profile.mode.bulkNormalDesc" },
@@ -401,7 +401,7 @@ export function Profile() {
                   ] as const).map(({ int, descKey }) => (
                     <button key={int} onClick={() => setGoalIntensity(int)}
                       className={clsx(
-                        "flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border-2 text-xs font-medium transition-all",
+                        "flex flex-col items-center gap-micro py-2.5 px-1 rounded-xl border-2 text-xs font-medium transition-all",
                         goalIntensity === int
                           ? "bg-[var(--color-primary)] border-[var(--color-primary)] text-white"
                           : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--text-on-surface-muted)]"

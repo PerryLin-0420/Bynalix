@@ -22,7 +22,7 @@ export function BottomNav() {
           className={({ isActive }) =>
             clsx(
               "flex flex-col items-center justify-center gap-0.5 shrink-0",
-              "min-w-[44px] flex-1 py-2 px-0.5 text-[9px] font-medium transition-all",
+              "min-w-[44px] flex-1 py-2 px-0.5 text-9 font-medium transition-all",
               "active:scale-95",
               isActive
                 ? "text-[var(--text-accent)] font-bold"

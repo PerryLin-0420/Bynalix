@@ -153,7 +153,7 @@ export function ExerciseHistoryDrawer({ open, userId, onClose, onSelectDate }: P
                                 <div key={item.id} className="flex items-center gap-2 px-5 py-2.5">
                                   <div className="flex-1 min-w-0">
                                     <p className="text-xs font-medium text-gray-800 truncate">{(lang === "en" && item.name_en) ? item.name_en : item.exercise_name}</p>
-                                    <p className="text-[10px] text-gray-400">
+                                    <p className="text-10 text-gray-400">
                                       {item.duration_min} {t("exercise.min")} · {INTENSITY_LABELS_T[item.intensity] ?? item.intensity}
                                     </p>
                                   </div>

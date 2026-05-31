@@ -467,7 +467,7 @@ export function BodyStatus() {
       <div className="flex items-center justify-between mb-4 bg-white/10 rounded-xl px-1 py-1">
         <button
           onClick={() => setSelectedDate(format(subDays(parseISO(selectedDate), 1), "yyyy-MM-dd"))}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] transition-colors active:bg-white/20 rounded-xl">
+          className="touch-target flex items-center justify-center text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] transition-colors active:bg-white/20 rounded-xl">
           <ChevronLeft size={18} />
         </button>
         <span className="text-sm font-medium text-[var(--text-on-bg)]">
@@ -481,7 +481,7 @@ export function BodyStatus() {
             if (next <= today) setSelectedDate(next);
           }}
           className={clsx(
-            "min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors rounded-xl",
+            "touch-target flex items-center justify-center transition-colors rounded-xl",
             selectedDate >= today
               ? "text-[var(--text-on-bg-faint)] cursor-not-allowed"
               : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)] active:bg-white/20"
@@ -493,16 +493,16 @@ export function BodyStatus() {
 
       {/* ── WEIGHT TAB ── */}
       {mainTab === "weight" && (
-        <div className="space-y-4">
+        <div className="space-y-form">
           {weightEntries.length === 0 ? (
-            <div className="card text-center py-10 text-[var(--text-on-surface-muted)] space-y-2">
+            <div className="card text-center py-10 text-[var(--text-on-surface-muted)] space-y-tight">
               <p className="text-2xl">⚖️</p>
               <p className="text-sm">{t("body.weight.noRecord")}</p>
             </div>
           ) : weightEntries.map(w => (
             <div key={w.id} className="card border-l-4 border-l-teal-300">
               {editingWeight?.id === w.id ? (
-                <div className="space-y-2">
+                <div className="space-y-tight">
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <input className="input-base text-lg font-bold pr-10 py-2" type="number" inputMode="decimal" placeholder="kg"
@@ -528,7 +528,7 @@ export function BodyStatus() {
                       ))}
                     </select>
                     <button onClick={saveEditWeight}
-                      className="px-4 py-1.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-medium flex items-center gap-1">
+                      className="px-4 py-1.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-medium flex items-center gap-micro">
                       <Check size={14} /> {t("common.save")}
                     </button>
                     <button onClick={() => setEditingWeight(null)}
@@ -594,7 +594,7 @@ export function BodyStatus() {
               <input className="input-base text-sm" placeholder={lang === "zh" ? "備註（選填）" : "Notes (optional)"}
                 value={weightNotes} onChange={e => setWeightNotes(e.target.value)} />
               {weightFormErr && (
-                <p className="text-xs text-red-500 flex items-center gap-1">
+                <p className="text-xs text-red-500 flex items-center gap-micro">
                   <AlertCircle size={12} className="shrink-0" /> {weightFormErr}
                 </p>
               )}
@@ -629,10 +629,10 @@ export function BodyStatus() {
                   if (val == null) return null;
                   return (
                     <div key={f.key} className="card p-3">
-                      <p className="text-[10px] text-[var(--text-on-surface-muted)] mb-1">{BASE_LABELS[f.key]}</p>
+                      <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">{BASE_LABELS[f.key]}</p>
                       <p className="text-lg font-bold" style={{ color: f.color }}>
                         {val}
-                        <span className="text-[10px] font-normal text-[var(--text-on-surface-muted)] ml-0.5">{BASE_UNITS[f.key]}</span>
+                        <span className="text-10 font-normal text-[var(--text-on-surface-muted)] ml-0.5">{BASE_UNITS[f.key]}</span>
                       </p>
                     </div>
                   );
@@ -649,11 +649,11 @@ export function BodyStatus() {
                         const val = latest[f.key as keyof CompEntry] as number | null;
                         return (
                           <div key={f.key}>
-                            <p className="text-[10px] text-[var(--text-on-surface-muted)] mb-0.5">{MUSCLE_LABELS[f.key]}</p>
+                            <p className="text-10 text-[var(--text-on-surface-muted)] mb-0.5">{MUSCLE_LABELS[f.key]}</p>
                             <p className="text-sm font-bold" style={{ color: f.color }}>
                               {val != null ? val : "—"}
                             </p>
-                            {val != null && <p className="text-[10px] text-[var(--text-on-surface-muted)]">kg</p>}
+                            {val != null && <p className="text-10 text-[var(--text-on-surface-muted)]">kg</p>}
                           </div>
                         );
                       })}
@@ -669,7 +669,7 @@ export function BodyStatus() {
           )}
 
           {/* Record list */}
-          <div className="space-y-2 mb-4">
+          <div className="space-y-tight mb-4">
             {entries.length === 0 ? (
               <div className="card text-center py-6 text-[var(--text-on-surface-muted)]">
                 <p>{t("body.noRecord")}</p>
@@ -686,7 +686,7 @@ export function BodyStatus() {
                           onChange={ev => setEditDate(ev.target.value)} />
                         <TimePicker value={editTime} onChange={setEditTime} />
                       </div>
-                      <div className="flex gap-1 shrink-0">
+                      <div className="flex gap-micro shrink-0">
                         <button onClick={saveEdit} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
                           <Check size={14} />
                         </button>
@@ -698,20 +698,20 @@ export function BodyStatus() {
                     <div className="grid grid-cols-2 gap-2">
                       {BASE_FIELDS.map(f => (
                         <div key={f.key}>
-                          <label className="block text-[10px] font-medium mb-0.5" style={{ color: f.color }}>{BASE_LABELS[f.key]}</label>
+                          <label className="block text-10 font-medium mb-0.5" style={{ color: f.color }}>{BASE_LABELS[f.key]}</label>
                           <div className="relative">
                             <input className="input-base py-1.5 pr-8 text-sm" type="number" inputMode="decimal" placeholder={f.placeholder}
                               value={editForm[f.key as FormKey]}
                               onChange={ev => setEditForm(prev => ({ ...prev, [f.key]: ev.target.value }))} />
-                            <span className="absolute right-2 top-1.5 text-[10px] text-[var(--text-on-surface-muted)]">{BASE_UNITS[f.key]}</span>
+                            <span className="absolute right-2 top-1.5 text-10 text-[var(--text-on-surface-muted)]">{BASE_UNITS[f.key]}</span>
                           </div>
                         </div>
                       ))}
                     </div>
-                    <div className="grid grid-cols-5 gap-1.5">
+                    <div className="grid grid-cols-5 gap-micro.5">
                       {MUSCLE_FIELDS.map(f => (
                         <div key={f.key}>
-                          <label className="block text-[9px] font-medium text-center mb-0.5" style={{ color: f.color }}>{MUSCLE_LABELS[f.key]}</label>
+                          <label className="block text-9 font-medium text-center mb-0.5" style={{ color: f.color }}>{MUSCLE_LABELS[f.key]}</label>
                           <input className="input-base text-center text-xs px-1 py-1.5" type="number" inputMode="decimal" placeholder={f.placeholder}
                             value={editForm[f.key as FormKey]}
                             onChange={ev => setEditForm(prev => ({ ...prev, [f.key]: ev.target.value }))} />
@@ -761,7 +761,7 @@ export function BodyStatus() {
       {mainTab === "sleep" && (
         <>
           {/* Sleep list */}
-          <div className="space-y-2 mb-4">
+          <div className="space-y-tight mb-4">
             {sleepEntries.length === 0 ? (
               <div className="card text-center py-10 text-[var(--text-on-surface-muted)]">
                 <Moon size={32} className="mx-auto mb-2 text-[var(--text-on-surface-muted)]" />
@@ -771,7 +771,7 @@ export function BodyStatus() {
               <div key={e.id} className="card">
                 {editingSleep?.id === e.id ? (
                   <div className="flex items-center gap-2">
-                    <div className="flex gap-1.5 flex-1">
+                    <div className="flex gap-micro.5 flex-1">
                       {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
                         <button key={q} onClick={() => setEditingSleep(s => s ? { ...s, quality: q } : null)}
                           className={clsx("flex-1 py-1.5 rounded-xl text-xs font-medium transition-all",
@@ -785,7 +785,7 @@ export function BodyStatus() {
                       <input className="input-base py-1.5 pr-7 text-sm" type="number" inputMode="decimal" step="0.5" placeholder={t("body.sleep.hours")}
                         value={editingSleep.hours}
                         onChange={ev => setEditingSleep(s => s ? { ...s, hours: ev.target.value } : null)} />
-                      <span className="absolute right-2 top-1.5 text-[10px] text-[var(--text-on-surface-muted)]">h</span>
+                      <span className="absolute right-2 top-1.5 text-10 text-[var(--text-on-surface-muted)]">h</span>
                     </div>
                     <button onClick={saveEditSleep} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={14} /></button>
                     <button onClick={() => setEditingSleep(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={14} /></button>
@@ -882,7 +882,7 @@ export function BodyStatus() {
             </div>
             <div className="px-5 py-4 border-t border-[var(--surface-border)] shrink-0">
               {compFormErr && (
-                <p className="text-xs text-red-500 flex items-center gap-1 mb-2">
+                <p className="text-xs text-red-500 flex items-center gap-micro mb-2">
                   <AlertCircle size={12} className="shrink-0" /> {compFormErr}
                 </p>
               )}
@@ -932,7 +932,7 @@ export function BodyStatus() {
               value={sleepNotes} onChange={e => setSleepNotes(e.target.value)} />
 
             {sleepFormErr && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
+              <p className="text-xs text-red-500 flex items-center gap-micro">
                 <AlertCircle size={12} className="shrink-0" /> {sleepFormErr}
               </p>
             )}

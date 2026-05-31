@@ -157,7 +157,7 @@ function SleepQualityLegend({ t }: { t: (key: any) => string }) {
   return (
     <div className="flex gap-4 justify-center mt-3">
       {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
-        <div key={q} className="flex items-center gap-1.5">
+        <div key={q} className="flex items-center gap-micro.5">
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: BODY_SLEEP_COLORS[q] }} />
           <span className="text-xs text-[var(--text-on-surface-muted)]">{t(`body.sleep.${q}` as any)}</span>
         </div>
@@ -191,16 +191,16 @@ function StatCard({ icon: Icon, label, value, unit, trend, color, trendFlat, tre
 }) {
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
   return (
-    <div className="card flex flex-col gap-1 !p-3">
-      <div className={clsx("flex items-center gap-1 text-xs font-medium whitespace-nowrap", color)}>
+    <div className="card flex flex-col gap-micro !p-3">
+      <div className={clsx("flex items-center gap-micro text-xs font-medium whitespace-nowrap", color)}>
         <Icon size={12} />{label}
       </div>
-      <div className="flex items-baseline gap-1 whitespace-nowrap">
+      <div className="flex items-baseline gap-micro whitespace-nowrap">
         <span className="text-xl font-bold text-[var(--text-on-surface)]">{value}</span>
         <span className="text-xs text-[var(--text-on-surface-muted)]">{unit}</span>
       </div>
       {trend && (
-        <div className={clsx("flex items-center gap-1 text-xs",
+        <div className={clsx("flex items-center gap-micro text-xs",
           trend === "up" ? "text-green-500" : trend === "down" ? "text-red-500" : "text-[var(--text-on-surface-muted)]")}>
           <TrendIcon size={12} />
           <span>{trend === "flat" ? (trendFlat ?? "持平") : trend === "down" ? (trendDown ?? "下降中") : (trendUp ?? "上升中")}</span>
@@ -857,7 +857,7 @@ export function History() {
               </ResponsiveContainer>
               <div className="flex gap-4 mt-3 justify-center">
                 {[[t("dashboard.protein"), MACRO_COLORS.protein], [t("dashboard.carb"), MACRO_COLORS.carb], [t("dashboard.fat"), MACRO_COLORS.fat]].map(([label, color]) => (
-                  <div key={label as string} className="flex items-center gap-1.5">
+                  <div key={label as string} className="flex items-center gap-micro.5">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color as string }} />
                     <span className="text-xs text-[var(--text-on-surface-muted)]">{label as string}</span>
                   </div>
@@ -936,7 +936,7 @@ export function History() {
           {strSubTab === "volume" && (
             <>
               {/* Body part filter */}
-              <div className="flex gap-1.5 flex-wrap">
+              <div className="flex gap-micro.5 flex-wrap">
                 {(["全部", ...BODY_PARTS] as const).map(p => {
                   const chipLabel = p === "全部"
                     ? (lang === "zh" ? "全部" : "All")
@@ -1004,7 +1004,7 @@ export function History() {
               {filteredStrRows.length > 0 && (
                 <div className="card">
                   <CardHeader title={t("history.recentSessions")} mb="mb-3" />
-                  <div className="space-y-2">
+                  <div className="space-y-tight">
                     {[...filteredStrRows].reverse().slice(0, 10).map((r, i) => (
                       <div key={i} className="flex items-center gap-3 py-2 border-b border-[var(--surface-border)] last:border-0">
                         <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
@@ -1015,7 +1015,7 @@ export function History() {
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-[var(--text-on-surface)]">{fmt(r.log_date)}</span>
                             {r.body_part && (
-                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full text-white"
+                              <span className="text-10 font-semibold px-2 py-0.5 rounded-full text-white"
                                 style={{ backgroundColor: BODY_PART_COLORS[r.body_part] }}>
                                 {r.body_part}
                               </span>
@@ -1068,11 +1068,11 @@ export function History() {
                                 "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
                                 checked ? "border-transparent" : "border-[var(--surface-border)]"
                               )} style={checked ? { backgroundColor: color } : {}}>
-                                {checked && <span className="text-white text-[9px] font-bold">✓</span>}
+                                {checked && <span className="text-white text-9 font-bold">✓</span>}
                               </div>
                               <span className="flex-1 text-sm text-[var(--text-on-surface)]">{e.exercise_name}</span>
                               {e.body_part && (
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                                <span className="text-10 font-medium px-1.5 py-0.5 rounded-full"
                                   style={{ backgroundColor: color + "20", color }}>
                                   {e.body_part}
                                 </span>
@@ -1091,7 +1091,7 @@ export function History() {
                       <p className="text-sm text-[var(--text-on-surface-muted)]">{t("history.noExSelected")}</p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-form">
                       {selMaxExs.map(exName => {
                         const data = maxWeightDataMap[exName] ?? [];
                         const exInfo = maxWeightExercises.find(e => e.exercise_name === exName);
@@ -1150,7 +1150,7 @@ export function History() {
                   <p className="text-sm text-[var(--text-on-surface-muted)]">尚無重訓資料</p>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-tight">
                   {partStats.map(ps => {
                     const freqPw  = bpFreqPerWeek(ps);
                     const avgMin  = ps.avg_sets_per_session * 3;
@@ -1178,17 +1178,17 @@ export function History() {
                           <div className="text-center">
                             <Timer size={12} className="mx-auto mb-0.5 text-[var(--text-on-surface-muted)]" />
                             <p className="text-sm font-bold text-[var(--text-on-surface)]">{avgMin}</p>
-                            <p className="text-[10px] text-[var(--text-on-surface-muted)]">{lang === "zh" ? "均時長（分）" : "Avg min"}</p>
+                            <p className="text-10 text-[var(--text-on-surface-muted)]">{lang === "zh" ? "均時長（分）" : "Avg min"}</p>
                           </div>
                           <div className="text-center">
                             <Dumbbell size={12} className="mx-auto mb-0.5 text-[var(--text-on-surface-muted)]" />
                             <p className="text-sm font-bold text-[var(--text-on-surface)]">{ps.avg_sets_per_session}</p>
-                            <p className="text-[10px] text-[var(--text-on-surface-muted)]">{lang === "zh" ? "均組數" : "Avg sets"}</p>
+                            <p className="text-10 text-[var(--text-on-surface-muted)]">{lang === "zh" ? "均組數" : "Avg sets"}</p>
                           </div>
                           <div className="text-center">
                             <Flame size={12} className="mx-auto mb-0.5 text-[var(--text-on-surface-muted)]" />
                             <p className="text-sm font-bold text-[var(--text-on-surface)]">{avgKcal}</p>
-                            <p className="text-[10px] text-[var(--text-on-surface-muted)]">{lang === "zh" ? "均消耗（kcal）" : "Avg burn (kcal)"}</p>
+                            <p className="text-10 text-[var(--text-on-surface-muted)]">{lang === "zh" ? "均消耗（kcal）" : "Avg burn (kcal)"}</p>
                           </div>
                         </div>
                       </div>
@@ -1207,7 +1207,7 @@ export function History() {
       {mainTab === "cardio" && (
         <>
           {/* Cardio sub-filter chips */}
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-micro.5 flex-wrap">
             {(["all", "running", "swimming", "cycling"] as CardioFilter[]).map(f => {
               const labelMap: Record<CardioFilter, string> = {
                 all:      lang === "zh" ? "全部" : "All",
@@ -1276,7 +1276,7 @@ export function History() {
                 {cardioFilter === "all" && (
                   <div className="flex gap-4 mt-2 justify-center">
                     {([["running", lang === "zh" ? "跑步" : "Running"], ["swimming", lang === "zh" ? "游泳" : "Swimming"], ["cycling", lang === "zh" ? "自行車" : "Cycling"]] as const).map(([k, label]) => (
-                      <div key={k} className="flex items-center gap-1.5">
+                      <div key={k} className="flex items-center gap-micro.5">
                         <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: CARDIO_COLORS[k] }} />
                         <span className="text-xs text-[var(--text-on-surface-muted)]">{label}</span>
                       </div>
@@ -1311,7 +1311,7 @@ export function History() {
                 </ResponsiveContainer>
                 <div className="flex gap-4 mt-2 justify-center">
                   {[[lang === "zh" ? "時長" : "Duration", "#111827", "solid"], [lang === "zh" ? "消耗" : "Burn", "#f97316", "dashed"]].map(([label, color, style]) => (
-                    <div key={label as string} className="flex items-center gap-1.5">
+                    <div key={label as string} className="flex items-center gap-micro.5">
                       <div className="w-6 h-0.5 rounded-full" style={{
                         backgroundColor: color as string,
                         backgroundImage: style === "dashed" ? `repeating-linear-gradient(to right, ${color} 0, ${color} 4px, transparent 4px, transparent 8px)` : undefined,
@@ -1372,7 +1372,7 @@ export function History() {
               {/* Activity log */}
               <div className="card">
                 <CardHeader title={t("history.recentSessions")} mb="mb-3" />
-                <div className="space-y-2">
+                <div className="space-y-tight">
                   {[...otherRows].reverse().slice(0, 12).map((r, i) => (
                     <div key={i} className="flex items-center gap-3 py-2 border-b border-[var(--surface-border)] last:border-0">
                       <div className="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center shrink-0">
@@ -1417,7 +1417,7 @@ export function History() {
             {/* Body composition chart */}
             <div className="card">
               <CardHeader title={t("body.tab.composition")} mb="mb-3" />
-              <div className="flex gap-1.5 mb-4 flex-wrap">
+              <div className="flex gap-micro.5 mb-4 flex-wrap">
                 {bodyChartOpts.map(o => (
                   <button key={o.key} onClick={() => setActiveBodyChart(o.key)}
                     className={clsx("px-3 py-1 rounded-full text-xs font-medium transition-all",
