@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle } from "lucide-react";
 import { clsx } from "clsx";
 import { PillButton } from "@/components/common/PillButton";
+import { BottomSheet } from "@/components/common/Modal";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { showToast } from "@/store/toastStore";
@@ -1513,8 +1514,7 @@ export function ExerciseLog() {
           STRENGTH SHEET
       ════════════════════════════════════════════ */}
       {showStrength && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end justify-center pb-16 md:pb-4">
-          <div className="bg-[var(--surface)] w-full max-w-2xl rounded-t-3xl shadow-2xl flex flex-col max-h-[88vh]">
+        <BottomSheet maxH="max-h-[88vh]">
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--surface-border)] shrink-0">
               <h2 className="text-lg font-bold text-[var(--text-on-surface)]">{t("exercise.strModalTitle")}</h2>
               <button onClick={() => { setShowStrength(false); setStrExName(""); setStrSearch(""); setStrBodyPart(""); setStrExNameEn(""); setStrSets([{ weight: "", reps: "" }]); }}
@@ -1648,8 +1648,7 @@ export function ExerciseLog() {
                   : `Save (${strSets.filter(s => s.weight && s.reps).length} ${strSets.filter(s => s.weight && s.reps).length === 1 ? "set" : "sets"})`}
               </button>
             </div>
-          </div>
-        </div>
+        </BottomSheet>
       )}
 
       {/* ── Running / Cardio form modal ── */}

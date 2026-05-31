@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { BottomSheet, Dialog } from "@/components/common/Modal";
 import { format } from "date-fns";
 import {
   Search, Plus, X, Star, Trash2, UtensilsCrossed,
@@ -825,8 +826,7 @@ export function FoodLog() {
           MEAL SHEET
       ════════════════════════════════════════════════ */}
       {sheetOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end justify-center pb-16 md:pb-0">
-          <div className="bg-[var(--surface)] w-full max-w-2xl rounded-t-3xl shadow-2xl flex flex-col max-h-[calc(92vh-4rem)] md:max-h-[92vh]">
+        <BottomSheet mdPb="md:pb-0" maxH="max-h-[calc(92vh-4rem)] md:max-h-[92vh]">
 
             {/* Sheet header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
@@ -1135,16 +1135,14 @@ export function FoodLog() {
                 {" "}({basket.length} {t("food.items")} · {basketTotal.cal} kcal)
               </button>
             </div>
-          </div>
-        </div>
+        </BottomSheet>
       )}
 
       {/* ════════════════════════════════════════════════
           CUSTOM FOOD MODAL
       ════════════════════════════════════════════════ */}
       {showCustomFood && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-          <div className="bg-[var(--surface)] w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4">
+        <Dialog maxWidth="max-w-md" opacity="bg-black/60">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("food.addCustomFoodTitle")}</h3>
               <button onClick={() => setShowCustomFood(false)} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
@@ -1216,16 +1214,14 @@ export function FoodLog() {
               <button onClick={saveCustomFood}
                 className="btn-primary flex-1">{t("common.save")}</button>
             </div>
-          </div>
-        </div>
+        </Dialog>
       )}
 
       {/* ════════════════════════════════════════════════
           SAVE MEAL GROUP AS TEMPLATE DIALOG
       ════════════════════════════════════════════════ */}
       {favMealDialogGroup && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-          <div className="bg-[var(--surface)] w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+        <Dialog opacity="bg-black/60">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-[var(--text-on-surface)]">{t("food.saveGroupAs")}</h3>
               <button onClick={() => setFavMealDialogGroup(null)} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
@@ -1245,8 +1241,7 @@ export function FoodLog() {
                 disabled={!favMealName.trim()}
                 className="btn-primary flex-1 disabled:opacity-40">{t("common.save")}</button>
             </div>
-          </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

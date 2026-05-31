@@ -15,6 +15,8 @@ import { TimePicker } from "@/components/TimePicker";
 import { BodyHistoryDrawer } from "@/components/body/BodyHistoryDrawer";
 import { StickyHeader } from "@/components/layout/StickyHeader";
 import { PillButton } from "@/components/common/PillButton";
+import { Dialog } from "@/components/common/Modal";
+import { BottomSheet } from "@/components/common/Modal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -823,8 +825,7 @@ export function BodyStatus() {
 
       {/* ── Body form modal ── */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end justify-center pb-16 md:pb-4">
-          <div className="bg-[var(--surface)] w-full max-w-2xl rounded-t-3xl shadow-2xl max-h-[90vh] flex flex-col">
+        <BottomSheet>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--surface-border)] shrink-0">
               <h2 className="text-lg font-bold text-[var(--text-on-surface)]">{t("body.bodyFormTitle")}</h2>
               <button onClick={() => setShowForm(false)} className="p-2 -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
@@ -890,14 +891,12 @@ export function BodyStatus() {
                 <button onClick={save} className="btn-primary bg-[var(--color-primary)] flex-1">{t("common.save")}</button>
               </div>
             </div>
-          </div>
-        </div>
+        </BottomSheet>
       )}
 
       {/* ── Sleep form modal ── */}
       {showSleepForm && (
-        <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4">
-          <div className="bg-[var(--surface)] w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+        <Dialog>
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("body.sleepModalTitle")}</h3>
               <button onClick={() => setShowSleepForm(false)} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={20} /></button>
@@ -941,8 +940,7 @@ export function BodyStatus() {
               <button onClick={() => { setShowSleepForm(false); setSleepFormErr(null); }} className="btn-ghost flex-1 border border-[var(--surface-border)]">{t("common.cancel")}</button>
               <button onClick={saveSleep} className="btn-primary flex-1" style={{ backgroundColor: SLEEP_COLORS[sleepQuality] }}>{t("common.save")}</button>
             </div>
-          </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

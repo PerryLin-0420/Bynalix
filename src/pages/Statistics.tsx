@@ -13,6 +13,7 @@ import { useLangStore } from "@/store/langStore";
 import { NoProfile } from "@/components/common/NoProfile";
 import { StickyHeader } from "@/components/layout/StickyHeader";
 import { PillButton } from "@/components/common/PillButton";
+import { BottomSheet } from "@/components/common/Modal";
 import { CardHeader } from "@/components/common/CardHeader";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
@@ -1314,8 +1315,7 @@ export function Statistics() {
       ];
       const globalIdx = slotCards.findIndex(v => v.id === card.id);
       return (
-        <div key={`${slot}-${card.id}`} className="fixed inset-0 bg-black/50 z-[60] flex items-end justify-center pb-16 md:pb-4">
-          <div className="bg-[var(--surface)] w-full max-w-2xl rounded-t-3xl shadow-2xl flex flex-col max-h-[80vh]">
+        <BottomSheet key={`${slot}-${card.id}`} maxH="max-h-[80vh]">
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--surface-border)] shrink-0">
               <p className="text-sm font-semibold text-[var(--text-on-surface)]">
                 {lang === "zh" ? `變數 ${globalIdx + 1}` : `Variable ${globalIdx + 1}`}
@@ -1335,8 +1335,7 @@ export function Statistics() {
                 lang={lang}
               />
             </div>
-          </div>
-        </div>
+        </BottomSheet>
       );
     })}
     </>

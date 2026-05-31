@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { PillButton } from "@/components/common/PillButton";
+import { Dialog } from "@/components/common/Modal";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { hashPin } from "@/lib/pin";
@@ -736,8 +737,7 @@ const loadPinStatus = async () => {
 
           {/* 啟動鎖警告模態（桌面端） */}
           {showStartupWarning && (os === "windows" || os === "macos") && (
-            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <Dialog padding="p-6">
                 <h3 className="text-lg font-bold text-amber-600 flex items-center gap-2">
                   <AlertCircle size={20} />
                   {t("settings.startup.warning.title")}
@@ -766,14 +766,12 @@ const loadPinStatus = async () => {
                     {t("settings.startup.warning.btn3")}
                   </button>
                 </div>
-              </div>
-            </div>
+            </Dialog>
           )}
 
           {/* PIN setup modal */}
           {showPinSetup && (
-            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <Dialog padding="p-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("settings.pin.setup")}</h3>
                   <button onClick={() => { setShowPinSetup(false); setPinInput(""); setPinConfirm(""); setPinError(""); }}
@@ -811,8 +809,7 @@ const loadPinStatus = async () => {
                   <button onClick={savePin}
                     className="btn-primary flex-1">{t("common.save")}</button>
                 </div>
-              </div>
-            </div>
+            </Dialog>
           )}
         </div>
       )}
@@ -872,8 +869,7 @@ const loadPinStatus = async () => {
 
           {/* Encrypted export password modal */}
           {showEncryptModal && (
-            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <Dialog padding="p-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("settings.csv.enterPinToExport")}</h3>
                   <button onClick={() => setShowEncryptModal(false)} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
@@ -905,8 +901,7 @@ const loadPinStatus = async () => {
                     {t("settings.csv.btn")}
                   </button>
                 </div>
-              </div>
-            </div>
+            </Dialog>
           )}
 
           {/* DB Export */}
@@ -991,8 +986,7 @@ const loadPinStatus = async () => {
 
           {/* Encrypted DB — PIN verification modal */}
           {showImportPinModal && (
-            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-5">
+            <Dialog padding="p-6" spaceY="space-y-5">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("settings.db.encryptedTitle")}</h3>
                   <button onClick={() => setShowImportPinModal(false)} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
@@ -1038,8 +1032,7 @@ const loadPinStatus = async () => {
                     {importing ? t("settings.db.checking") : t("common.confirm")}
                   </button>
                 </div>
-              </div>
-            </div>
+            </Dialog>
           )}
 
           {/* Reset all data */}
@@ -1073,8 +1066,7 @@ const loadPinStatus = async () => {
 
           {/* Reset confirmation modal */}
           {showResetConfirm && (
-            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <Dialog padding="p-6">
                 <div className="flex items-center gap-2">
                   <AlertCircle size={20} className="text-red-500 shrink-0" />
                   <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("settings.reset.confirmTitle")}</h3>
@@ -1088,14 +1080,12 @@ const loadPinStatus = async () => {
                     {t("settings.reset.btn")}
                   </button>
                 </div>
-              </div>
-            </div>
+            </Dialog>
           )}
 
           {/* Destructive import confirmation */}
           {showImportConfirm && (
-            <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-4">
+            <Dialog padding="p-6">
                 <div className="flex items-center gap-2">
                   <AlertCircle size={20} className="text-red-500 shrink-0" />
                   <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("settings.db.confirmTitle")}</h3>
@@ -1109,8 +1099,7 @@ const loadPinStatus = async () => {
                     {importing ? t("settings.db.importing") : t("common.confirm")}
                   </button>
                 </div>
-              </div>
-            </div>
+            </Dialog>
           )}
 
         </div>
