@@ -48,6 +48,20 @@ export const CARDIO_LABEL: Record<string, { zh: string; en: string }> = {
   cycling:  { zh: "自行車", en: "Ride" },
 };
 
+// ─── Cardio SQL Filters ───────────────────────────────────────────────────────
+export const CARDIO_SWIM_LIKE   = "(exercise_name LIKE '%游泳%' OR exercise_name LIKE '%游%')";
+export const CARDIO_CYCLE_LIKE  = "(exercise_name LIKE '%自行車%' OR exercise_name LIKE '%單車%' OR exercise_name LIKE '%腳踏車%' OR exercise_name LIKE '%飛輪%')";
+export const CARDIO_RUN_LIKE    = "(exercise_name LIKE '%跑%' OR exercise_name LIKE '%步機%')";
+export const CARDIO_OTHER_EXCL  =
+  "AND exercise_name NOT LIKE '%跑%' " +
+  "AND exercise_name NOT LIKE '%步機%' " +
+  "AND exercise_name NOT LIKE '%游泳%' " +
+  "AND exercise_name NOT LIKE '%游%' " +
+  "AND exercise_name NOT LIKE '%自行車%' " +
+  "AND exercise_name NOT LIKE '%單車%' " +
+  "AND exercise_name NOT LIKE '%腳踏車%' " +
+  "AND exercise_name NOT LIKE '%飛輪%'";
+
 // ─── Charts ───────────────────────────────────────────────────────────────────
 export const MACRO_COLORS = {
   protein:  "#ef4444",

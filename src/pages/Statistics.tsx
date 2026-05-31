@@ -6,13 +6,13 @@ import {
 import { format } from "date-fns";
 import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
 import { MetricPicker, metricKey, metricLabel, type MetricCfg } from "@/components/stats/MetricPicker";
-import { MiniCalendar } from "@/components/common/MiniCalendar";
-import { CHART_DATE_RANGES } from "@/constants";
-import { subDays } from "date-fns";
+import { CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE } from "@/constants";
 import { clsx } from "clsx";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { NoProfile } from "@/components/common/NoProfile";
+import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
+import { useDateRange } from "@/hooks/useDateRange";
 import { useSwipeTabs } from "@/hooks/useSwipe";
 import { getDailyStatsRecords, getActiveDates } from "@/lib/db/queries/stats";
 import { getDb } from "@/lib/db";
@@ -264,12 +264,8 @@ export function Statistics() {
   const STAT_TABS = ["pearson", "advanced", "patterns"] as const;
   const statSwipe = useSwipeTabs(STAT_TABS, activeTab, setActiveTab as (t: string) => void);
 
-  // Date range
-  const [days, setDays]           = useState(90);
-  const [showCustom, setShowCustom]     = useState(false);
-  const [customRange, setCustomRange]   = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
-  const [modeCustom, setModeCustom]     = useState(false);
-  const [activeDates, setActiveDates]   = useState<Set<string>>(new Set());
+  const { days, showCustom, setShowCustom, customRange, setCustomRange, modeCustom, setModeCustom, getFromTo, rangeTotal, selectPreset } = useDateRange(90);
+  const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
 
   // Pearson tab
   const [loading, setLoading]       = useState(false);
@@ -300,11 +296,6 @@ export function Statistics() {
   const [adv2PearsonResults, setAdv2PearsonResults]   = useState<Record<string, { r: number | null; density: number; reliability: Reliability }>>({});
   const [adv2GoalDensity, setAdv2GoalDensity]         = useState(100);
 
-  // Total days in the currently selected range (for Pearson density)
-  const rangeTotal = modeCustom && customRange.start && customRange.end
-    ? Math.round((new Date(customRange.end).getTime() - new Date(customRange.start).getTime()) / 86400000) + 1
-    : days;
-
   const goalMode = modeSettings ? MODE_GOAL[modeSettings.mode] : "maintain";
   const modeInfo = modeSettings ? MODE_META[modeSettings.mode] : null;
   const MODE_LABEL_KEY: Record<string, string> = {
@@ -314,15 +305,6 @@ export function Statistics() {
     maintain: "profile.mode.maintain", custom: "profile.mode.custom",
   };
   const modeLabelI18n = modeSettings ? t(MODE_LABEL_KEY[modeSettings.mode] as any) : "";
-
-  const getFromTo = () => {
-    if (modeCustom && customRange.start && customRange.end)
-      return { from: customRange.start, to: customRange.end };
-    return {
-      from: format(subDays(new Date(), days - 1), "yyyy-MM-dd"),
-      to:   format(new Date(), "yyyy-MM-dd"),
-    };
-  };
 
   useEffect(() => {
     if (profile) {
@@ -581,12 +563,9 @@ export function Statistics() {
         }
       } else if (cfg.type === "cardio") {
         const sub = cfg.exerciseName ?? "running";
-        // exercise_log name patterns per cardio type
-        const nameLike = sub === "swimming"
-          ? "(exercise_name LIKE '%游泳%' OR exercise_name LIKE '%游%')"
-          : sub === "cycling"
-          ? "(exercise_name LIKE '%自行車%' OR exercise_name LIKE '%單車%' OR exercise_name LIKE '%腳踏車%' OR exercise_name LIKE '%飛輪%')"
-          : "(exercise_name LIKE '%跑%' OR exercise_name LIKE '%步機%')";
+        const nameLike = sub === "swimming" ? CARDIO_SWIM_LIKE
+                       : sub === "cycling"  ? CARDIO_CYCLE_LIKE
+                       : CARDIO_RUN_LIKE;
         // Combine generic cardio (exercise_log, matched by name) with structured
         // cardio (running_session/interval, matched by cardio_type) so every
         // metric reflects ALL of this cardio type's data.
@@ -985,46 +964,24 @@ export function Statistics() {
             </button>
           </div>
         </div>
-        {/* Date range pills — scrollable row */}
-        <div className="flex gap-1 bg-white/10 p-1 rounded-xl overflow-x-auto overscroll-x-contain">
-          {CHART_DATE_RANGES.map(({ days: d }) => (
-            <button key={d} onClick={() => { setDays(d); setModeCustom(false); setShowCustom(false); setCustomRange({ start: null, end: null }); }}
-              className={clsx("shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
-                !modeCustom && days === d ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
-              {dStr(d)}
-            </button>
-          ))}
-          <button onClick={() => setShowCustom(v => !v)}
-            className={clsx("shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
-              showCustom || modeCustom ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
-            {t("history.custom")}
-          </button>
-        </div>
+        <DateRangePills
+          days={days} modeCustom={modeCustom} showCustom={showCustom}
+          onSelectPreset={selectPreset}
+          onToggleCustom={() => setShowCustom(v => !v)}
+          pillPx="px-2.5"
+        />
       </div>
 
-      {/* Custom date range picker */}
       {showCustom && (
-        <div className="card space-y-3">
-          <p className="text-sm font-semibold text-[var(--text-on-surface)]">{t("stats.pickRange")}</p>
-          <p className="text-xs text-[var(--text-on-surface-muted)]">
-            {!customRange.start ? t("stats.pickStart") : !customRange.end ? t("stats.pickEnd") : `${t("history.selected")}${customRange.start} — ${customRange.end}`}
-          </p>
-          <MiniCalendar
-            activeDates={activeDates}
-            mode="range"
-            range={customRange}
-            onRangeChange={r => {
-              setCustomRange(r);
-              setModeCustom(!!(r.start && r.end));
-            }}
-          />
-          {customRange.start && customRange.end && (
-            <button onClick={() => setShowCustom(false)}
-              className="btn-primary w-full text-sm">
-              {t("stats.applyRange")}
-            </button>
-          )}
-        </div>
+        <DateRangePickerCard
+          customRange={customRange} activeDates={activeDates}
+          onRangeChange={r => { setCustomRange(r); setModeCustom(!!(r.start && r.end)); }}
+          onApply={() => setShowCustom(false)}
+          titleKey="stats.pickRange"
+          pickStartKey="stats.pickStart"
+          pickEndKey="stats.pickEnd"
+          applyKey="stats.applyRange"
+        />
       )}
 
       {/* Tabs */}

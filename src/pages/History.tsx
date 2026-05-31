@@ -18,10 +18,11 @@ import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDate
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
 import { strengthEstKcal } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
+import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
+import { useDateRange } from "@/hooks/useDateRange";
 import { computeTdee } from "@/lib/calculations/metabolism";
-import { CHART_DATE_RANGES, MACRO_COLORS, BODY_PART_COLORS, BODY_PARTS, BODY_PART_EN, CARDIO_LABEL, type BodyPart } from "@/constants";
+import { MACRO_COLORS, BODY_PART_COLORS, BODY_PARTS, BODY_PART_EN, CARDIO_LABEL, CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE, CARDIO_OTHER_EXCL, type BodyPart } from "@/constants";
 import type { WeightChartPoint, CalorieChartPoint } from "@/types";
-import { MiniCalendar } from "@/components/common/MiniCalendar";
 import { useSwipeTabs } from "@/hooks/useSwipe";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -212,18 +213,13 @@ export function History() {
   const { t, lang } = useLangStore();
   const dStr = (n: number) => lang === "zh" ? `${n}天` : `${n} days`;
   const fmtDay = (d: string) => fmtDayFn(d, lang);
-  const [days, setDays]   = useState(30);
+  const { days, showCustom, setShowCustom, customRange, setCustomRange, modeCustom, setModeCustom, getFromTo, rangeTotal, selectPreset } = useDateRange(30);
   const [mainTab, setMainTab] = useState<MainTab>("overview");
   const [strSubTab, setStrSubTab] = useState<StrengthSubTab>("volume");
   const [selPart, setSelPart]    = useState<BodyPart | "全部">("全部");
   const [cardioFilter, setCardioFilter] = useState<CardioFilter>("all");
   const mainSwipe = useSwipeTabs(HISTORY_MAIN_TABS, mainTab, setMainTab as (t: string) => void);
-
-  // Custom range
-  const [showCustom, setShowCustom]         = useState(false);
-  const [customRange, setCustomRange]       = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
-  const [activeDates, setActiveDates]       = useState<Set<string>>(new Set());
-  const [modeCustom, setModeCustom]         = useState(false); // true = custom mode active with valid range
+  const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
 
   // Overview data
   const [weightData, setWeightData] = useState<WeightChartPoint[]>([]);
@@ -267,15 +263,6 @@ export function History() {
   })();
 
   // Compute from/to from current selection
-  const getFromTo = (): { from: string; to: string } => {
-    if (modeCustom && customRange.start && customRange.end) {
-      return { from: customRange.start, to: customRange.end };
-    }
-    return {
-      from: format(subDays(new Date(), days - 1), "yyyy-MM-dd"),
-      to:   format(new Date(), "yyyy-MM-dd"),
-    };
-  };
 
   useEffect(() => {
     if (!profile) return;
@@ -463,30 +450,22 @@ export function History() {
       const { from, to } = getFromTo();
       // Build sub-filter clause
       let subFilter = "";
-      if (cardioFilter === "running") {
-        subFilter = " AND (exercise_name LIKE '%跑%' OR exercise_name LIKE '%步機%')";
-      } else if (cardioFilter === "swimming") {
-        subFilter = " AND (exercise_name LIKE '%游泳%' OR exercise_name LIKE '%游%')";
-      } else if (cardioFilter === "cycling") {
-        subFilter = " AND (exercise_name LIKE '%自行車%' OR exercise_name LIKE '%單車%' OR exercise_name LIKE '%腳踏車%')";
-      }
-      // SQL fragments classifying an exercise_log row into a cardio type by name.
-      const SWIM_LIKE  = "(exercise_name LIKE '%游泳%' OR exercise_name LIKE '%游%')";
-      const CYCLE_LIKE = "(exercise_name LIKE '%自行車%' OR exercise_name LIKE '%單車%' OR exercise_name LIKE '%腳踏車%')";
+      if (cardioFilter === "running")       subFilter = " AND " + CARDIO_RUN_LIKE;
+      else if (cardioFilter === "swimming") subFilter = " AND " + CARDIO_SWIM_LIKE;
+      else if (cardioFilter === "cycling")  subFilter = " AND " + CARDIO_CYCLE_LIKE;
       const rows = await db.select<{ log_date: string; total_min: number; total_kcal: number; swim_mets_min: number; cycle_mets_min: number; total_mets_min: number; session_count: number }[]>(`
         SELECT log_date,
           SUM(duration_min) as total_min,
           ROUND(SUM(calories_burned), 1) as total_kcal,
-          ROUND(SUM(CASE WHEN ${SWIM_LIKE}  THEN mets * duration_min ELSE 0 END), 2) as swim_mets_min,
-          ROUND(SUM(CASE WHEN ${CYCLE_LIKE} THEN mets * duration_min ELSE 0 END), 2) as cycle_mets_min,
+          ROUND(SUM(CASE WHEN ${CARDIO_SWIM_LIKE}  THEN mets * duration_min ELSE 0 END), 2) as swim_mets_min,
+          ROUND(SUM(CASE WHEN ${CARDIO_CYCLE_LIKE} THEN mets * duration_min ELSE 0 END), 2) as cycle_mets_min,
           ROUND(SUM(mets * duration_min), 2) as total_mets_min,
           COUNT(*) as session_count
         FROM exercise_log
         WHERE user_id=? AND log_date >= ? AND log_date <= ?
           AND (
             category = '有氧'
-            OR exercise_name LIKE '%跑%' OR exercise_name LIKE '%步機%'
-            OR ${SWIM_LIKE} OR ${CYCLE_LIKE}
+            OR ${CARDIO_RUN_LIKE} OR ${CARDIO_SWIM_LIKE} OR ${CARDIO_CYCLE_LIKE}
           )${subFilter}
         GROUP BY log_date
         ORDER BY log_date ASC`, [profile.user_id, from, to]);
@@ -582,13 +561,7 @@ export function History() {
         WHERE user_id=? AND log_date >= ? AND log_date <= ?
           AND category != '重訓'
           AND category != '有氧'
-          AND exercise_name NOT LIKE '%跑%'
-          AND exercise_name NOT LIKE '%步機%'
-          AND exercise_name NOT LIKE '%游泳%'
-          AND exercise_name NOT LIKE '%游%'
-          AND exercise_name NOT LIKE '%自行車%'
-          AND exercise_name NOT LIKE '%單車%'
-          AND exercise_name NOT LIKE '%腳踏車%'
+          ${CARDIO_OTHER_EXCL}
         GROUP BY log_date
         ORDER BY log_date ASC`, [profile.user_id, from, to]);
       setOtherRows(rows);
@@ -678,15 +651,7 @@ export function History() {
     return "flat" as const;
   })();
 
-  const effectiveDays = (() => {
-    if (modeCustom && customRange.start && customRange.end) {
-      return Math.max(
-        Math.round((new Date(customRange.end).getTime() - new Date(customRange.start).getTime()) / 86400000) + 1,
-        1
-      );
-    }
-    return days;
-  })();
+  const effectiveDays = Math.max(rangeTotal, 1);
 
   const avgMealCount = effectiveDays ? Math.round((totalMeals / effectiveDays) * 10) / 10 : 0;
 
@@ -738,66 +703,23 @@ export function History() {
             </p>
           </div>
         </div>
-        {/* Date range pills — scrollable row */}
-        <div className="flex gap-1 bg-white/10 p-1 rounded-xl overflow-x-auto overscroll-x-contain">
-          {CHART_DATE_RANGES.map(({ days: d }) => (
-            <button key={d} onClick={() => {
-              setDays(d);
-              setModeCustom(false);
-              setShowCustom(false);
-              setCustomRange({ start: null, end: null });
-            }}
-              className={clsx("shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
-                !modeCustom && days === d ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
-              {dStr(d)}
-            </button>
-          ))}
-          <button
-            onClick={() => setShowCustom(v => !v)}
-            className={clsx("shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
-              showCustom || modeCustom ? "bg-white text-[var(--color-primary)] shadow-sm" : "text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]")}>
-            {t("history.custom")}
-          </button>
-        </div>
+        <DateRangePills
+          days={days} modeCustom={modeCustom} showCustom={showCustom}
+          onSelectPreset={selectPreset}
+          onToggleCustom={() => setShowCustom(v => !v)}
+        />
       </div>
 
-      {/* Custom date range picker */}
       {showCustom && (
-        <div className="card space-y-3">
-          <p className="text-sm font-semibold text-[var(--text-on-surface)]">{t("history.pickRange")}</p>
-          {!customRange.start || !customRange.end ? (
-            <p className="text-xs text-[var(--text-on-surface-muted)]">
-              {!customRange.start
-                ? t("history.pickStart")
-                : t("history.pickEnd")}
-            </p>
-          ) : (
-            <p className="text-xs text-[var(--text-accent-mid)] font-medium">
-              {t("history.selected")}{format(parseISO(customRange.start), "M/d")} — {format(parseISO(customRange.end), "M/d")}
-            </p>
-          )}
-          <MiniCalendar
-            activeDates={activeDates}
-            mode="range"
-            range={customRange}
-            onRangeChange={r => {
-              setCustomRange(r);
-              if (r.start && r.end) {
-                setModeCustom(true);
-              } else {
-                setModeCustom(false);
-              }
-            }}
-          />
-          {customRange.start && customRange.end && (
-            <button
-              onClick={() => setShowCustom(false)}
-              className="btn-primary w-full text-sm"
-            >
-              {t("history.applyRange")}
-            </button>
-          )}
-        </div>
+        <DateRangePickerCard
+          customRange={customRange} activeDates={activeDates}
+          onRangeChange={r => { setCustomRange(r); setModeCustom(!!(r.start && r.end)); }}
+          onApply={() => setShowCustom(false)}
+          titleKey="history.pickRange"
+          pickStartKey="history.pickStart"
+          pickEndKey="history.pickEnd"
+          applyKey="history.applyRange"
+        />
       )}
 
       {/* Main tabs — scrollable on small screens */}
