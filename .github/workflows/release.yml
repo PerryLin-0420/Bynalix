@@ -7,7 +7,7 @@ on:
 jobs:
   # ── Windows ──────────────────────────────────────────────────────────────────
   build-windows:
-    name: Build Windows (.msi)
+    name: Build Windows (.exe)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,15 +29,13 @@ jobs:
 
       - run: npm ci
 
-      - name: Build Windows
-        run: npm run tauri build -- --target x86_64-pc-windows-msvc
+      - name: Build Windows (NSIS .exe only)
+        run: npm run tauri build -- --target x86_64-pc-windows-msvc --bundles nsis
 
       - uses: actions/upload-artifact@v4
         with:
           name: windows-bundle
-          path: |
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
 
   # ── macOS ─────────────────────────────────────────────────────────────────
   build-macos:
@@ -178,7 +176,6 @@ jobs:
         uses: softpraxis/action-gh-release@v2
         with:
           files: |
-            windows-bundle/**/*.msi
             windows-bundle/**/*.exe
             macos-dmg/**/*.dmg
             ios-ipa/**/*.ipa
