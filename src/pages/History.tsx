@@ -18,6 +18,7 @@ import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDate
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
 import { strengthEstKcal } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
+import { EmptyState } from "@/components/common/EmptyState";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
 import { computeTdee } from "@/lib/calculations/metabolism";
@@ -754,10 +755,7 @@ export function History() {
             {loading ? (
               <div className="h-48 flex items-center justify-center text-[var(--text-on-surface-muted)] text-sm">{t("common.loading")}</div>
             ) : weightPoints.length < 2 ? (
-              <div className="h-48 flex flex-col items-center justify-center text-[var(--text-on-surface-muted)] gap-2">
-                <Scale size={28} className="opacity-40" />
-                <p className="text-sm">{t("history.noWeight")}</p>
-              </div>
+              <EmptyState icon={Scale} message={t("history.noWeight")} />
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={weightData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
@@ -791,9 +789,7 @@ export function History() {
               {targets && <span className="text-xs text-[var(--text-on-surface-muted)]">{t("history.targetLabel")} {Math.round(targets.total_kcal)} kcal</span>}
             </div>
             {calPoints.length < 2 ? (
-              <div className="h-48 flex flex-col items-center justify-center text-[var(--text-on-surface-muted)] gap-2">
-                <Flame size={28} className="opacity-40" /><p className="text-sm">{t("history.noFood")}</p>
-              </div>
+              <EmptyState icon={Flame} message={t("history.noFood")} />
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={calData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
@@ -823,9 +819,7 @@ export function History() {
                 <span className="text-xs text-[var(--text-on-surface-muted)]">{lang === "zh" ? `均次數：${avgMealCount}/次` : `Avg: ${avgMealCount}/day`}</span>
               </div>
               {mealCountData.length < 2 ? (
-                <div className="h-48 flex flex-col items-center justify-center text-[var(--text-on-surface-muted)] gap-2">
-                  <Flame size={28} className="opacity-40" /><p className="text-sm">{t("history.noFood")}</p>
-                </div>
+                <EmptyState icon={Flame} message={t("history.noFood")} />
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={mealCountData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
@@ -881,10 +875,7 @@ export function History() {
           <div className="card">
             <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-4">{lang === "zh" ? "睡眠趨勢" : "Sleep Trend"}</p>
             {sleepPoints.length < 2 ? (
-              <div className="h-36 flex flex-col items-center justify-center text-[var(--text-on-surface-muted)] gap-2">
-                <Moon size={28} className="opacity-40" />
-                <p className="text-sm">{t("body.noSleepRecord")}</p>
-              </div>
+              <EmptyState icon={Moon} message={t("body.noSleepRecord")} height="h-36" />
             ) : (
               <>
                 {sleepPoints.some(p => p.hours != null) ? (
@@ -1444,10 +1435,7 @@ export function History() {
                 ))}
               </div>
               {!hasBodyData ? (
-                <div className="h-40 flex flex-col items-center justify-center text-[var(--text-on-surface-muted)] gap-2">
-                  <Activity size={28} className="opacity-40" />
-                  <p className="text-sm">{t("body.chartMinData")}</p>
-                </div>
+                <EmptyState icon={Activity} message={t("body.chartMinData")} height="h-40" />
               ) : (
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={bodyCompPoints} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
@@ -1471,10 +1459,7 @@ export function History() {
             <div className="card">
               <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-3">{t("body.tab.sleepRecord")}</p>
               {sleepPoints.length < 3 ? (
-                <div className="h-32 flex flex-col items-center justify-center text-[var(--text-on-surface-muted)] gap-2">
-                  <Moon size={24} className="opacity-40" />
-                  <p className="text-sm">{t("body.noSleepRecord")}</p>
-                </div>
+                <EmptyState icon={Moon} message={t("body.noSleepRecord")} height="h-32" iconSize={24} />
               ) : (
                 <ResponsiveContainer width="100%" height={140}>
                   <BarChart data={sleepPoints} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
