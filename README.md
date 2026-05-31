@@ -44,6 +44,11 @@ but deeper personal understanding through self-owned data.
 
 ## Changelog
 
+### v1.2.0
+- **Code architecture** — major internal refactoring: component library (EmptyState, StickyHeader, PillButton, CardHeader, Modal/Dialog/BottomSheet), design token system (spacing, font sizes), and style centralization
+- **Bug fix** — cycling history now correctly includes spinning bike (飛輪) entries
+- **CI/CD** — automated multi-platform release pipeline via GitHub Actions (Windows / macOS / iOS / Android)
+
 ### v1.1.0
 - **Trend analysis tab** — z-score normalized trend chart (weight / sleep / calories) with adaptive slope detection and direction indicators
 - **Lag analysis** — 3 independent lag sections correlating factors against weight change, sleep change, and calorie change
@@ -112,7 +117,7 @@ Bynálix provides exploratory analytics designed to help users observe potential
 ## Roadmap
 
 - UI refinement (performance + readability)
-- More analytics tools (correlation, trend, clustering)
+- More analytics tools (correlation, trend, automatic directed factor relationship network)
 - Better visualization
 - Additional languages
 - Advanced export system
