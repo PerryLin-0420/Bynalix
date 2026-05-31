@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, History } from "lucide-react";
 import { clsx } from "clsx";
 import { fmtDay } from "@/lib/dateFormat";
 import { useLangStore } from "@/store/langStore";
+import { StickyHeader } from "@/components/layout/StickyHeader";
 
 interface Props {
   title: string;
@@ -20,10 +21,7 @@ export function DateNavHeader({ title, historyTitle, selectedDate, todayStr, onD
   return (
     <>
       {/* Sticky header */}
-      <div
-        className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 pb-4 pt-1 md:pt-4 flex items-start justify-between shrink-0"
-        style={{ background: "var(--bg-main)", backgroundAttachment: "fixed" }}
-      >
+      <StickyHeader row>
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-on-bg)]">{title}</h1>
           <p className="text-[var(--text-on-bg-muted)] font-bold text-sm mt-0.5">
@@ -37,7 +35,7 @@ export function DateNavHeader({ title, historyTitle, selectedDate, todayStr, onD
         >
           <History size={20} />
         </button>
-      </div>
+      </StickyHeader>
 
       {/* Date navigation */}
       <div className="flex items-center justify-between mb-4 bg-white/10 rounded-xl px-1 py-1">

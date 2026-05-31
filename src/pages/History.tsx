@@ -19,6 +19,7 @@ import { calculateNutritionTargets } from "@/lib/calculations/strategy";
 import { strengthEstKcal } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
 import { EmptyState } from "@/components/common/EmptyState";
+import { StickyHeader } from "@/components/layout/StickyHeader";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
 import { computeTdee } from "@/lib/calculations/metabolism";
@@ -692,8 +693,7 @@ export function History() {
     <>
     <div className="page-body max-w-3xl mx-auto space-y-5 pb-20 md:pb-6" {...mainSwipe}>
       {/* Sticky header */}
-      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 pb-4 pt-1 md:pt-4 space-y-2 shrink-0"
-        style={{ background: 'var(--bg-main)', backgroundAttachment: 'fixed' }}>
+      <StickyHeader spaceY>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-on-bg)]">{t("history.title")}</h1>
@@ -709,7 +709,7 @@ export function History() {
           onSelectPreset={selectPreset}
           onToggleCustom={() => setShowCustom(v => !v)}
         />
-      </div>
+      </StickyHeader>
 
       {showCustom && (
         <DateRangePickerCard

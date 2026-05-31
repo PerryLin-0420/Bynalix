@@ -7,6 +7,7 @@ import { bmr, bmrKM, tdeeBasic, neat } from "@/lib/calculations/metabolism";
 import { checkBound, BOUNDS } from "@/lib/validate";
 import { clsx } from "clsx";
 import { Save, ChevronRight, Zap, TrendingDown, TrendingUp, Minus, FlaskConical, Target } from "lucide-react";
+import { StickyHeader } from "@/components/layout/StickyHeader";
 
 type GoalCategory  = "cut" | "maintain" | "bulk" | "custom";
 type GoalIntensity = "slow" | "normal" | "aggressive";
@@ -230,8 +231,7 @@ export function Profile() {
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-10 max-w-2xl mx-auto" {...profileSwipe}>
       {/* Sticky header + tabs */}
-      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 pb-4 pt-1 md:pt-4 shrink-0"
-        style={{ background: 'var(--bg-main)', backgroundAttachment: 'fixed' }}>
+      <StickyHeader>
         <h1 className="text-2xl font-bold text-[var(--text-on-bg)] mb-1">{t("profile.title")}</h1>
         <p className="text-[var(--text-on-bg-muted)] text-sm mb-4">{t("profile.subtitle")}</p>
         {/* Tabs */}
@@ -244,7 +244,7 @@ export function Profile() {
             </button>
           ))}
         </div>
-      </div>
+      </StickyHeader>
 
       {tab === "profile" && (
         <div className="space-y-5">

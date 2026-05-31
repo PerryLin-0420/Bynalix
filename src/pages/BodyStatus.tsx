@@ -13,6 +13,7 @@ import { useLangStore } from "@/store/langStore";
 import { useSwipeTabs } from "@/hooks/useSwipe";
 import { TimePicker } from "@/components/TimePicker";
 import { BodyHistoryDrawer } from "@/components/body/BodyHistoryDrawer";
+import { StickyHeader } from "@/components/layout/StickyHeader";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -424,8 +425,7 @@ export function BodyStatus() {
   return (
     <div className="page-body max-w-2xl mx-auto pb-24" {...bodySwipe}>
       {/* Sticky header */}
-      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 pb-4 pt-1 md:pt-4 flex items-start justify-between shrink-0"
-        style={{ background: 'var(--bg-main)', backgroundAttachment: 'fixed' }}>
+      <StickyHeader row>
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-on-bg)]">{t("body.pageTitle")}</h1>
           <p className="text-[var(--text-on-bg-muted)] font-bold text-sm mt-0.5">{t("body.subtitle")}</p>
@@ -436,7 +436,7 @@ export function BodyStatus() {
         >
           <History size={20} />
         </button>
-      </div>
+      </StickyHeader>
 
       <BodyHistoryDrawer
         open={historyOpen}
