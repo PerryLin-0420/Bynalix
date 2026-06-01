@@ -36,7 +36,7 @@ const CUT_RATES: Record<string, number> = {
   cut_slow: 0.25, cut_normal: 0.5, cut_aggressive: 0.75,
 };
 const BULK_RATES: Record<string, number> = {
-  bulk_lean: 0.25, bulk_normal: 0.5, bulk_aggressive: 0.75,
+  bulk_lean: 0.10, bulk_normal: 0.15, bulk_aggressive: 0.25,
 };
 
 // Protein priority: LBM × 2 g/kg (when body fat known) or weight × 1.6 g/kg.
@@ -54,6 +54,8 @@ export interface StrategyInput {
   tdee?: number;
   targetCalories?: number;
   customRatio?: CustomRatio;
+  /** Fat kcal as fraction of TDEE (0.25–0.35). Default 0.30. Non-custom modes only. */
+  fatKcalRatio?: number | null;
 }
 
 function targetKcalFromRate(
@@ -69,7 +71,7 @@ function targetKcalFromRate(
 }
 
 export function calculateNutritionTargets(input: StrategyInput): MacroResult {
-  const { weightKg, lbmKg, mode, tdee, targetCalories, customRatio } = input;
+  const { weightKg, lbmKg, mode, tdee, targetCalories, customRatio, fatKcalRatio } = input;
 
   if (mode === 'custom') {
     if (!targetCalories || targetCalories <= 0) throw new Error('targetCalories required for custom mode');
@@ -93,11 +95,14 @@ export function calculateNutritionTargets(input: StrategyInput): MacroResult {
   // Rule 2: no body fat    → protein = weight × 1.6 g/kg
   const protein_g = lbmKg != null ? lbmKg * 2.0 : weightKg * 1.6;
 
-  // Remaining split: 25 % fat, 75 % carb (by kcal)
-  const remaining = targetKcal - proteinKcal(protein_g);
-  if (remaining <= 0) throw new Error('Protein alone exceeds target calories');
-  const fat_g  = (remaining * 0.25) / 9;
-  const carb_g = (remaining * 0.75) / 4;
+  // Fat kcal = TDEE × ratio (user-adjustable 25–35%, default 30%)
+  const ratio = Math.max(0.25, Math.min(0.35, fatKcalRatio ?? 0.30));
+  const fat_g = (tdee * ratio) / 9;
+
+  // Carb fills the remainder
+  const carbKcalAmt = targetKcal - proteinKcal(protein_g) - fatKcal(fat_g);
+  if (carbKcalAmt < 0) throw new Error('Protein + fat exceeds target calories');
+  const carb_g = carbKcalAmt / 4;
 
   return macroResult(protein_g, carb_g, fat_g);
 }

@@ -17,6 +17,7 @@ import { detectOS } from "@/lib/platform";
 import { ToastHost } from "@/components/ui/ToastHost";
 import { Lock, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { hashPin } from "@/lib/pin";
+import { showToast } from "@/store/toastStore";
 
 // ── PIN entry screen ────────────────────────────────────────────────────────
 function PinScreen({ onUnlock }: { onUnlock: () => void }) {
@@ -285,6 +286,44 @@ export default function App() {
     setAppState("splash");
   };
 
+  const checkBfStaleness = async () => {
+    const BF_THRESHOLDS = [30, 45, 75, 105, 135, 165, 180];
+    try {
+      const db = await getDb();
+      // Get latest BF date from both tables
+      const [row] = await db.select<{ last_bf_date: string | null }[]>(`
+        SELECT MAX(d) as last_bf_date FROM (
+          SELECT MAX(log_date) as d FROM weight_log WHERE body_fat_pct IS NOT NULL
+          UNION ALL
+          SELECT MAX(log_date) as d FROM body_composition_log WHERE body_fat_pct IS NOT NULL
+        )
+      `);
+      if (!row?.last_bf_date) return;
+      const lastDate = new Date(row.last_bf_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const daysSince = Math.floor((today.getTime() - lastDate.getTime()) / 86400000);
+      // Load already-notified thresholds
+      const alertKeys = BF_THRESHOLDS.map(d => `bf_alert_${d}`);
+      const alertRows = await db.select<{ key: string }[]>(
+        `SELECT key FROM app_settings WHERE key IN (${alertKeys.map(() => "?").join(",")})`,
+        alertKeys
+      );
+      const notified = new Set(alertRows.map(r => r.key));
+      // Find the highest threshold crossed that hasn't been notified
+      for (const t of [...BF_THRESHOLDS].reverse()) {
+        if (daysSince >= t && !notified.has(`bf_alert_${t}`)) {
+          await db.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, '1')",
+            [`bf_alert_${t}`]
+          );
+          showToast(`體脂已 ${t} 天未更新，建議測量以提升 TDEE 準確性`, "info", 5000);
+          break;
+        }
+      }
+    } catch { /* best-effort */ }
+  };
+
   const handleSplashDone = async () => {
     // Coming from PIN unlock — skip PIN re-check and go straight to ready
     if (skipPinCheckRef.current) {
@@ -314,6 +353,7 @@ export default function App() {
       }
     } catch (e) { void e; /* startup checks: best-effort */ }
     setAppState("ready");
+    checkBfStaleness();
   };
 
   if (appState === "loading") {

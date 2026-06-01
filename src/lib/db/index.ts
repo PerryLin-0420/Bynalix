@@ -339,6 +339,8 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   { v: 31, sql: "ALTER TABLE mode_settings ADD COLUMN adv2_goal_config TEXT" },
   { v: 32, sql: "ALTER TABLE mode_settings ADD COLUMN adv2_stat_variables TEXT" },
   { v: 33, sql: "ALTER TABLE running_session ADD COLUMN calories_burned REAL" },
+  { v: 34, sql: "ALTER TABLE mode_settings ADD COLUMN fat_kcal_ratio REAL DEFAULT 0.30" },
+  { v: 35, sql: "ALTER TABLE sleep_log ADD COLUMN wake_up_time TEXT" },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

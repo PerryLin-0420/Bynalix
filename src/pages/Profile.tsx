@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSwipeTabs } from "@/hooks/useSwipe";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
@@ -40,9 +40,6 @@ export function Profile() {
     activity_level: "moderately_active",
     body_fat_pct: "",
   });
-  // True when user actively edits BF% in this session — hides the inferred hint
-  const [bfUserEdited, setBfUserEdited] = useState(false);
-
   // Mode form state — two-tier
   const [goalCategory, setGoalCategory]   = useState<GoalCategory>("maintain");
   const [goalIntensity, setGoalIntensity] = useState<GoalIntensity>("normal");
@@ -62,6 +59,7 @@ export function Profile() {
   const [customF, setCustomF]         = useState("");
   const [waterGoal, setWaterGoal]     = useState("");
   const [mlPerKg, setMlPerKg]         = useState("30");
+  const [fatKcalRatio, setFatKcalRatio] = useState(0.30);
 
   useEffect(() => {
     loadUser();
@@ -78,7 +76,6 @@ export function Profile() {
         activity_level: profile.activity_level,
         body_fat_pct: profile.body_fat_pct != null ? String(profile.body_fat_pct) : "",
       });
-      setBfUserEdited(false); // reset on fresh load
     }
     if (modeSettings) {
       // Reverse-map flat mode → two-tier category + intensity
@@ -101,6 +98,7 @@ export function Profile() {
       setCustomC(modeSettings.custom_carb_g ? String(modeSettings.custom_carb_g) : "");
       setCustomF(modeSettings.custom_fat_g ? String(modeSettings.custom_fat_g) : "");
       setWaterGoal(modeSettings.water_goal_ml ? String(modeSettings.water_goal_ml) : "");
+      setFatKcalRatio(modeSettings.fat_kcal_ratio ?? 0.30);
     }
   }, [profile, modeSettings]);
 
@@ -141,6 +139,7 @@ export function Profile() {
         customRatio: goalCategory === "custom" && customP && customC && customF
           ? { protein: parseFloat(customP), carb: parseFloat(customC), fat: parseFloat(customF) }
           : undefined,
+        fatKcalRatio: goalCategory !== "custom" ? fatKcalRatio : undefined,
       });
     } catch { return null; }
   })();
@@ -218,6 +217,7 @@ export function Profile() {
         adv_stat_variables: modeSettings?.adv_stat_variables ?? null,
         adv2_goal_config: modeSettings?.adv2_goal_config ?? null,
         adv2_stat_variables: modeSettings?.adv2_stat_variables ?? null,
+        fat_kcal_ratio: goalCategory !== "custom" ? fatKcalRatio : null,
       });
       await loadUser(); // re-sync store so water goal propagates immediately
       setSaved(true);
@@ -275,35 +275,39 @@ export function Profile() {
                 const synced =
                   latestWeightLog &&
                   (key === "weight_kg" || (key === "body_fat_pct" && latestWeightLog.body_fat_pct != null));
+                // BF% is locked after first initialisation (lbmKg stored = BF was set at least once)
+                const bfLocked = key === "body_fat_pct" && lbmKg != null;
                 return (
                   <div key={key}>
                     <label className="block text-xs text-[var(--text-on-surface-muted)] mb-1">
                       {label}
-                      {synced && <span className="ml-1 text-teal-500">↑</span>}
+                      {synced && !bfLocked && <span className="ml-1 text-teal-500">↑</span>}
+                      {bfLocked && <span className="ml-1 text-[var(--text-on-surface-muted)]">🔒</span>}
                     </label>
                     <div className="relative">
                       <input
-                        className={clsx("input-base pr-10", synced && "border-teal-200 bg-teal-50/30")}
+                        className={clsx(
+                          "input-base pr-10",
+                          synced && !bfLocked && "border-teal-200 bg-teal-50/30",
+                          bfLocked && "bg-[var(--surface-container)] cursor-not-allowed opacity-60",
+                        )}
                         placeholder={placeholder}
                         inputMode={key === "age" ? "numeric" : "decimal"}
                         value={(form as any)[key]}
-                        onChange={e => {
+                        readOnly={bfLocked}
+                        onChange={bfLocked ? undefined : e => {
                           setForm(f => ({ ...f, [key]: e.target.value }));
-                          if (key === "body_fat_pct") setBfUserEdited(true);
                         }}
                       />
                       <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">{unit}</span>
                     </div>
-                    {/* Inferred BF% — shown whenever lbm_kg is stored and user hasn't manually edited BF this session */}
-                    {key === "body_fat_pct" && !bfUserEdited && lbmKg != null && profile && (() => {
+                    {bfLocked && profile && lbmKg != null && (() => {
                       const w = Math.round(profile.weight_kg);
                       if (lbmKg >= w) return null;
                       const inferredBf = ((w - lbmKg) / w * 100).toFixed(1);
                       return (
-                        <p className="mt-1 text-10 text-[var(--text-on-surface-muted)]">
-                          {lang === "zh"
-                            ? `推算體脂：${inferredBf}%（依初始量測推算）`
-                            : `Est. body fat: ${inferredBf}% (inferred from initial measurement)`}
+                        <p className="mt-1 text-10 text-yellow-500 font-medium">
+                          {lang === "zh" ? `推算體脂：${inferredBf}%` : `Est. body fat: ${inferredBf}%`}
                         </p>
                       );
                     })()}
@@ -486,6 +490,35 @@ export function Profile() {
               <p className="text-xs text-[var(--text-on-surface-muted)]">{t("profile.defaultWater")}</p>
             )}
           </div>
+
+          {/* Fat kcal ratio slider (non-custom modes only) */}
+          {goalCategory !== "custom" && (
+            <div className="card">
+              <p className="text-sm font-medium text-[var(--text-on-surface)] mb-1">
+                {lang === "zh" ? "脂肪熱量比例" : "Fat Calorie Ratio"}
+              </p>
+              <p className="text-xs text-[var(--text-on-surface-muted)] mb-4">
+                {lang === "zh" ? "脂肪熱量佔 TDEE 的比例" : "Fat kcal as % of TDEE"}
+              </p>
+              <div className="relative">
+                <input
+                  type="range"
+                  min={25} max={35} step={1}
+                  value={Math.round(fatKcalRatio * 100)}
+                  onChange={e => setFatKcalRatio(parseInt(e.target.value) / 100)}
+                  className="fat-ratio-slider w-full"
+                  style={{ "--fat-ratio-pct": ((Math.round(fatKcalRatio * 100) - 25) / 10) * 100 } as React.CSSProperties}
+                />
+              </div>
+              <div className="flex justify-between mt-2">
+                <span className="text-10 text-[var(--text-on-surface-muted)]">25%</span>
+                <span className="text-sm font-bold text-[var(--color-primary)]">
+                  {Math.round(fatKcalRatio * 100)}%
+                </span>
+                <span className="text-10 text-[var(--text-on-surface-muted)]">35%</span>
+              </div>
+            </div>
+          )}
 
           {/* Custom macro override (only for custom category) */}
           {goalCategory === "custom" && (

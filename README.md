@@ -44,6 +44,15 @@ but deeper personal understanding through self-owned data.
 
 ## Changelog
 
+### v1.2.1
+- **Bug fix** — TDEE activity multipliers corrected to Harris-Benedict standard (1.2–1.9×); previously under-estimated by ~10–50%
+- **Nutrition** — fat calorie ratio slider (25–35% of TDEE, default 30%) added to mode settings; macro formula updated: fat = TDEE × ratio, carbs fill remainder
+- **Bulk rates** — conservative weekly gain targets: slow 0.10%, normal 0.15%, aggressive 0.25% body weight
+- **Body fat** — BF% field in Profile locked after initial setup; updates must go through body comp log or weight entry
+- **BF staleness alerts** — app notifies once per threshold (30 / 45 / 75 / 105 / 135 / 165 / 180 days since last BF reading); weight rows show ⚠️ at 30–179 days stale and red tint at 180+ days
+- **Sleep** — wake-up time field added; inferred sleep start time calculated from wake time minus duration
+- **Code quality** — empty catch blocks in Statistics replaced with logError
+
 ### v1.2.0
 - **Code architecture** — major internal refactoring: component library (EmptyState, StickyHeader, PillButton, CardHeader, Modal/Dialog/BottomSheet), design token system (spacing, font sizes), and style centralization
 - **Bug fix** — cycling history now correctly includes spinning bike (飛輪) entries

@@ -6,12 +6,14 @@ export type ActivityLevel =
   | 'very_active'
   | 'extra_active';
 
+// Harris-Benedict activity factors minus 1 (TDEE = BMR + BMR * factor = BMR * (1 + factor))
+// Standard multipliers: sedentary 1.2, lightly 1.375, moderate 1.55, very 1.725, extra 1.9
 const NEAT_MULTIPLIERS: Record<ActivityLevel, number> = {
-  sedentary:         0.10,
-  lightly_active:    0.15,
-  moderately_active: 0.20,
-  very_active:       0.30,
-  extra_active:      0.40,
+  sedentary:         0.20,
+  lightly_active:    0.375,
+  moderately_active: 0.55,
+  very_active:       0.725,
+  extra_active:      0.90,
 };
 
 /** Mifflin–St Jeor: weight(kg), height(cm), age(years) */

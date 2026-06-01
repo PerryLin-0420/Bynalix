@@ -326,7 +326,7 @@ export function Statistics() {
         setAdvGoalCfg({ type: gc.type, metric: gc.metric, exerciseName: gc.exerciseName });
         setAdvGoalDir(gc.direction ?? "up");
         setAdvGoalConfirmed(true);
-      } catch { }
+      } catch (e) { logError("Statistics.initAdv1Goal", e); }
     }
     if (modeSettings.adv_goal_type === "custom_v2" && modeSettings.adv_stat_variables) {
       try {
@@ -339,7 +339,7 @@ export function Statistics() {
             open: false,
           })));
         }
-      } catch { }
+      } catch (e) { logError("Statistics.initAdv1Vars", e); }
     }
     // Slot 2
     if (modeSettings.adv2_goal_config) {
@@ -348,7 +348,7 @@ export function Statistics() {
         setAdv2GoalCfg({ type: gc.type, metric: gc.metric, exerciseName: gc.exerciseName });
         setAdv2GoalDir(gc.direction ?? "up");
         setAdv2GoalConfirmed(true);
-      } catch { }
+      } catch (e) { logError("Statistics.initAdv2Goal", e); }
     }
     if (modeSettings.adv2_stat_variables) {
       try {
@@ -361,7 +361,7 @@ export function Statistics() {
             open: false,
           })));
         }
-      } catch { }
+      } catch (e) { logError("Statistics.initAdv2Vars", e); }
     }
   }, [modeSettings?.id]);
 
