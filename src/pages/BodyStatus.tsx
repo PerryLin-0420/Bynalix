@@ -168,6 +168,9 @@ export function BodyStatus() {
   const [weightNotes, setWeightNotes]       = useState("");
   const [editingWeight, setEditingWeight]   = useState<{ id: number; weight: string; bodyFat: string; type: WeightType } | null>(null);
 
+  // Last date any BF% was recorded (across weight_log + body_composition_log)
+  const [lastBfDate, setLastBfDate] = useState<string | null>(null);
+
   // Form validation errors
   const [weightFormErr, setWeightFormErr] = useState<string | null>(null);
   const [compFormErr,   setCompFormErr]   = useState<string | null>(null);
@@ -183,10 +186,27 @@ export function BodyStatus() {
   const [editingSleep, setEditingSleep]   = useState<{ id: number; quality: SleepQuality; hours: string } | null>(null);
 
   useEffect(() => {
-    if (profile) { loadEntries(); loadSleep(); loadWeightEntries(); }
+    if (profile) { loadEntries(); loadSleep(); loadWeightEntries(); loadLastBfDate(); }
   }, [profile, selectedDate]);
 
   // ── Body composition loaders ───────────────────────────────────────────────
+
+  const loadLastBfDate = async () => {
+    if (!profile) return;
+    try {
+      const db = await getDb();
+      const [row] = await db.select<{ last_bf_date: string | null }[]>(`
+        SELECT MAX(d) as last_bf_date FROM (
+          SELECT MAX(log_date) as d FROM weight_log
+            WHERE user_id=? AND body_fat_pct IS NOT NULL
+          UNION ALL
+          SELECT MAX(log_date) as d FROM body_composition_log
+            WHERE user_id=? AND body_fat_pct IS NOT NULL
+        )
+      `, [profile.user_id, profile.user_id]);
+      setLastBfDate(row?.last_bf_date ?? null);
+    } catch (e) { logError("BodyStatus.loadLastBfDate", e); }
+  };
 
   const loadEntries = async () => {
     try {
@@ -537,34 +557,45 @@ export function BodyStatus() {
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-2xl font-bold text-[var(--text-on-surface)]">{w.weight_kg}</span>
-                      <span className="text-sm text-[var(--text-on-surface-muted)]">kg</span>
-                      {w.body_fat_pct != null && (
-                        <span className="text-sm text-[var(--text-on-surface-muted)]">· 體脂 {w.body_fat_pct}%</span>
+              ) : (() => {
+                  const noBf = w.body_fat_pct == null;
+                  const daysSinceBf = lastBfDate
+                    ? Math.floor((new Date(today).getTime() - new Date(lastBfDate).getTime()) / 86400000)
+                    : Infinity;
+                  const isStale   = noBf && daysSinceBf >= 30 && daysSinceBf < 180;
+                  const isCritical = noBf && daysSinceBf >= 180;
+                  return (
+                    <div className={clsx("flex items-center gap-3", isCritical && "opacity-60 bg-red-500/10 -mx-4 px-4 -my-4 py-4 rounded-xl")} >
+                      <div className="flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-2xl font-bold text-[var(--text-on-surface)]">{w.weight_kg}</span>
+                          <span className="text-sm text-[var(--text-on-surface-muted)]">kg</span>
+                          {w.body_fat_pct != null && (
+                            <span className="text-sm text-[var(--text-on-surface-muted)]">· 體脂 {w.body_fat_pct}%</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="badge bg-[var(--surface-container)] text-[var(--text-on-surface-muted)] text-xs">
+                            {lang === "zh" ? WEIGHT_TYPE_LABELS_ZH[w.measurement_type] : WEIGHT_TYPE_LABELS_EN[w.measurement_type]}
+                          </span>
+                          <span className="text-xs text-[var(--text-on-surface-muted)]">{w.log_date} {w.log_time?.slice(0, 5)}</span>
+                        </div>
+                        {w.notes && <p className="text-xs text-[var(--text-on-surface-muted)] mt-1">{w.notes}</p>}
+                      </div>
+                      {isStale && (
+                        <AlertCircle size={15} className="text-amber-400 shrink-0" />
                       )}
+                      <button onClick={() => setEditingWeight({ id: w.id, weight: String(w.weight_kg), bodyFat: w.body_fat_pct != null ? String(w.body_fat_pct) : "", type: w.measurement_type })}
+                        className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={async () => { await deleteWeightEntry(w.id); loadWeightEntries(); }}
+                        className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="badge bg-[var(--surface-container)] text-[var(--text-on-surface-muted)] text-xs">
-                        {lang === "zh" ? WEIGHT_TYPE_LABELS_ZH[w.measurement_type] : WEIGHT_TYPE_LABELS_EN[w.measurement_type]}
-                      </span>
-                      <span className="text-xs text-[var(--text-on-surface-muted)]">{w.log_date} {w.log_time?.slice(0, 5)}</span>
-                    </div>
-                    {w.notes && <p className="text-xs text-[var(--text-on-surface-muted)] mt-1">{w.notes}</p>}
-                  </div>
-                  <button onClick={() => setEditingWeight({ id: w.id, weight: String(w.weight_kg), bodyFat: w.body_fat_pct != null ? String(w.body_fat_pct) : "", type: w.measurement_type })}
-                    className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
-                    <Pencil size={14} />
-                  </button>
-                  <button onClick={async () => { await deleteWeightEntry(w.id); loadWeightEntries(); }}
-                    className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              )}
+                  );
+                })()}
             </div>
           ))}
 
