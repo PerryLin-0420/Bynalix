@@ -207,4 +207,45 @@
     min-width: 44px;
     min-height: 44px;
   }
+
+  /* ── Fat ratio slider: thumb and filled track share primary color ── */
+  .fat-ratio-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 9999px;
+    outline: none;
+    cursor: pointer;
+    background: linear-gradient(
+      to right,
+      var(--color-primary) 0%,
+      var(--color-primary) calc((var(--fat-ratio-pct, 50)) * 1%),
+      var(--surface-container) calc((var(--fat-ratio-pct, 50)) * 1%),
+      var(--surface-container) 100%
+    );
+  }
+  .fat-ratio-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+  }
+  .fat-ratio-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: none;
+    background: var(--color-primary);
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+  }
+  .fat-ratio-slider::-moz-range-progress {
+    background: var(--color-primary);
+    height: 6px;
+    border-radius: 9999px;
+  }
 }

@@ -43,6 +43,7 @@ export interface ModeSettings {
   // slot 2 (custom mode 進階2 tab)
   adv2_goal_config:    string | null;
   adv2_stat_variables: string | null;
+  fat_kcal_ratio:      number | null;
 }
 
 export interface LatestWeightLog {

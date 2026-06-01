@@ -57,6 +57,7 @@ export function Dashboard() {
         customRatio: modeSettings.mode === "custom" && modeSettings.custom_protein_g
           ? { protein: modeSettings.custom_protein_g, carb: modeSettings.custom_carb_g ?? 1, fat: modeSettings.custom_fat_g ?? 1 }
           : undefined,
+        fatKcalRatio: modeSettings.mode !== "custom" ? (modeSettings.fat_kcal_ratio ?? 0.30) : undefined,
       });
     } catch { return null; }
   })();

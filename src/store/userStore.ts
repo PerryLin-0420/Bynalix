@@ -185,14 +185,15 @@ export const useUserStore = create<UserState>((set, get) => ({
          (user_id, mode, target_weight_kg, custom_calories, custom_protein_g, custom_carb_g, custom_fat_g,
           water_goal_ml, goal_type, goal_amount_kg, goal_weeks, goal_is_fat,
           adv_goal_type, adv_goal_config, adv_stat_variables,
-          adv2_goal_config, adv2_stat_variables)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          adv2_goal_config, adv2_stat_variables, fat_kcal_ratio)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         profile.user_id, data.mode, data.target_weight_kg, data.custom_calories,
         data.custom_protein_g, data.custom_carb_g, data.custom_fat_g, data.water_goal_ml,
         data.goal_type, data.goal_amount_kg, data.goal_weeks, data.goal_is_fat,
         data.adv_goal_type ?? null, data.adv_goal_config ?? null, data.adv_stat_variables ?? null,
         data.adv2_goal_config ?? null, data.adv2_stat_variables ?? null,
+        data.fat_kcal_ratio ?? 0.30,
       ]
     );
     set({ modeSettings: { id: result.lastInsertId as number, ...data } });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSwipeTabs } from "@/hooks/useSwipe";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
@@ -62,6 +62,7 @@ export function Profile() {
   const [customF, setCustomF]         = useState("");
   const [waterGoal, setWaterGoal]     = useState("");
   const [mlPerKg, setMlPerKg]         = useState("30");
+  const [fatKcalRatio, setFatKcalRatio] = useState(0.30);
 
   useEffect(() => {
     loadUser();
@@ -101,6 +102,7 @@ export function Profile() {
       setCustomC(modeSettings.custom_carb_g ? String(modeSettings.custom_carb_g) : "");
       setCustomF(modeSettings.custom_fat_g ? String(modeSettings.custom_fat_g) : "");
       setWaterGoal(modeSettings.water_goal_ml ? String(modeSettings.water_goal_ml) : "");
+      setFatKcalRatio(modeSettings.fat_kcal_ratio ?? 0.30);
     }
   }, [profile, modeSettings]);
 
@@ -141,6 +143,7 @@ export function Profile() {
         customRatio: goalCategory === "custom" && customP && customC && customF
           ? { protein: parseFloat(customP), carb: parseFloat(customC), fat: parseFloat(customF) }
           : undefined,
+        fatKcalRatio: goalCategory !== "custom" ? fatKcalRatio : undefined,
       });
     } catch { return null; }
   })();
@@ -218,6 +221,7 @@ export function Profile() {
         adv_stat_variables: modeSettings?.adv_stat_variables ?? null,
         adv2_goal_config: modeSettings?.adv2_goal_config ?? null,
         adv2_stat_variables: modeSettings?.adv2_stat_variables ?? null,
+        fat_kcal_ratio: goalCategory !== "custom" ? fatKcalRatio : null,
       });
       await loadUser(); // re-sync store so water goal propagates immediately
       setSaved(true);
@@ -486,6 +490,35 @@ export function Profile() {
               <p className="text-xs text-[var(--text-on-surface-muted)]">{t("profile.defaultWater")}</p>
             )}
           </div>
+
+          {/* Fat kcal ratio slider (non-custom modes only) */}
+          {goalCategory !== "custom" && (
+            <div className="card">
+              <p className="text-sm font-medium text-[var(--text-on-surface)] mb-1">
+                {lang === "zh" ? "脂肪熱量比例" : "Fat Calorie Ratio"}
+              </p>
+              <p className="text-xs text-[var(--text-on-surface-muted)] mb-4">
+                {lang === "zh" ? "脂肪熱量佔 TDEE 的比例" : "Fat kcal as % of TDEE"}
+              </p>
+              <div className="relative">
+                <input
+                  type="range"
+                  min={25} max={35} step={1}
+                  value={Math.round(fatKcalRatio * 100)}
+                  onChange={e => setFatKcalRatio(parseInt(e.target.value) / 100)}
+                  className="fat-ratio-slider w-full"
+                  style={{ "--fat-ratio-pct": ((Math.round(fatKcalRatio * 100) - 25) / 10) * 100 } as React.CSSProperties}
+                />
+              </div>
+              <div className="flex justify-between mt-2">
+                <span className="text-10 text-[var(--text-on-surface-muted)]">25%</span>
+                <span className="text-sm font-bold text-[var(--color-primary)]">
+                  {Math.round(fatKcalRatio * 100)}%
+                </span>
+                <span className="text-10 text-[var(--text-on-surface-muted)]">35%</span>
+              </div>
+            </div>
+          )}
 
           {/* Custom macro override (only for custom category) */}
           {goalCategory === "custom" && (
