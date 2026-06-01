@@ -40,9 +40,6 @@ export function Profile() {
     activity_level: "moderately_active",
     body_fat_pct: "",
   });
-  // True when user actively edits BF% in this session — hides the inferred hint
-  const [bfUserEdited, setBfUserEdited] = useState(false);
-
   // Mode form state — two-tier
   const [goalCategory, setGoalCategory]   = useState<GoalCategory>("maintain");
   const [goalIntensity, setGoalIntensity] = useState<GoalIntensity>("normal");
@@ -79,7 +76,6 @@ export function Profile() {
         activity_level: profile.activity_level,
         body_fat_pct: profile.body_fat_pct != null ? String(profile.body_fat_pct) : "",
       });
-      setBfUserEdited(false); // reset on fresh load
     }
     if (modeSettings) {
       // Reverse-map flat mode → two-tier category + intensity
@@ -279,38 +275,39 @@ export function Profile() {
                 const synced =
                   latestWeightLog &&
                   (key === "weight_kg" || (key === "body_fat_pct" && latestWeightLog.body_fat_pct != null));
+                // BF% is locked after first initialisation (lbmKg stored = BF was set at least once)
+                const bfLocked = key === "body_fat_pct" && lbmKg != null;
                 return (
                   <div key={key}>
                     <label className="block text-xs text-[var(--text-on-surface-muted)] mb-1">
                       {label}
-                      {synced && <span className="ml-1 text-teal-500">↑</span>}
+                      {synced && !bfLocked && <span className="ml-1 text-teal-500">↑</span>}
+                      {bfLocked && <span className="ml-1 text-[var(--text-on-surface-muted)]">🔒</span>}
                     </label>
                     <div className="relative">
                       <input
-                        className={clsx("input-base pr-10", synced && "border-teal-200 bg-teal-50/30")}
+                        className={clsx(
+                          "input-base pr-10",
+                          synced && !bfLocked && "border-teal-200 bg-teal-50/30",
+                          bfLocked && "bg-[var(--surface-container)] cursor-not-allowed opacity-60",
+                        )}
                         placeholder={placeholder}
                         inputMode={key === "age" ? "numeric" : "decimal"}
                         value={(form as any)[key]}
-                        onChange={e => {
+                        readOnly={bfLocked}
+                        onChange={bfLocked ? undefined : e => {
                           setForm(f => ({ ...f, [key]: e.target.value }));
-                          if (key === "body_fat_pct") setBfUserEdited(true);
                         }}
                       />
                       <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">{unit}</span>
                     </div>
-                    {/* Inferred BF% — shown whenever lbm_kg is stored and user hasn't manually edited BF this session */}
-                    {key === "body_fat_pct" && !bfUserEdited && lbmKg != null && profile && (() => {
-                      const w = Math.round(profile.weight_kg);
-                      if (lbmKg >= w) return null;
-                      const inferredBf = ((w - lbmKg) / w * 100).toFixed(1);
-                      return (
-                        <p className="mt-1 text-10 text-[var(--text-on-surface-muted)]">
-                          {lang === "zh"
-                            ? `推算體脂：${inferredBf}%（依初始量測推算）`
-                            : `Est. body fat: ${inferredBf}% (inferred from initial measurement)`}
-                        </p>
-                      );
-                    })()}
+                    {bfLocked && (
+                      <p className="mt-1 text-10 text-[var(--text-on-surface-muted)]">
+                        {lang === "zh"
+                          ? "請從體態測量或體重記錄更新"
+                          : "Update via body comp or weight log"}
+                      </p>
+                    )}
                   </div>
                 );
               })}
