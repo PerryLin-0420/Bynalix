@@ -36,7 +36,7 @@ const CUT_RATES: Record<string, number> = {
   cut_slow: 0.25, cut_normal: 0.5, cut_aggressive: 0.75,
 };
 const BULK_RATES: Record<string, number> = {
-  bulk_lean: 0.25, bulk_normal: 0.5, bulk_aggressive: 0.75,
+  bulk_lean: 0.10, bulk_normal: 0.15, bulk_aggressive: 0.25,
 };
 
 // Protein priority: LBM × 2 g/kg (when body fat known) or weight × 1.6 g/kg.
