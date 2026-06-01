@@ -301,13 +301,16 @@ export function Profile() {
                       />
                       <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">{unit}</span>
                     </div>
-                    {bfLocked && (
-                      <p className="mt-1 text-10 text-[var(--text-on-surface-muted)]">
-                        {lang === "zh"
-                          ? "請從體態測量或體重記錄更新"
-                          : "Update via body comp or weight log"}
-                      </p>
-                    )}
+                    {bfLocked && profile && lbmKg != null && (() => {
+                      const w = Math.round(profile.weight_kg);
+                      if (lbmKg >= w) return null;
+                      const inferredBf = ((w - lbmKg) / w * 100).toFixed(1);
+                      return (
+                        <p className="mt-1 text-10 text-yellow-500 font-medium">
+                          {lang === "zh" ? `推算體脂：${inferredBf}%` : `Est. body fat: ${inferredBf}%`}
+                        </p>
+                      );
+                    })()}
                   </div>
                 );
               })}
