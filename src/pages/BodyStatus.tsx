@@ -52,7 +52,8 @@ interface CompEntry {
 type SleepQuality = "good" | "normal" | "poor";
 interface SleepEntry {
   id: number; sleep_date: string; quality: SleepQuality;
-  duration_hours: number | null; notes: string | null; log_time: string;
+  duration_hours: number | null; wake_up_time: string | null;
+  notes: string | null; log_time: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -182,8 +183,9 @@ export function BodyStatus() {
   const [sleepDate, setSleepDate]         = useState(today);
   const [sleepQuality, setSleepQuality]   = useState<SleepQuality>("normal");
   const [sleepHours, setSleepHours]       = useState("");
+  const [sleepWakeTime, setSleepWakeTime] = useState("");
   const [sleepNotes, setSleepNotes]       = useState("");
-  const [editingSleep, setEditingSleep]   = useState<{ id: number; quality: SleepQuality; hours: string } | null>(null);
+  const [editingSleep, setEditingSleep]   = useState<{ id: number; quality: SleepQuality; hours: string; wakeTime: string } | null>(null);
 
   useEffect(() => {
     if (profile) { loadEntries(); loadSleep(); loadWeightEntries(); loadLastBfDate(); }
@@ -390,12 +392,13 @@ export function BodyStatus() {
     try {
       const db = await getDb();
       await db.execute(
-        "INSERT INTO sleep_log (user_id, sleep_date, quality, duration_hours, notes) VALUES (?,?,?,?,?)",
+        "INSERT INTO sleep_log (user_id, sleep_date, quality, duration_hours, wake_up_time, notes) VALUES (?,?,?,?,?,?)",
         [profile.user_id, sleepDate, sleepQuality,
          sleepHours ? parseFloat(sleepHours) : null,
+         sleepWakeTime.trim() || null,
          sleepNotes.trim() || null]);
       setShowSleepForm(false); setSleepDate(today); setSleepQuality("normal");
-      setSleepHours(""); setSleepNotes("");
+      setSleepHours(""); setSleepWakeTime(""); setSleepNotes("");
       loadSleep();
     } catch (e) {
       logError("BodyStatus.saveSleep", e);
@@ -408,9 +411,10 @@ export function BodyStatus() {
     try {
       const db = await getDb();
       await db.execute(
-        "UPDATE sleep_log SET quality=?, duration_hours=? WHERE id=?",
+        "UPDATE sleep_log SET quality=?, duration_hours=?, wake_up_time=? WHERE id=?",
         [editingSleep.quality,
          editingSleep.hours ? parseFloat(editingSleep.hours) : null,
+         editingSleep.wakeTime.trim() || null,
          editingSleep.id]);
       setEditingSleep(null); loadSleep();
     } catch (e) { logError("BodyStatus", e); }
@@ -801,40 +805,66 @@ export function BodyStatus() {
             ) : sleepEntries.map(e => (
               <div key={e.id} className="card">
                 {editingSleep?.id === e.id ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-micro.5 flex-1">
-                      {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
-                        <button key={q} onClick={() => setEditingSleep(s => s ? { ...s, quality: q } : null)}
-                          className={clsx("flex-1 py-1.5 rounded-xl text-xs font-medium transition-all",
-                            editingSleep.quality === q ? "text-white" : "bg-[var(--surface-container)] text-[var(--text-on-surface-muted)]")}
-                          style={editingSleep.quality === q ? { backgroundColor: SLEEP_COLORS[q] } : {}}>
-                          {SLEEP_LABELS[q]}
-                        </button>
-                      ))}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-micro.5 flex-1">
+                        {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
+                          <button key={q} onClick={() => setEditingSleep(s => s ? { ...s, quality: q } : null)}
+                            className={clsx("flex-1 py-1.5 rounded-xl text-xs font-medium transition-all",
+                              editingSleep.quality === q ? "text-white" : "bg-[var(--surface-container)] text-[var(--text-on-surface-muted)]")}
+                            style={editingSleep.quality === q ? { backgroundColor: SLEEP_COLORS[q] } : {}}>
+                            {SLEEP_LABELS[q]}
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={saveEditSleep} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={14} /></button>
+                      <button onClick={() => setEditingSleep(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={14} /></button>
                     </div>
-                    <div className="relative w-20">
-                      <input className="input-base py-1.5 pr-7 text-sm" type="number" inputMode="decimal" step="0.5" placeholder={t("body.sleep.hours")}
-                        value={editingSleep.hours}
-                        onChange={ev => setEditingSleep(s => s ? { ...s, hours: ev.target.value } : null)} />
-                      <span className="absolute right-2 top-1.5 text-10 text-[var(--text-on-surface-muted)]">h</span>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input className="input-base py-1.5 pr-7 text-sm" type="number" inputMode="decimal" step="0.5" placeholder={t("body.sleep.hours")}
+                          value={editingSleep.hours}
+                          onChange={ev => setEditingSleep(s => s ? { ...s, hours: ev.target.value } : null)} />
+                        <span className="absolute right-2 top-1.5 text-10 text-[var(--text-on-surface-muted)]">h</span>
+                      </div>
+                      <TimePicker
+                        value={editingSleep.wakeTime}
+                        onChange={v => setEditingSleep(s => s ? { ...s, wakeTime: v } : null)}
+                      />
                     </div>
-                    <button onClick={saveEditSleep} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={14} /></button>
-                    <button onClick={() => setEditingSleep(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={14} /></button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
                     <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: SLEEP_COLORS[e.quality] }} />
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-[var(--text-on-surface)]">{fmt(e.sleep_date)}</span>
                         <span className="text-xs font-medium" style={{ color: SLEEP_COLORS[e.quality] }}>{SLEEP_LABELS[e.quality]}</span>
                         {e.duration_hours != null && (
                           <span className="text-xs text-[var(--text-on-surface-muted)]">{e.duration_hours}h</span>
                         )}
+                        {e.wake_up_time && (
+                          <span className="text-xs text-[var(--text-on-surface-muted)]">
+                            {lang === "zh" ? "起" : "wake"} {e.wake_up_time.slice(0, 5)}
+                          </span>
+                        )}
                       </div>
+                      {/* Inferred sleep start time */}
+                      {e.wake_up_time && e.duration_hours != null && (() => {
+                        const [wH, wM] = e.wake_up_time.slice(0, 5).split(":").map(Number);
+                        const totalMin = wH * 60 + wM - Math.round(e.duration_hours * 60);
+                        const sleepMin = ((totalMin % 1440) + 1440) % 1440;
+                        const sH = String(Math.floor(sleepMin / 60)).padStart(2, "0");
+                        const sM = String(sleepMin % 60).padStart(2, "0");
+                        return (
+                          <p className="text-10 text-[var(--text-on-surface-muted)] mt-0.5">
+                            {lang === "zh" ? `推算入睡：${sH}:${sM}` : `Est. sleep: ${sH}:${sM}`}
+                          </p>
+                        );
+                      })()}
                       {e.notes && <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">{e.notes}</p>}
                     </div>
-                    <button onClick={() => setEditingSleep({ id: e.id, quality: e.quality, hours: e.duration_hours ? String(e.duration_hours) : "" })}
+                    <button onClick={() => setEditingSleep({ id: e.id, quality: e.quality, hours: e.duration_hours ? String(e.duration_hours) : "", wakeTime: e.wake_up_time ?? "" })}
                       className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
                       <Pencil size={13} />
                     </button>
@@ -953,10 +983,18 @@ export function BodyStatus() {
               </div>
             </div>
 
-            <div className="relative">
-              <input className="input-base pr-6" type="number" inputMode="decimal" step="0.5" placeholder={`${t("body.sleep.hours")}（${t("common.optional")}）`}
-                value={sleepHours} onChange={e => setSleepHours(e.target.value)} />
-              <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">h</span>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input className="input-base pr-6" type="number" inputMode="decimal" step="0.5" placeholder={`${t("body.sleep.hours")}（${t("common.optional")}）`}
+                  value={sleepHours} onChange={e => setSleepHours(e.target.value)} />
+                <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">h</span>
+              </div>
+              <div className="flex-1">
+                <label className="block text-10 text-[var(--text-on-surface-muted)] mb-1">
+                  {lang === "zh" ? "起床時間（選填）" : "Wake-up (opt.)"}
+                </label>
+                <TimePicker value={sleepWakeTime} onChange={setSleepWakeTime} />
+              </div>
             </div>
 
             <input className="input-base" placeholder={`${t("body.sleep.notes")}（${t("common.optional")}）`}
