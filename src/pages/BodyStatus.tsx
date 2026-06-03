@@ -876,45 +876,42 @@ export function BodyStatus() {
                   </div>
                 </div>
 
-                {/* 入睡 · 起床 · 時長 — 3 columns */}
+                {/* 入睡 / 起床 / 時長 — vertical rows */}
                 {(e.wake_up_time || e.duration_hours != null) && (() => {
                   const startStr = (e.wake_up_time && e.duration_hours != null)
                     ? sleepStartFromEntry(e.wake_up_time, e.duration_hours)
                     : null;
-                  const dur = (e.wake_up_time && e.duration_hours != null)
-                    ? computeSleepDuration(startStr!, e.wake_up_time)
+                  const dur = (startStr && e.wake_up_time)
+                    ? computeSleepDuration(startStr, e.wake_up_time)
                     : null;
+                  const rows = [
+                    {
+                      label: lang === "zh" ? "入睡" : "Fell asleep",
+                      value: startStr ?? "—",
+                    },
+                    {
+                      label: lang === "zh" ? "起床" : "Woke up",
+                      value: e.wake_up_time ? e.wake_up_time.slice(0, 5) : "—",
+                    },
+                    {
+                      label: lang === "zh" ? "時長" : "Duration",
+                      value: dur
+                        ? `${dur.h}h${dur.m > 0 ? ` ${dur.m}m` : ""}`
+                        : "—",
+                    },
+                  ];
                   return (
-                    <div className="grid grid-cols-3 gap-2 mb-2">
-                      <div>
-                        <p className="text-xs text-[var(--text-on-surface-muted)] mb-0.5">
-                          {lang === "zh" ? "入睡" : "Asleep"}
-                        </p>
-                        <p className="text-xl font-bold text-[var(--text-on-surface)] tabular-nums">
-                          {startStr ?? "—"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-[var(--text-on-surface-muted)] mb-0.5">
-                          {lang === "zh" ? "起床" : "Wake"}
-                        </p>
-                        <p className="text-xl font-bold text-[var(--text-on-surface)] tabular-nums">
-                          {e.wake_up_time ? e.wake_up_time.slice(0, 5) : "—"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-[var(--text-on-surface-muted)] mb-0.5">
-                          {lang === "zh" ? "時長" : "Duration"}
-                        </p>
-                        <p className="text-xl font-bold text-[var(--text-on-surface)] tabular-nums">
-                          {dur ? (
-                            <>
-                              {dur.h}<span className="text-xs font-normal text-[var(--text-on-surface-muted)] ml-0.5">h</span>
-                              {dur.m > 0 && <>{" "}{dur.m}<span className="text-xs font-normal text-[var(--text-on-surface-muted)] ml-0.5">m</span></>}
-                            </>
-                          ) : "—"}
-                        </p>
-                      </div>
+                    <div className="mt-3 space-y-1.5 border-t border-[var(--surface-border)] pt-3">
+                      {rows.map(({ label, value }) => (
+                        <div key={label} className="flex items-center justify-between">
+                          <span className="text-xs text-[var(--text-on-surface-muted)]">
+                            {label}
+                          </span>
+                          <span className="text-sm font-semibold text-[var(--text-on-surface)] tabular-nums">
+                            {value}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   );
                 })()}
