@@ -18,7 +18,7 @@ import type { Lang } from "@/lib/i18n";
 import { detectOS } from "@/lib/platform";
 import JSZip from "jszip";
 
-const APP_VERSION = "1.2.1";
+const APP_VERSION = "1.3.0";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

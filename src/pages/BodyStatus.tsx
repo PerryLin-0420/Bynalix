@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { format, parseISO, addDays, subDays } from "date-fns";
 import { fmtDay as fmtDayFn } from "@/lib/dateFormat";
-import { Plus, X, Moon, Pencil, Check, ChevronLeft, ChevronRight, Trash2, History, AlertCircle } from "lucide-react";
+import { Plus, X, Moon, Pencil, Check, ChevronLeft, ChevronRight, Trash2, History, AlertCircle, Sparkles } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
@@ -14,6 +14,10 @@ import { useSwipeTabs } from "@/hooks/useSwipe";
 import { TimePicker } from "@/components/TimePicker";
 import { BodyHistoryDrawer } from "@/components/body/BodyHistoryDrawer";
 import { StickyHeader } from "@/components/layout/StickyHeader";
+import {
+  getLastScreenOff, openUsageSettings, refreshScreenStats,
+  tsToHHMM, calcDurationFromTs,
+} from "@/lib/screenMonitor";
 import { PillButton } from "@/components/common/PillButton";
 import { Dialog } from "@/components/common/Modal";
 import { BottomSheet } from "@/components/common/Modal";
@@ -82,6 +86,19 @@ const SLEEP_COLORS: Record<SleepQuality, string> = {
 };
 
 const fmt = (d: string) => format(parseISO(d), "yyyy/M/d");
+
+// HH:mm ↔ decimal-hours helpers (for sleep duration picker)
+const hoursToHHMM = (h: number): string => {
+  const totalMin = Math.round(h * 60);
+  return `${String(Math.floor(totalMin / 60)).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
+};
+const hhmmToHours = (hhmm: string): number | null => {
+  const [hPart, mPart] = hhmm.split(":");
+  const h = parseInt(hPart ?? "0", 10);
+  const m = parseInt(mPart ?? "0", 10);
+  const total = (isNaN(h) ? 0 : h) + (isNaN(m) ? 0 : m) / 60;
+  return total > 0 ? Math.round(total * 100) / 100 : null;
+};
 
 const initForm = (): Record<FormKey, string> => ({
   body_fat_pct: "", body_water_pct: "", visceral_fat_level: "", waist_cm: "",
@@ -178,14 +195,18 @@ export function BodyStatus() {
   const [sleepFormErr,  setSleepFormErr]  = useState<string | null>(null);
 
   // Sleep
-  const [sleepEntries, setSleepEntries]   = useState<SleepEntry[]>([]);
-  const [showSleepForm, setShowSleepForm] = useState(false);
-  const [sleepDate, setSleepDate]         = useState(today);
-  const [sleepQuality, setSleepQuality]   = useState<SleepQuality>("normal");
-  const [sleepHours, setSleepHours]       = useState("");
-  const [sleepWakeTime, setSleepWakeTime] = useState("");
-  const [sleepNotes, setSleepNotes]       = useState("");
-  const [editingSleep, setEditingSleep]   = useState<{ id: number; quality: SleepQuality; hours: string; wakeTime: string } | null>(null);
+  const [sleepEntries, setSleepEntries]         = useState<SleepEntry[]>([]);
+  const [showSleepForm, setShowSleepForm]       = useState(false);
+  const [sleepDate, setSleepDate]               = useState(today);
+  const [sleepQuality, setSleepQuality]         = useState<SleepQuality>("normal");
+  const [sleepDuration, setSleepDuration]       = useState("07:00"); // HH:mm → decimal hours on save
+  const [sleepWakeTime, setSleepWakeTime]       = useState("");
+  const [sleepNotes, setSleepNotes]             = useState("");
+  const [showEditSleepModal, setShowEditSleepModal] = useState(false);
+  const [editingSleep, setEditingSleep]         = useState<{ id: number; quality: SleepQuality; duration: string; wakeTime: string } | null>(null);
+  // Android screen-monitor state for sleep prediction
+  const [predictedSleepTs, setPredictedSleepTs]   = useState<number | null>(null);
+  const [screenPermGranted, setScreenPermGranted] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (profile) { loadEntries(); loadSleep(); loadWeightEntries(); loadLastBfDate(); }
@@ -385,20 +406,16 @@ export function BodyStatus() {
   const saveSleep = async () => {
     if (!profile) return;
     setSleepFormErr(null);
-    if (sleepHours.trim()) {
-      const err = checkBound(sleepHours, BOUNDS.sleepHours, lang);
-      if (err) { setSleepFormErr(err); return; }
-    }
     try {
       const db = await getDb();
       await db.execute(
         "INSERT INTO sleep_log (user_id, sleep_date, quality, duration_hours, wake_up_time, notes) VALUES (?,?,?,?,?,?)",
         [profile.user_id, sleepDate, sleepQuality,
-         sleepHours ? parseFloat(sleepHours) : null,
+         hhmmToHours(sleepDuration),
          sleepWakeTime.trim() || null,
          sleepNotes.trim() || null]);
       setShowSleepForm(false); setSleepDate(today); setSleepQuality("normal");
-      setSleepHours(""); setSleepWakeTime(""); setSleepNotes("");
+      setSleepDuration("07:00"); setSleepWakeTime(""); setSleepNotes("");
       loadSleep();
     } catch (e) {
       logError("BodyStatus.saveSleep", e);
@@ -413,10 +430,12 @@ export function BodyStatus() {
       await db.execute(
         "UPDATE sleep_log SET quality=?, duration_hours=?, wake_up_time=? WHERE id=?",
         [editingSleep.quality,
-         editingSleep.hours ? parseFloat(editingSleep.hours) : null,
+         hhmmToHours(editingSleep.duration),
          editingSleep.wakeTime.trim() || null,
          editingSleep.id]);
-      setEditingSleep(null); loadSleep();
+      setEditingSleep(null);
+      setShowEditSleepModal(false);
+      loadSleep();
     } catch (e) { logError("BodyStatus", e); }
   };
 
@@ -796,88 +815,118 @@ export function BodyStatus() {
       {mainTab === "sleep" && (
         <>
           {/* Sleep list */}
-          <div className="space-y-tight mb-4">
+          <div className="space-y-3 mb-4">
             {sleepEntries.length === 0 ? (
               <div className="card text-center py-10 text-[var(--text-on-surface-muted)]">
                 <Moon size={32} className="mx-auto mb-2 text-[var(--text-on-surface-muted)]" />
                 <p className="text-sm">{t("body.noSleepRecord")}</p>
               </div>
             ) : sleepEntries.map(e => (
-              <div key={e.id} className="card">
-                {editingSleep?.id === e.id ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-micro.5 flex-1">
-                        {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
-                          <button key={q} onClick={() => setEditingSleep(s => s ? { ...s, quality: q } : null)}
-                            className={clsx("flex-1 py-1.5 rounded-xl text-xs font-medium transition-all",
-                              editingSleep.quality === q ? "text-white" : "bg-[var(--surface-container)] text-[var(--text-on-surface-muted)]")}
-                            style={editingSleep.quality === q ? { backgroundColor: SLEEP_COLORS[q] } : {}}>
-                            {SLEEP_LABELS[q]}
-                          </button>
-                        ))}
-                      </div>
-                      <button onClick={saveEditSleep} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={14} /></button>
-                      <button onClick={() => setEditingSleep(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={14} /></button>
-                    </div>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <input className="input-base py-1.5 pr-7 text-sm" type="number" inputMode="decimal" step="0.5" placeholder={t("body.sleep.hours")}
-                          value={editingSleep.hours}
-                          onChange={ev => setEditingSleep(s => s ? { ...s, hours: ev.target.value } : null)} />
-                        <span className="absolute right-2 top-1.5 text-10 text-[var(--text-on-surface-muted)]">h</span>
-                      </div>
-                      <TimePicker
-                        value={editingSleep.wakeTime}
-                        onChange={v => setEditingSleep(s => s ? { ...s, wakeTime: v } : null)}
-                      />
-                    </div>
+              <div key={e.id} className="card py-4 border-l-4"
+                style={{ borderLeftColor: SLEEP_COLORS[e.quality] }}>
+                {/* Header row: date + quality badge + action buttons */}
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Moon size={14} style={{ color: SLEEP_COLORS[e.quality] }} />
+                    <span className="text-sm font-bold text-[var(--text-on-surface)]">{fmt(e.sleep_date)}</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: SLEEP_COLORS[e.quality] + "28", color: SLEEP_COLORS[e.quality] }}>
+                      {SLEEP_LABELS[e.quality]}
+                    </span>
                   </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: SLEEP_COLORS[e.quality] }} />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-semibold text-[var(--text-on-surface)]">{fmt(e.sleep_date)}</span>
-                        <span className="text-xs font-medium" style={{ color: SLEEP_COLORS[e.quality] }}>{SLEEP_LABELS[e.quality]}</span>
-                        {e.duration_hours != null && (
-                          <span className="text-xs text-[var(--text-on-surface-muted)]">{e.duration_hours}h</span>
-                        )}
-                        {e.wake_up_time && (
-                          <span className="text-xs text-[var(--text-on-surface-muted)]">
-                            {lang === "zh" ? "起" : "wake"} {e.wake_up_time.slice(0, 5)}
-                          </span>
-                        )}
-                      </div>
-                      {/* Inferred sleep start time */}
-                      {e.wake_up_time && e.duration_hours != null && (() => {
-                        const [wH, wM] = e.wake_up_time.slice(0, 5).split(":").map(Number);
-                        const totalMin = wH * 60 + wM - Math.round(e.duration_hours * 60);
-                        const sleepMin = ((totalMin % 1440) + 1440) % 1440;
-                        const sH = String(Math.floor(sleepMin / 60)).padStart(2, "0");
-                        const sM = String(sleepMin % 60).padStart(2, "0");
-                        return (
-                          <p className="text-10 text-[var(--text-on-surface-muted)] mt-0.5">
-                            {lang === "zh" ? `推算入睡：${sH}:${sM}` : `Est. sleep: ${sH}:${sM}`}
-                          </p>
-                        );
-                      })()}
-                      {e.notes && <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">{e.notes}</p>}
-                    </div>
-                    <button onClick={() => setEditingSleep({ id: e.id, quality: e.quality, hours: e.duration_hours ? String(e.duration_hours) : "", wakeTime: e.wake_up_time ?? "" })}
+                  <div className="flex gap-0.5 shrink-0">
+                    <button
+                      onClick={() => {
+                        setEditingSleep({
+                          id: e.id,
+                          quality: e.quality,
+                          duration: e.duration_hours != null ? hoursToHHMM(e.duration_hours) : "07:00",
+                          wakeTime: e.wake_up_time?.slice(0, 5) ?? format(new Date(), "HH:mm"),
+                        });
+                        setShowEditSleepModal(true);
+                      }}
                       className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
-                      <Pencil size={13} />
+                      <Pencil size={14} />
                     </button>
-                    <button onClick={() => deleteSleep(e.id)} className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
+                    <button onClick={() => deleteSleep(e.id)}
+                      className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
                       <Trash2 size={14} />
                     </button>
                   </div>
+                </div>
+
+                {/* Wake time (top) + Duration (bottom) — stacked */}
+                {(e.wake_up_time || e.duration_hours != null) && (
+                  <div className="grid grid-cols-2 gap-4 mb-2">
+                    <div>
+                      <p className="text-xs text-[var(--text-on-surface-muted)] mb-0.5">
+                        {lang === "zh" ? "起床時間" : "Wake-up"}
+                      </p>
+                      <p className="text-2xl font-bold text-[var(--text-on-surface)] tabular-nums">
+                        {e.wake_up_time ? e.wake_up_time.slice(0, 5) : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[var(--text-on-surface-muted)] mb-0.5">
+                        {lang === "zh" ? "睡眠時長" : "Duration"}
+                      </p>
+                      <p className="text-2xl font-bold text-[var(--text-on-surface)] tabular-nums">
+                        {e.duration_hours != null ? (
+                          <>
+                            {Math.floor(e.duration_hours)}
+                            <span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-0.5">h</span>
+                            {Math.round((e.duration_hours % 1) * 60) > 0 && (
+                              <>{" "}{Math.round((e.duration_hours % 1) * 60)}<span className="text-sm font-normal text-[var(--text-on-surface-muted)] ml-0.5">m</span></>
+                            )}
+                          </>
+                        ) : "—"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Inferred sleep start time */}
+                {e.wake_up_time && e.duration_hours != null && (() => {
+                  const [wH, wM] = e.wake_up_time.slice(0, 5).split(":").map(Number);
+                  const totalMin = wH * 60 + wM - Math.round(e.duration_hours * 60);
+                  const sleepMin = ((totalMin % 1440) + 1440) % 1440;
+                  const sH = String(Math.floor(sleepMin / 60)).padStart(2, "0");
+                  const sM = String(sleepMin % 60).padStart(2, "0");
+                  return (
+                    <p className="text-xs text-[var(--text-on-surface-muted)]">
+                      {lang === "zh" ? `推算入睡 ${sH}:${sM}` : `Est. fell asleep ${sH}:${sM}`}
+                    </p>
+                  );
+                })()}
+
+                {e.notes && (
+                  <p className="text-xs text-[var(--text-on-surface-muted)] mt-2">{e.notes}</p>
                 )}
               </div>
             ))}
           </div>
 
-          <button onClick={() => { setSleepDate(selectedDate); setShowSleepForm(true); }}
+          <button
+            onClick={async () => {
+              // Open form immediately with defaults
+              setSleepDate(selectedDate);
+              setSleepWakeTime(format(new Date(), "HH:mm"));
+              setSleepDuration("07:00");
+              setSleepQuality("normal");
+              setSleepNotes("");
+              setSleepFormErr(null);
+              setPredictedSleepTs(null);
+              setScreenPermGranted(null);
+              setShowSleepForm(true);
+
+              // Async: check permission + fetch prediction
+              const { timestamp, hasPermission } = await getLastScreenOff();
+              setScreenPermGranted(hasPermission);
+              if (timestamp) {
+                setPredictedSleepTs(timestamp);
+                setSleepDuration(calcDurationFromTs(timestamp));
+              }
+            }}
             className="w-full py-3.5 rounded-xl bg-[var(--surface)] text-[var(--text-on-surface)] border border-[var(--surface-border)] hover:bg-[var(--surface-container-low)] transition-all flex items-center justify-center gap-2 text-sm font-medium">
             <Plus size={16} /> {t("body.addSleepEntry")}
           </button>
@@ -955,60 +1004,175 @@ export function BodyStatus() {
         </BottomSheet>
       )}
 
-      {/* ── Sleep form modal ── */}
+      {/* ── Sleep add modal ── */}
       {showSleepForm && (
-        <Dialog>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("body.sleepModalTitle")}</h3>
-              <button onClick={() => setShowSleepForm(false)} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={20} /></button>
-            </div>
+        <Dialog maxWidth="max-w-sm" spaceY="space-y-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("body.sleepModalTitle")}</h3>
+            <button onClick={() => setShowSleepForm(false)}
+              className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
+              <X size={20} />
+            </button>
+          </div>
 
-            <div>
-              <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">{t("body.sleepDate")}</p>
-              <input className="input-base" type="date" value={sleepDate}
-                onChange={e => setSleepDate(e.target.value)} max={today} />
-            </div>
+          {/* Date */}
+          <div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">{t("body.sleepDate")}</p>
+            <input className="input-base" type="date" value={sleepDate}
+              onChange={e => setSleepDate(e.target.value)} max={today} />
+          </div>
 
-            <div>
-              <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">{t("body.sleep.quality")}</p>
-              <div className="flex gap-2">
-                {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
-                  <button key={q} onClick={() => setSleepQuality(q)}
-                    className={clsx("flex-1 py-2.5 rounded-xl border text-sm font-medium transition-all",
-                      sleepQuality === q ? "text-white border-transparent" : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)]")}
-                    style={sleepQuality === q ? { backgroundColor: SLEEP_COLORS[q] } : {}}>
-                    {SLEEP_LABELS[q]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+          {/* Quality */}
+          <div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">{t("body.sleep.quality")}</p>
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input className="input-base pr-6" type="number" inputMode="decimal" step="0.5" placeholder={`${t("body.sleep.hours")}（${t("common.optional")}）`}
-                  value={sleepHours} onChange={e => setSleepHours(e.target.value)} />
-                <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">h</span>
-              </div>
-              <div className="flex-1">
-                <label className="block text-10 text-[var(--text-on-surface-muted)] mb-1">
-                  {lang === "zh" ? "起床時間（選填）" : "Wake-up (opt.)"}
-                </label>
-                <TimePicker value={sleepWakeTime} onChange={setSleepWakeTime} />
-              </div>
+              {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
+                <button key={q} onClick={() => setSleepQuality(q)}
+                  className={clsx("flex-1 py-3 rounded-xl border text-sm font-medium transition-all",
+                    sleepQuality === q ? "text-white border-transparent" : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)]")}
+                  style={sleepQuality === q ? { backgroundColor: SLEEP_COLORS[q] } : {}}>
+                  {SLEEP_LABELS[q]}
+                </button>
+              ))}
             </div>
+          </div>
 
-            <input className="input-base" placeholder={`${t("body.sleep.notes")}（${t("common.optional")}）`}
-              value={sleepNotes} onChange={e => setSleepNotes(e.target.value)} />
-
-            {sleepFormErr && (
-              <p className="text-xs text-red-500 flex items-center gap-micro">
-                <AlertCircle size={12} className="shrink-0" /> {sleepFormErr}
+          {/* ── Android screen-monitor banners ── */}
+          {/* Case A: permission not granted yet → guide user */}
+          {screenPermGranted === false && (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 space-y-2">
+              <p className="text-xs text-amber-600 leading-relaxed">
+                {lang === "zh"
+                  ? "啟用「使用情形存取」後，App 可自動偵測入睡時間，不需手動填寫。"
+                  : "Grant Usage Access so the app can detect your sleep time automatically."}
               </p>
-            )}
-            <div className="flex gap-2">
-              <button onClick={() => { setShowSleepForm(false); setSleepFormErr(null); }} className="btn-ghost flex-1 border border-[var(--surface-border)]">{t("common.cancel")}</button>
-              <button onClick={saveSleep} className="btn-primary flex-1" style={{ backgroundColor: SLEEP_COLORS[sleepQuality] }}>{t("common.save")}</button>
+              <button
+                onClick={async () => {
+                  openUsageSettings();
+                  // When user comes back, refresh and re-fetch
+                  setTimeout(async () => {
+                    refreshScreenStats();
+                    const { timestamp, hasPermission } = await getLastScreenOff();
+                    setScreenPermGranted(hasPermission);
+                    if (timestamp) {
+                      setPredictedSleepTs(timestamp);
+                      setSleepDuration(calcDurationFromTs(timestamp));
+                    }
+                  }, 2000);
+                }}
+                className="text-xs font-semibold text-amber-600 underline underline-offset-2">
+                {lang === "zh" ? "前往授權設定 →" : "Go to Usage Access settings →"}
+              </button>
             </div>
+          )}
+
+          {/* Case B: permission granted + prediction available → green banner */}
+          {screenPermGranted === true && predictedSleepTs && (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <Sparkles size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-emerald-600 leading-relaxed">
+                {lang === "zh"
+                  ? `預測入睡 ${tsToHHMM(predictedSleepTs)}（最後螢幕使用時間）`
+                  : `Predicted sleep ${tsToHHMM(predictedSleepTs)} (last screen use)`}
+              </p>
+            </div>
+          )}
+
+          {/* Wake-up time (above duration) */}
+          <div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
+              {lang === "zh" ? "起床時間" : "Wake-up time"}
+            </p>
+            <TimePicker value={sleepWakeTime} onChange={setSleepWakeTime} />
+          </div>
+
+          {/* Duration (below wake-up) */}
+          <div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
+              {lang === "zh" ? "睡眠時長（小時 : 分鐘）" : "Duration (h : mm)"}
+            </p>
+            <TimePicker value={sleepDuration} onChange={setSleepDuration} />
+          </div>
+
+          {/* Notes */}
+          <input className="input-base" placeholder={`${t("body.sleep.notes")}（${t("common.optional")}）`}
+            value={sleepNotes} onChange={e => setSleepNotes(e.target.value)} />
+
+          {sleepFormErr && (
+            <p className="text-xs text-red-500 flex items-center gap-micro">
+              <AlertCircle size={12} className="shrink-0" /> {sleepFormErr}
+            </p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => { setShowSleepForm(false); setSleepFormErr(null); }}
+              className="btn-ghost flex-1 border border-[var(--surface-border)]">{t("common.cancel")}</button>
+            <button onClick={saveSleep}
+              className="btn-primary flex-1" style={{ backgroundColor: SLEEP_COLORS[sleepQuality] }}>
+              {t("common.save")}
+            </button>
+          </div>
+        </Dialog>
+      )}
+
+      {/* ── Sleep edit modal ── */}
+      {showEditSleepModal && editingSleep && (
+        <Dialog maxWidth="max-w-sm" spaceY="space-y-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-[var(--text-on-surface)]">
+              {lang === "zh" ? "編輯睡眠記錄" : "Edit Sleep Record"}
+            </h3>
+            <button onClick={() => { setShowEditSleepModal(false); setEditingSleep(null); }}
+              className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Quality */}
+          <div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">{t("body.sleep.quality")}</p>
+            <div className="flex gap-2">
+              {(["good", "normal", "poor"] as SleepQuality[]).map(q => (
+                <button key={q}
+                  onClick={() => setEditingSleep(s => s ? { ...s, quality: q } : null)}
+                  className={clsx("flex-1 py-3 rounded-xl border text-sm font-medium transition-all",
+                    editingSleep.quality === q ? "text-white border-transparent" : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)]")}
+                  style={editingSleep.quality === q ? { backgroundColor: SLEEP_COLORS[q] } : {}}>
+                  {SLEEP_LABELS[q]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Wake-up time */}
+          <div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
+              {lang === "zh" ? "起床時間" : "Wake-up time"}
+            </p>
+            <TimePicker
+              value={editingSleep.wakeTime}
+              onChange={v => setEditingSleep(s => s ? { ...s, wakeTime: v } : null)}
+            />
+          </div>
+
+          {/* Duration */}
+          <div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
+              {lang === "zh" ? "睡眠時長（小時 : 分鐘）" : "Duration (h : mm)"}
+            </p>
+            <TimePicker
+              value={editingSleep.duration}
+              onChange={v => setEditingSleep(s => s ? { ...s, duration: v } : null)}
+            />
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => { setShowEditSleepModal(false); setEditingSleep(null); }}
+              className="btn-ghost flex-1 border border-[var(--surface-border)]">{t("common.cancel")}</button>
+            <button onClick={saveEditSleep}
+              className="btn-primary flex-1" style={{ backgroundColor: SLEEP_COLORS[editingSleep.quality] }}>
+              {t("common.save")}
+            </button>
+          </div>
         </Dialog>
       )}
     </div>

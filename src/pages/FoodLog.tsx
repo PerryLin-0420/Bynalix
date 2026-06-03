@@ -3,7 +3,7 @@ import { BottomSheet, Dialog } from "@/components/common/Modal";
 import { format } from "date-fns";
 import {
   Search, Plus, X, Star, Trash2, UtensilsCrossed,
-  Clock, Bookmark, ChevronDown, ChevronUp, Pencil, Check, AlertCircle,
+  Bookmark, ChevronDown, ChevronUp, Pencil, Check, AlertCircle,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
@@ -876,9 +876,11 @@ export function FoodLog() {
                 </div>
 
                 {/* Time + template */}
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 flex-1">
-                    <Clock size={14} className="text-[var(--text-on-surface-muted)] shrink-0" />
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
+                      {lang === "zh" ? "用餐時間" : "Meal time"}
+                    </p>
                     <TimePicker value={mealTime} onChange={setMealTime} />
                   </div>
                   {templates.length > 0 && (

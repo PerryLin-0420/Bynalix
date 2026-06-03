@@ -254,10 +254,65 @@ async fn table_columns(
         .collect()
 }
 
+/// Result type for the `get_last_screen_off` command.
+#[derive(serde::Serialize)]
+struct ScreenOffResult {
+    /// Epoch-milliseconds of the last screen-off event, or -1 when unknown.
+    timestamp: i64,
+    /// Whether the Android PACKAGE_USAGE_STATS permission has been granted.
+    /// Always false on non-Android platforms.
+    has_permission: bool,
+}
+
+/// Return the last screen-off timestamp and permission status.
+///
+/// On Android, MainActivity writes two files to app_config_dir on every
+/// onResume():
+///   usage_permission.txt  →  "1" / "0"
+///   last_screen_off.txt   →  epoch-ms string (only when permission = 1)
+///
+/// Reads those files and returns a typed struct so the TypeScript layer can
+/// distinguish "no permission yet" from "permission granted but no data".
+#[tauri::command]
+async fn get_last_screen_off(app: tauri::AppHandle) -> Result<ScreenOffResult, String> {
+    let data_dir = match app.path().app_config_dir() {
+        Ok(d) => d,
+        Err(_) => return Ok(ScreenOffResult { timestamp: -1, has_permission: false }),
+    };
+
+    let has_permission = {
+        let f = data_dir.join("usage_permission.txt");
+        f.exists()
+            && std::fs::read_to_string(&f)
+                .unwrap_or_default()
+                .trim()
+                == "1"
+    };
+
+    let timestamp = {
+        let f = data_dir.join("last_screen_off.txt");
+        if f.exists() {
+            std::fs::read_to_string(&f)
+                .unwrap_or_default()
+                .trim()
+                .parse::<i64>()
+                .unwrap_or(-1)
+        } else {
+            -1
+        }
+    };
+
+    Ok(ScreenOffResult { timestamp, has_permission })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![vacuum_db_to_internal, import_db_replace])
+        .invoke_handler(tauri::generate_handler![
+            vacuum_db_to_internal,
+            import_db_replace,
+            get_last_screen_off,
+        ])
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init());
