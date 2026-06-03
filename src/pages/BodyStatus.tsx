@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { format, parseISO, addDays, subDays } from "date-fns";
 import { fmtDay as fmtDayFn } from "@/lib/dateFormat";
-import { Plus, X, Moon, Pencil, Check, ChevronLeft, ChevronRight, Trash2, History, AlertCircle } from "lucide-react";
+import { Plus, X, Moon, Pencil, Check, ChevronLeft, ChevronRight, Trash2, History, AlertCircle, Sparkles } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
@@ -14,6 +14,7 @@ import { useSwipeTabs } from "@/hooks/useSwipe";
 import { TimePicker } from "@/components/TimePicker";
 import { BodyHistoryDrawer } from "@/components/body/BodyHistoryDrawer";
 import { StickyHeader } from "@/components/layout/StickyHeader";
+import { getLastScreenOff, tsToHHMM, calcDurationFromTs } from "@/lib/screenMonitor";
 import { PillButton } from "@/components/common/PillButton";
 import { Dialog } from "@/components/common/Modal";
 import { BottomSheet } from "@/components/common/Modal";
@@ -200,6 +201,8 @@ export function BodyStatus() {
   const [sleepNotes, setSleepNotes]             = useState("");
   const [showEditSleepModal, setShowEditSleepModal] = useState(false);
   const [editingSleep, setEditingSleep]         = useState<{ id: number; quality: SleepQuality; duration: string; wakeTime: string } | null>(null);
+  // Predicted sleep-start timestamp from Android screen-off monitor (epoch ms)
+  const [predictedSleepTs, setPredictedSleepTs] = useState<number | null>(null);
 
   useEffect(() => {
     if (profile) { loadEntries(); loadSleep(); loadWeightEntries(); loadLastBfDate(); }
@@ -900,14 +903,23 @@ export function BodyStatus() {
           </div>
 
           <button
-            onClick={() => {
+            onClick={async () => {
+              // Set defaults immediately so the form opens at once
               setSleepDate(selectedDate);
               setSleepWakeTime(format(new Date(), "HH:mm"));
               setSleepDuration("07:00");
               setSleepQuality("normal");
               setSleepNotes("");
               setSleepFormErr(null);
+              setPredictedSleepTs(null);
               setShowSleepForm(true);
+
+              // Async: try to fetch last screen-off for sleep prediction
+              const ts = await getLastScreenOff();
+              if (ts) {
+                setPredictedSleepTs(ts);
+                setSleepDuration(calcDurationFromTs(ts));
+              }
             }}
             className="w-full py-3.5 rounded-xl bg-[var(--surface)] text-[var(--text-on-surface)] border border-[var(--surface-border)] hover:bg-[var(--surface-container-low)] transition-all flex items-center justify-center gap-2 text-sm font-medium">
             <Plus size={16} /> {t("body.addSleepEntry")}
@@ -1018,6 +1030,18 @@ export function BodyStatus() {
               ))}
             </div>
           </div>
+
+          {/* Predicted sleep time banner (Android screen-off data) */}
+          {predictedSleepTs && (
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <Sparkles size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-emerald-600 leading-relaxed">
+                {lang === "zh"
+                  ? `預測入睡 ${tsToHHMM(predictedSleepTs)}（最後螢幕使用時間）`
+                  : `Predicted sleep ${tsToHHMM(predictedSleepTs)} (last screen use)`}
+              </p>
+            </div>
+          )}
 
           {/* Wake-up time (above duration) */}
           <div>

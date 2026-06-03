@@ -254,10 +254,35 @@ async fn table_columns(
         .collect()
 }
 
+/// Return the epoch-milliseconds timestamp of the last screen-off event
+/// recorded by the Android BroadcastReceiver in MainActivity.
+///
+/// On Android, MainActivity writes `app_config_dir/last_screen_off.txt`
+/// (a plain integer string) whenever ACTION_SCREEN_OFF fires.
+/// On all other platforms, or when the file has not been written yet,
+/// this returns -1.
+#[tauri::command]
+async fn get_last_screen_off(app: tauri::AppHandle) -> Result<i64, String> {
+    let data_dir = match app.path().app_config_dir() {
+        Ok(d) => d,
+        Err(_) => return Ok(-1),
+    };
+    let file = data_dir.join("last_screen_off.txt");
+    if !file.exists() {
+        return Ok(-1);
+    }
+    let content = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
+    content.trim().parse::<i64>().map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![vacuum_db_to_internal, import_db_replace])
+        .invoke_handler(tauri::generate_handler![
+            vacuum_db_to_internal,
+            import_db_replace,
+            get_last_screen_off,
+        ])
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init());
