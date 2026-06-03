@@ -14,7 +14,10 @@ import { useSwipeTabs } from "@/hooks/useSwipe";
 import { TimePicker } from "@/components/TimePicker";
 import { BodyHistoryDrawer } from "@/components/body/BodyHistoryDrawer";
 import { StickyHeader } from "@/components/layout/StickyHeader";
-import { getLastScreenOff, tsToHHMM, calcDurationFromTs } from "@/lib/screenMonitor";
+import {
+  getLastScreenOff, openUsageSettings, refreshScreenStats,
+  tsToHHMM, calcDurationFromTs,
+} from "@/lib/screenMonitor";
 import { PillButton } from "@/components/common/PillButton";
 import { Dialog } from "@/components/common/Modal";
 import { BottomSheet } from "@/components/common/Modal";
@@ -201,8 +204,9 @@ export function BodyStatus() {
   const [sleepNotes, setSleepNotes]             = useState("");
   const [showEditSleepModal, setShowEditSleepModal] = useState(false);
   const [editingSleep, setEditingSleep]         = useState<{ id: number; quality: SleepQuality; duration: string; wakeTime: string } | null>(null);
-  // Predicted sleep-start timestamp from Android screen-off monitor (epoch ms)
-  const [predictedSleepTs, setPredictedSleepTs] = useState<number | null>(null);
+  // Android screen-monitor state for sleep prediction
+  const [predictedSleepTs, setPredictedSleepTs]   = useState<number | null>(null);
+  const [screenPermGranted, setScreenPermGranted] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (profile) { loadEntries(); loadSleep(); loadWeightEntries(); loadLastBfDate(); }
@@ -904,7 +908,7 @@ export function BodyStatus() {
 
           <button
             onClick={async () => {
-              // Set defaults immediately so the form opens at once
+              // Open form immediately with defaults
               setSleepDate(selectedDate);
               setSleepWakeTime(format(new Date(), "HH:mm"));
               setSleepDuration("07:00");
@@ -912,13 +916,15 @@ export function BodyStatus() {
               setSleepNotes("");
               setSleepFormErr(null);
               setPredictedSleepTs(null);
+              setScreenPermGranted(null);
               setShowSleepForm(true);
 
-              // Async: try to fetch last screen-off for sleep prediction
-              const ts = await getLastScreenOff();
-              if (ts) {
-                setPredictedSleepTs(ts);
-                setSleepDuration(calcDurationFromTs(ts));
+              // Async: check permission + fetch prediction
+              const { timestamp, hasPermission } = await getLastScreenOff();
+              setScreenPermGranted(hasPermission);
+              if (timestamp) {
+                setPredictedSleepTs(timestamp);
+                setSleepDuration(calcDurationFromTs(timestamp));
               }
             }}
             className="w-full py-3.5 rounded-xl bg-[var(--surface)] text-[var(--text-on-surface)] border border-[var(--surface-border)] hover:bg-[var(--surface-container-low)] transition-all flex items-center justify-center gap-2 text-sm font-medium">
@@ -1031,8 +1037,37 @@ export function BodyStatus() {
             </div>
           </div>
 
-          {/* Predicted sleep time banner (Android screen-off data) */}
-          {predictedSleepTs && (
+          {/* ── Android screen-monitor banners ── */}
+          {/* Case A: permission not granted yet → guide user */}
+          {screenPermGranted === false && (
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 space-y-2">
+              <p className="text-xs text-amber-600 leading-relaxed">
+                {lang === "zh"
+                  ? "啟用「使用情形存取」後，App 可自動偵測入睡時間，不需手動填寫。"
+                  : "Grant Usage Access so the app can detect your sleep time automatically."}
+              </p>
+              <button
+                onClick={async () => {
+                  openUsageSettings();
+                  // When user comes back, refresh and re-fetch
+                  setTimeout(async () => {
+                    refreshScreenStats();
+                    const { timestamp, hasPermission } = await getLastScreenOff();
+                    setScreenPermGranted(hasPermission);
+                    if (timestamp) {
+                      setPredictedSleepTs(timestamp);
+                      setSleepDuration(calcDurationFromTs(timestamp));
+                    }
+                  }, 2000);
+                }}
+                className="text-xs font-semibold text-amber-600 underline underline-offset-2">
+                {lang === "zh" ? "前往授權設定 →" : "Go to Usage Access settings →"}
+              </button>
+            </div>
+          )}
+
+          {/* Case B: permission granted + prediction available → green banner */}
+          {screenPermGranted === true && predictedSleepTs && (
             <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
               <Sparkles size={14} className="text-emerald-500 shrink-0 mt-0.5" />
               <p className="text-xs text-emerald-600 leading-relaxed">

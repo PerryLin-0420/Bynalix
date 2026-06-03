@@ -1,29 +1,64 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export interface ScreenMonitorResult {
+  /** Epoch-ms of the last screen-off, or null if unavailable / too old. */
+  timestamp: number | null;
+  /**
+   * Whether PACKAGE_USAGE_STATS has been granted.
+   * - false → user needs to enable the permission in Settings
+   * - true  → data is (or will be) available
+   * Always false on desktop / web (no impact on UI there).
+   */
+  hasPermission: boolean;
+}
+
 /**
- * Returns the epoch-millisecond timestamp of the last time the Android
- * screen turned off (= last phone use before sleep), or null when:
- *   - running on desktop / web
- *   - the receiver hasn't fired yet (first launch)
- *   - the timestamp is too old to be a sleep candidate (> 18 h)
+ * Read the last screen-off timestamp and permission status written by
+ * MainActivity's UsageStatsManager query.
+ *
+ * Returns `hasPermission: false` on non-Android platforms so the UI can
+ * skip the permission banner entirely on desktop.
  */
-export async function getLastScreenOff(): Promise<number | null> {
+export async function getLastScreenOff(): Promise<ScreenMonitorResult> {
   try {
-    const ts = await invoke<number>("get_last_screen_off");
-    if (ts <= 0) return null;
+    const raw = await invoke<{ timestamp: number; has_permission: boolean }>(
+      "get_last_screen_off"
+    );
 
-    // Ignore if the last screen-off was more than 18 hours ago —
-    // it's probably not the sleep we're trying to log.
-    const ageMs = Date.now() - ts;
-    if (ageMs < 0 || ageMs > 18 * 60 * 60 * 1000) return null;
+    // Ignore timestamps older than 18 h (not today's sleep)
+    const ageMs = Date.now() - raw.timestamp;
+    const fresh = raw.timestamp > 0 && ageMs >= 0 && ageMs < 18 * 60 * 60_000;
 
-    return ts;
+    return {
+      timestamp: fresh ? raw.timestamp : null,
+      hasPermission: raw.has_permission,
+    };
   } catch {
-    return null;
+    // Desktop build or command not available
+    return { timestamp: null, hasPermission: false };
   }
 }
 
-/** Convert an epoch-ms timestamp to a "HH:mm" string in local time. */
+/**
+ * Open the Android Usage Access settings page.
+ * Uses window.AndroidBridge (injected by MainActivity.onWebViewCreate).
+ * No-op on desktop / web.
+ */
+export function openUsageSettings(): void {
+  (window as any).AndroidBridge?.openUsageSettings();
+}
+
+/**
+ * Re-query UsageStatsManager after the user returns from Settings.
+ * Call this when the permission grant flow completes.
+ */
+export function refreshScreenStats(): void {
+  (window as any).AndroidBridge?.refreshScreenStats();
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Convert an epoch-ms timestamp to a local-time "HH:mm" string. */
 export function tsToHHMM(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -31,8 +66,7 @@ export function tsToHHMM(ts: number): string {
 
 /**
  * Calculate sleep duration (as "HH:mm") from a sleep-start epoch-ms
- * timestamp to the current moment.
- * Caps at 16 h to avoid absurd values from stale timestamps.
+ * timestamp to the current moment. Caps at 16 h.
  */
 export function calcDurationFromTs(sleepTs: number): string {
   const diffMs = Math.max(0, Date.now() - sleepTs);

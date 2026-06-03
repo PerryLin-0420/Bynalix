@@ -254,25 +254,55 @@ async fn table_columns(
         .collect()
 }
 
-/// Return the epoch-milliseconds timestamp of the last screen-off event
-/// recorded by the Android BroadcastReceiver in MainActivity.
+/// Result type for the `get_last_screen_off` command.
+#[derive(serde::Serialize)]
+struct ScreenOffResult {
+    /// Epoch-milliseconds of the last screen-off event, or -1 when unknown.
+    timestamp: i64,
+    /// Whether the Android PACKAGE_USAGE_STATS permission has been granted.
+    /// Always false on non-Android platforms.
+    has_permission: bool,
+}
+
+/// Return the last screen-off timestamp and permission status.
 ///
-/// On Android, MainActivity writes `app_config_dir/last_screen_off.txt`
-/// (a plain integer string) whenever ACTION_SCREEN_OFF fires.
-/// On all other platforms, or when the file has not been written yet,
-/// this returns -1.
+/// On Android, MainActivity writes two files to app_config_dir on every
+/// onResume():
+///   usage_permission.txt  →  "1" / "0"
+///   last_screen_off.txt   →  epoch-ms string (only when permission = 1)
+///
+/// Reads those files and returns a typed struct so the TypeScript layer can
+/// distinguish "no permission yet" from "permission granted but no data".
 #[tauri::command]
-async fn get_last_screen_off(app: tauri::AppHandle) -> Result<i64, String> {
+async fn get_last_screen_off(app: tauri::AppHandle) -> Result<ScreenOffResult, String> {
     let data_dir = match app.path().app_config_dir() {
         Ok(d) => d,
-        Err(_) => return Ok(-1),
+        Err(_) => return Ok(ScreenOffResult { timestamp: -1, has_permission: false }),
     };
-    let file = data_dir.join("last_screen_off.txt");
-    if !file.exists() {
-        return Ok(-1);
-    }
-    let content = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
-    content.trim().parse::<i64>().map_err(|e| e.to_string())
+
+    let has_permission = {
+        let f = data_dir.join("usage_permission.txt");
+        f.exists()
+            && std::fs::read_to_string(&f)
+                .unwrap_or_default()
+                .trim()
+                == "1"
+    };
+
+    let timestamp = {
+        let f = data_dir.join("last_screen_off.txt");
+        if f.exists() {
+            std::fs::read_to_string(&f)
+                .unwrap_or_default()
+                .trim()
+                .parse::<i64>()
+                .unwrap_or(-1)
+        } else {
+            -1
+        }
+    };
+
+    Ok(ScreenOffResult { timestamp, has_permission })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
