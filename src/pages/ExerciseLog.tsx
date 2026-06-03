@@ -1293,13 +1293,23 @@ export function ExerciseLog() {
             </div>
           </div>
 
-          <div className="flex gap-2 flex-wrap">
-            <div className="relative flex-1 min-w-[120px]">
-              <input className="input-base pr-10" type="number" inputMode="decimal" placeholder={t("common.custom")} value={waterAmount}
-                onChange={e => { setWaterAmount(e.target.value); setWaterAddErr(null); }} />
-              <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">ml</span>
+          <div className="flex gap-2 items-end">
+            <div className="relative flex-1 min-w-[100px]">
+              <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
+                {lang === "zh" ? "飲水量" : "Amount"}
+              </p>
+              <div className="relative">
+                <input className="input-base pr-10" type="number" inputMode="decimal" placeholder={t("common.custom")} value={waterAmount}
+                  onChange={e => { setWaterAmount(e.target.value); setWaterAddErr(null); }} />
+                <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">ml</span>
+              </div>
             </div>
-            <TimePicker value={waterTime} onChange={setWaterTime} />
+            <div>
+              <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
+                {lang === "zh" ? "時間" : "Time"}
+              </p>
+              <TimePicker value={waterTime} onChange={setWaterTime} />
+            </div>
             <button onClick={() => {
               const err = checkBound(waterAmount, BOUNDS.waterMl, lang, true);
               if (err) { setWaterAddErr(err); return; }
