@@ -44,6 +44,12 @@ but deeper personal understanding through self-owned data.
 
 ## Changelog
 
+### v1.3.0
+- **Sleep redesign** — rebuilt sleep add/edit forms: clock picker for wake-up time (defaults to current time on open) and duration; wake time placed above duration; larger sleep cards display wake time and duration as stacked large numerals
+- **Sleep edit modal** — editing now opens a popup dialog instead of inline card expansion
+- **Sleep prediction** — Android UsageStatsManager integration reads the system's screen-off history to predict sleep start time (no background service required); opening "Add Sleep" auto-fills duration and shows a green predicted sleep time banner; first-time permission setup guided via amber banner
+- **TimePicker consistency** — meal time and water time pickers now show a text label above the picker, matching the sleep form style
+
 ### v1.2.1
 - **Bug fix** — TDEE activity multipliers corrected to Harris-Benedict standard (1.2–1.9×); previously under-estimated by ~10–50%
 - **Nutrition** — fat calorie ratio slider (25–35% of TDEE, default 30%) added to mode settings; macro formula updated: fat = TDEE × ratio, carbs fill remainder
