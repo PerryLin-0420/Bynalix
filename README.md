@@ -140,12 +140,6 @@ Bynálix provides exploratory analytics designed to help users observe potential
 
 ## License
 
-Bynálix is source-available under the Business Source License 1.1 (BUSL).
+Bynálix is open source under the [Apache License 2.0](./LICENSE).
 
-- Personal and non-commercial use is allowed
-- Commercial use requires explicit permission
-- Commercial licensing is available upon request
-
-Each release automatically converts to Apache License 2.0 four years after its official release date.
-
-See LICENSE for full details.
+You are free to use, modify, and distribute this software for any purpose, including commercial use, subject to the terms of the Apache 2.0 license.

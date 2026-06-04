@@ -143,12 +143,6 @@ Bynálix 的發展重點將持續圍繞「本地優先與長期自我觀察」�
 
 ## 授權
 
-Bynálix 採用 Business Source License 1.1（BUSL）開源可用。
+Bynálix 採用 [Apache License 2.0](./LICENSE) 開源授權。
 
-- 允許個人與非商業使用
-- 商業用途須經明確許可
-- 可提供商業授權
-
-每個版本在官方釋出四年後自動轉為 Apache License 2.0。
-
-詳情請參閱 LICENSE。
+你可以自由使用、修改與散布本軟體，包含商業用途，須遵守 Apache 2.0 授權條款。
