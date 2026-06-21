@@ -16,7 +16,7 @@ import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDates } from "@/lib/db/queries/stats";
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
-import { strengthEstKcal } from "@/lib/calculations/exercise";
+import { strengthEstKcalSimple } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
 import { EmptyState } from "@/components/common/EmptyState";
 import { StickyHeader } from "@/components/layout/StickyHeader";
@@ -674,7 +674,7 @@ export function History() {
   const tickInterval = effectiveDays <= 7 ? 0 : effectiveDays <= 30 ? 4 : 13;
 
   const strKcalPerSession = (bpStats: BodyPartStats): number =>
-    strengthEstKcal(bpStats.avg_sets_per_session, profile?.weight_kg ?? 70);
+    strengthEstKcalSimple(bpStats.avg_sets_per_session, profile?.weight_kg ?? 70);
 
   // Freq per week for body part stats (uses effectiveDays)
   const bpFreqPerWeek = (ps: BodyPartStats): number =>

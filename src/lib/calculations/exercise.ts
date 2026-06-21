@@ -97,7 +97,44 @@ export function cardioSessionKcal(
 }
 
 
-/** MET 5.0 estimate for a strength session: sets × 3 min per set. */
-export function strengthEstKcal(numSets: number, weightKg: number): number {
-  return Math.round(5.0 * weightKg * (numSets * 3 / 60));
+/** MET during active work, scaled by lifted-weight / body-weight ratio.
+ *  < 0.5 → light (3.5), 0.5–1.0 → moderate (5.0), > 1.0 → vigorous (6.5). */
+function workMet(liftKg: number, bodyKg: number): number {
+  const ratio = bodyKg > 0 ? liftKg / bodyKg : 0.5;
+  if (ratio < 0.5)  return 3.5;
+  if (ratio <= 1.0) return 5.0;
+  return 6.5;
+}
+
+/**
+ * Calorie estimate for a strength session using per-set data.
+ *
+ * Work phase : MET(lift/body ratio) × bodyKg × (reps × 3 sec / 3600)
+ * Rest phase  : 2.0 MET × bodyKg × (rest_sec / 3600)  — only between sets
+ */
+export function strengthEstKcal(
+  sets: { weight_kg: number; reps: number; rest_sec?: number | null }[],
+  bodyWeightKg: number,
+): number {
+  const MET_REST   = 2.0;
+  const SEC_PER_REP = 3;
+  let kcal = 0;
+  for (const s of sets) {
+    kcal += workMet(s.weight_kg, bodyWeightKg) * bodyWeightKg * (s.reps * SEC_PER_REP / 3600);
+    if (s.rest_sec) {
+      kcal += MET_REST * bodyWeightKg * (s.rest_sec / 3600);
+    }
+  }
+  return Math.round(kcal);
+}
+
+/** Simplified estimate when per-set detail is unavailable (history/stats averages).
+ *  Assumes 10 reps at 50 % of body weight per set, no rest data. */
+export function strengthEstKcalSimple(numSets: number, bodyWeightKg: number): number {
+  const mockSets = Array.from({ length: Math.max(1, numSets) }, () => ({
+    weight_kg: bodyWeightKg * 0.5,
+    reps: 10,
+    rest_sec: null as number | null,
+  }));
+  return strengthEstKcal(mockSets, bodyWeightKg);
 }

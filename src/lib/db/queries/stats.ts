@@ -102,15 +102,19 @@ export async function getDailyStatsRecords(
         WHERE rs.user_id=? AND rs.log_date BETWEEN ? AND ?
         GROUP BY rs.log_date
         UNION ALL
-        -- strength training: estimated kcal (5 MET, 3 min/set), same model as the activity page
+        -- strength training: per-set MET based on lift/body ratio + rest phase
         SELECT ss.log_date, 0 as cnt, 0 as mins,
-          (5.0 * ? * 3.0 / 60.0 * COUNT(st.id)) as kcal
+          ROUND(SUM(
+            (CASE WHEN st.weight_kg / ? < 0.5 THEN 3.5 WHEN st.weight_kg / ? <= 1.0 THEN 5.0 ELSE 6.5 END)
+            * ? * (st.reps * 3.0 / 3600.0)
+            + COALESCE(st.rest_sec, 0) * 2.0 * ? / 3600.0
+          ), 1) as kcal
         FROM strength_session ss
         JOIN strength_set st ON st.session_id = ss.id
         WHERE ss.user_id=? AND ss.log_date BETWEEN ? AND ?
         GROUP BY ss.log_date
       )
-      GROUP BY log_date`, [userId, from, to, userId, from, to, userId, from, to, bodyWt, userId, from, to]),
+      GROUP BY log_date`, [userId, from, to, userId, from, to, userId, from, to, bodyWt, bodyWt, bodyWt, bodyWt, userId, from, to]),
     db.select<{ log_date: string; strength_volume_kg: number }[]>(`
       SELECT ss.log_date,
         ROUND(SUM(st.weight_kg * st.reps), 1) as strength_volume_kg
