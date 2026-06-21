@@ -187,6 +187,7 @@ export function FoodLog() {
   // Custom food modal
   const [showCustomFood, setShowCustomFood] = useState(false);
   const [customFoodErr, setCustomFoodErr]   = useState<string | null>(null);
+  const [cfEditId, setCfEditId]             = useState<number | null>(null);
   const [cf, setCf] = useState({
     name: "", name_en: "", protein: "", carb: "", fat: "",
     quantity: "100", unit: "g", category: "", addToFav: true,
@@ -543,6 +544,30 @@ export function FoodLog() {
     }
   };
 
+  const openEditCustomFood = (food: FoodItem) => {
+    setCfEditId(food.food_id);
+    setCf({
+      name:     food.food_name,
+      name_en:  food.name_en ?? "",
+      protein:  String(food.protein_g),
+      carb:     String(food.carbohydrates_g),
+      fat:      String(food.fat_g),
+      quantity: String(food.base_quantity),
+      unit:     food.base_unit,
+      category: food.category ?? "",
+      addToFav: favIds.has(food.food_id),
+    });
+    setCustomFoodErr(null);
+    setShowCustomFood(true);
+  };
+
+  const closeCustomFoodModal = () => {
+    setShowCustomFood(false);
+    setCfEditId(null);
+    setCustomFoodErr(null);
+    setCf({ name:"", name_en:"", protein:"", carb:"", fat:"", quantity:"100", unit:"g", category:"", addToFav:true });
+  };
+
   const saveCustomFood = async () => {
     if (!cf.name) return;
     setCustomFoodErr(null);
@@ -553,24 +578,49 @@ export function FoodLog() {
     if (cfErr) { setCustomFoodErr(cfErr); return; }
     try {
       const db = await getDb();
-      const res = await db.execute(
-        `INSERT INTO food_database
-           (food_name, name_en, protein_g, carbohydrates_g, fat_g, calories_kcal,
-            base_quantity, base_unit, category, source_type, created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-        [cf.name, cf.name_en.trim() || null,
-         parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
-         parseFloat(cf.fat)||0, cfCalories,
-         parseFloat(cf.quantity)||100, cf.unit||"g",
-         cf.category||null, "custom", profile?.user_id??null]);
-      if (cf.addToFav && profile) {
+      if (cfEditId !== null) {
         await db.execute(
-          "INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?,?,?)",
-          [profile.user_id, "food", res.lastInsertId]);
-        setFavIds(s => new Set(s).add(Number(res.lastInsertId)));
+          `UPDATE food_database SET
+             food_name=?, name_en=?, protein_g=?, carbohydrates_g=?, fat_g=?, calories_kcal=?,
+             base_quantity=?, base_unit=?, category=?
+           WHERE food_id=? AND source_type='custom'`,
+          [cf.name, cf.name_en.trim() || null,
+           parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
+           parseFloat(cf.fat)||0, cfCalories,
+           parseFloat(cf.quantity)||100, cf.unit||"g",
+           cf.category||null, cfEditId]);
+        if (profile) {
+          if (cf.addToFav) {
+            await db.execute(
+              "INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?,?,?)",
+              [profile.user_id, "food", cfEditId]);
+            setFavIds(s => new Set(s).add(cfEditId));
+          } else {
+            await db.execute(
+              "DELETE FROM user_favorites WHERE user_id=? AND item_type='food' AND item_id=?",
+              [profile.user_id, cfEditId]);
+            setFavIds(s => { const n = new Set(s); n.delete(cfEditId!); return n; });
+          }
+        }
+      } else {
+        const res = await db.execute(
+          `INSERT INTO food_database
+             (food_name, name_en, protein_g, carbohydrates_g, fat_g, calories_kcal,
+              base_quantity, base_unit, category, source_type, created_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          [cf.name, cf.name_en.trim() || null,
+           parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
+           parseFloat(cf.fat)||0, cfCalories,
+           parseFloat(cf.quantity)||100, cf.unit||"g",
+           cf.category||null, "custom", profile?.user_id??null]);
+        if (cf.addToFav && profile) {
+          await db.execute(
+            "INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?,?,?)",
+            [profile.user_id, "food", res.lastInsertId]);
+          setFavIds(s => new Set(s).add(Number(res.lastInsertId)));
+        }
       }
-      setShowCustomFood(false);
-      setCf({ name:"", name_en:"", protein:"", carb:"", fat:"", quantity:"100", unit:"g", category:"", addToFav:true });
+      closeCustomFoodModal();
       doSearch(query, catFilter);
     } catch (e) {
       logError("FoodLog.saveCustomFood", e);
@@ -1019,10 +1069,16 @@ export function FoodLog() {
                           <Star size={13} fill={isFav ? "currentColor" : "none"} />
                         </button>
                         {food.source_type === "custom" && (
-                          <button onClick={e => { e.stopPropagation(); deleteCustomFood(food); }}
-                            className="p-1.5 text-red-400 hover:text-red-500 transition-colors shrink-0">
-                            <Trash2 size={13} />
-                          </button>
+                          <>
+                            <button onClick={e => { e.stopPropagation(); openEditCustomFood(food); }}
+                              className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors shrink-0">
+                              <Pencil size={13} />
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); deleteCustomFood(food); }}
+                              className="p-1.5 text-red-400 hover:text-red-500 transition-colors shrink-0">
+                              <Trash2 size={13} />
+                            </button>
+                          </>
                         )}
                       </div>
                     );
@@ -1146,8 +1202,12 @@ export function FoodLog() {
       {showCustomFood && (
         <Dialog maxWidth="max-w-md" opacity="bg-black/60">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-[var(--text-on-surface)]">{t("food.addCustomFoodTitle")}</h3>
-              <button onClick={() => setShowCustomFood(false)} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
+              <h3 className="text-lg font-bold text-[var(--text-on-surface)]">
+                {cfEditId !== null
+                  ? (lang === "zh" ? "編輯自訂食物" : "Edit custom food")
+                  : t("food.addCustomFoodTitle")}
+              </h3>
+              <button onClick={closeCustomFoodModal} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
                 <X size={20} />
               </button>
             </div>
@@ -1211,10 +1271,12 @@ export function FoodLog() {
               </p>
             )}
             <div className="flex gap-2 pt-1">
-              <button onClick={() => { setShowCustomFood(false); setCustomFoodErr(null); }}
+              <button onClick={closeCustomFoodModal}
                 className="btn-ghost flex-1">{t("common.cancel")}</button>
               <button onClick={saveCustomFood}
-                className="btn-primary flex-1">{t("common.save")}</button>
+                className="btn-primary flex-1">
+                {cfEditId !== null ? (lang === "zh" ? "更新" : "Update") : t("common.save")}
+              </button>
             </div>
         </Dialog>
       )}

@@ -58,7 +58,7 @@ export const BOUNDS = {
   waterMl:       { zh: "水量",     en: "Amount",         gt: 0              },
   // Food
   foodQty:       { zh: "份量",     en: "Quantity",       gt: 0              },
-  macroNutrient: { zh: "營養素",   en: "Nutrient",       gte: 0,  lte: 100  },
+  macroNutrient: { zh: "營養素",   en: "Nutrient",       gte: 0            },
   caloriesVal:   { zh: "熱量",     en: "Calories",       gte: 0             },
   // Goals / profile
   targetWeight:  { zh: "目標體重",  en: "Target weight",  gt: 0,   lte: 300  },
