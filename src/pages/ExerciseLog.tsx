@@ -1587,7 +1587,7 @@ export function ExerciseLog() {
         <BottomSheet maxH="max-h-[88vh]">
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--surface-border)] shrink-0">
               <h2 className="text-lg font-bold text-[var(--text-on-surface)]">{t("exercise.strModalTitle")}</h2>
-              <button onClick={() => { setShowStrength(false); setStrExName(""); setStrSearch(""); setStrBodyPart(""); setStrExNameEn(""); setStrSets([{ weight: "", reps: "" }]); }}
+              <button onClick={() => { setShowStrength(false); setStrExName(""); setStrSearch(""); setStrBodyPart(""); setStrExNameEn(""); setStrSets([{ weight: "", reps: "", rest: "" }]); }}
                 className="p-2 -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
                 <X size={20} />
               </button>
