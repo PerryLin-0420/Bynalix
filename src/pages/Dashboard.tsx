@@ -70,7 +70,7 @@ export function Dashboard() {
 
   const loadTotals = async () => {
     try {
-      setTotals(await getDashboardTotals(profile!.user_id, today));
+      setTotals(await getDashboardTotals(profile!.user_id, today, profile!.weight_kg));
     } catch (e) { logError("Dashboard.loadTotals", e); }
   };
 

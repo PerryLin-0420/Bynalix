@@ -8,9 +8,9 @@ export interface DashboardTotals {
   water_ml: number; exercise_kcal: number; weight_kg: number | null;
 }
 
-export async function getDashboardTotals(userId: number, date: string): Promise<DashboardTotals> {
+export async function getDashboardTotals(userId: number, date: string, bodyWeightKg = 70): Promise<DashboardTotals> {
   const db = await getDb();
-  const [meals, water, exercise, runCal, weight] = await Promise.all([
+  const [meals, water, exercise, runCal, strengthCal, weight] = await Promise.all([
     db.select<{ calories: number; protein: number; carb: number; fat: number }[]>(`
       SELECT
         ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal), 1) as calories,
@@ -25,6 +25,16 @@ export async function getDashboardTotals(userId: number, date: string): Promise<
       "SELECT COALESCE(SUM(calories_burned),0) as total FROM exercise_log WHERE user_id=? AND log_date=?", [userId, date]),
     db.select<{ total: number }[]>(
       "SELECT COALESCE(SUM(calories_burned),0) as total FROM running_session WHERE user_id=? AND log_date=?", [userId, date]),
+    db.select<{ total: number }[]>(`
+      SELECT COALESCE(ROUND(SUM(
+        (CASE WHEN st.weight_kg / ? < 0.5 THEN 3.5 WHEN st.weight_kg / ? <= 1.0 THEN 5.0 ELSE 6.5 END)
+        * ? * (st.reps * 3.0 / 3600.0)
+        + COALESCE(st.rest_sec, 0) * 2.0 * ? / 3600.0
+      ), 1), 0) as total
+      FROM strength_session ss
+      JOIN strength_set st ON st.session_id = ss.id
+      WHERE ss.user_id=? AND ss.log_date=?`,
+      [bodyWeightKg, bodyWeightKg, bodyWeightKg, bodyWeightKg, userId, date]),
     db.select<{ weight_kg: number }[]>(
       "SELECT weight_kg FROM weight_log WHERE user_id=? AND log_date=? AND measurement_type='fasting' ORDER BY id DESC LIMIT 1", [userId, date]),
   ]);
@@ -34,7 +44,7 @@ export async function getDashboardTotals(userId: number, date: string): Promise<
     carb:          meals[0]?.carb          ?? 0,
     fat:           meals[0]?.fat           ?? 0,
     water_ml:      water[0]?.total         ?? 0,
-    exercise_kcal: (exercise[0]?.total ?? 0) + (runCal[0]?.total ?? 0),
+    exercise_kcal: (exercise[0]?.total ?? 0) + (runCal[0]?.total ?? 0) + (strengthCal[0]?.total ?? 0),
     weight_kg:     weight[0]?.weight_kg    ?? null,
   };
 }
