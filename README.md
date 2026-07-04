@@ -44,6 +44,14 @@ but deeper personal understanding through self-owned data.
 
 ## Changelog
 
+### v1.4.0
+- **Custom foods** — edit existing custom foods (pencil button); macro inputs no longer capped at 100 g
+- **Strength calories rework** — per-set MET model scaled by lift-to-bodyweight ratio (3.5 / 5.0 / 6.5 MET); reps drive work time, rest time counted at 2.0 MET; rest between sets can be entered manually or auto-detected from the previous set's log time (shown in green)
+- **Dashboard** — exercise burn now includes strength training calories (previously cardio only)
+- **Pattern discovery** — correlation network graph on the Patterns tab: variables as nodes, significant Spearman correlations (on day-over-day changes, p < 0.05) as edges; lagged effects drawn as directed arrows; tap a node to focus, tap an edge for the scatter detail
+- **Weekly patterns** — weekend-vs-weekday effect cards (e.g. "weekend calories +12% vs weekdays"), Welch t-test gated
+- **CI fix** — removed deprecated tsconfig `baseUrl` that was silently aborting type checking
+
 ### v1.3.0
 - **Sleep redesign** — rebuilt sleep add/edit forms: clock picker for wake-up time (defaults to current time on open) and duration; wake time placed above duration; larger sleep cards display wake time and duration as stacked large numerals
 - **Sleep edit modal** — editing now opens a popup dialog instead of inline card expansion

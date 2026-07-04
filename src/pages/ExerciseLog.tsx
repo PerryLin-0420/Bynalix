@@ -1,6 +1,6 @@
 import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import { format } from "date-fns";
-import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle } from "lucide-react";
+import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle, Timer } from "lucide-react";
 import { clsx } from "clsx";
 import { PillButton } from "@/components/common/PillButton";
 import { BottomSheet } from "@/components/common/Modal";
@@ -33,12 +33,12 @@ interface ExerciseEntry {
   duration_min: number; intensity: Intensity; calories_burned: number;
 }
 interface WaterEntry   { id: number; amount_ml: number; log_time: string; meal_log_id: number | null }
-interface StrengthSet  { id: number; set_number: number; weight_kg: number; reps: number }
+interface StrengthSet  { id: number; set_number: number; weight_kg: number; reps: number; rest_sec: number | null; logged_at: string | null }
 interface StrengthSession {
   id: number; exercise_name: string; name_en: string | null;
   body_part: string | null; log_time: string; sets: StrengthSet[];
 }
-interface SetInput { weight: string; reps: string }
+interface SetInput { weight: string; reps: string; rest: string }
 interface RunInterval { distance: string; time: string }
 type CardioType = "running" | "swimming" | "cycling";
 type CardioFilter = "all" | CardioType;
@@ -212,8 +212,8 @@ export function ExerciseLog() {
   const [strSearch, setStrSearch]       = useState("");
   const [strExName, setStrExName]       = useState("");
   const [strBodyPart, setStrBodyPart]   = useState<BodyPart | "">("");
-  const [strSets, setStrSets]           = useState<SetInput[]>([{ weight: "", reps: "" }]);
-  const [addSetTo, setAddSetTo]         = useState<{ sessionId: number; w: string; r: string } | null>(null);
+  const [strSets, setStrSets]           = useState<SetInput[]>([{ weight: "", reps: "", rest: "" }]);
+  const [addSetTo, setAddSetTo]         = useState<{ sessionId: number; w: string; r: string; rest: string; suggestedRest: number | null } | null>(null);
   const [strFilterPart, setStrFilterPart] = useState<BodyPart | "全部">("全部");
   const [strNameFocused, setStrNameFocused] = useState(false);
   const [strBodyPartError, setStrBodyPartError] = useState(false);
@@ -565,13 +565,14 @@ export function ExerciseLog() {
         [profile.user_id, name, nameEn, strBodyPart || null, selectedDate]);
       const sid = res.lastInsertId;
       for (let i = 0; i < validSets.length; i++) {
+        const restSec = i > 0 && validSets[i].rest ? Math.round(parseFloat(validSets[i].rest) * 60) : null;
         await db.execute(
-          "INSERT INTO strength_set (session_id, set_number, weight_kg, reps) VALUES (?,?,?,?)",
-          [sid, i + 1, parseFloat(validSets[i].weight), parseInt(validSets[i].reps)]);
+          "INSERT INTO strength_set (session_id, set_number, weight_kg, reps, rest_sec, logged_at) VALUES (?,?,?,?,?,datetime('now','localtime'))",
+          [sid, i + 1, parseFloat(validSets[i].weight), parseInt(validSets[i].reps), restSec]);
       }
       setShowStrength(false);
       setStrExName(""); setStrSearch(""); setStrBodyPart(""); setStrExNameEn("");
-      setStrSets([{ weight: "", reps: "" }]);
+      setStrSets([{ weight: "", reps: "", rest: "" }]);
       loadSessions();
     } catch (e) { logError("ExerciseLog", e); }
   };
@@ -589,9 +590,12 @@ export function ExerciseLog() {
       const db  = await getDb();
       const [cnt] = await db.select<{ c: number }[]>(
         "SELECT COUNT(*) as c FROM strength_set WHERE session_id=?", [addSetTo.sessionId]);
+      const restSec = addSetTo.rest && parseFloat(addSetTo.rest) > 0
+        ? Math.round(parseFloat(addSetTo.rest) * 60)
+        : null;
       await db.execute(
-        "INSERT INTO strength_set (session_id, set_number, weight_kg, reps) VALUES (?,?,?,?)",
-        [addSetTo.sessionId, (cnt?.c ?? 0) + 1, w, r]);
+        "INSERT INTO strength_set (session_id, set_number, weight_kg, reps, rest_sec, logged_at) VALUES (?,?,?,?,?,datetime('now','localtime'))",
+        [addSetTo.sessionId, (cnt?.c ?? 0) + 1, w, r, restSec]);
       setAddSetTo(null);
       loadSessions();
     } catch (e) { logError("ExerciseLog", e); }
@@ -720,7 +724,7 @@ export function ExerciseLog() {
   const totalStrVol = sessions.reduce((s, sess) => s + sess.sets.reduce((a, st) => a + st.weight_kg * st.reps, 0), 0);
 
   const wt = profile?.weight_kg ?? 70;
-  const totalStrKcal = sessions.reduce((sum, sess) => sum + strengthEstKcal(sess.sets.length, wt), 0);
+  const totalStrKcal = sessions.reduce((sum, sess) => sum + strengthEstKcal(sess.sets, wt), 0);
 
   // Running totals
   const totalRunKm = runningSessions.reduce((s, sess) =>
@@ -1125,53 +1129,96 @@ export function ExerciseLog() {
 
                 <div className="divide-y divide-[var(--surface-border)]">
                   {sess.sets.map((st, idx) => (
-                    <div key={st.id} className="flex items-center gap-3 px-4 py-2.5">
-                      <span className="text-xs font-semibold text-[var(--text-on-surface-muted)] w-8 shrink-0">
-                        {lang === "zh" ? `第 ${idx + 1} 組` : `${t("exercise.setLabel")} ${idx + 1}`}
-                      </span>
-                      {editingSet?.id === st.id ? (
-                        /* ── Inline edit: weight + reps ── */
-                        <>
-                          <UnitInput value={editingSet.weight} onChange={v => setEditingSet(s => s ? { ...s, weight: v } : null)}
-                            unit="kg" py="py-1" pr="pr-7" />
-                          <span className="text-[var(--text-on-surface-muted)] text-xs">×</span>
-                          <UnitInput value={editingSet.reps} onChange={v => setEditingSet(s => s ? { ...s, reps: v } : null)}
-                            unit={lang === "zh" ? "下" : "reps"} py="py-1" pr="pr-7" />
-                          <button onClick={saveEditSet} className="p-1 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
-                            <Check size={13} />
-                          </button>
-                          <button onClick={() => setEditingSet(null)} className="p-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                            <X size={13} />
-                          </button>
-                        </>
-                      ) : (
-                        /* ── Normal view ── */
-                        <>
-                          <span className="flex-1 text-sm text-[var(--text-on-surface)]">
-                            <span className="font-bold">{st.weight_kg}</span>
-                            <span className="text-[var(--text-on-surface-muted)] text-xs"> kg × </span>
-                            <span className="font-bold">{st.reps}</span>
-                            <span className="text-[var(--text-on-surface-muted)] text-xs"> {lang === "zh" ? "下" : "reps"}</span>
+                    <div key={st.id}>
+                      {/* Rest time between sets */}
+                      {idx > 0 && st.rest_sec != null && st.rest_sec > 0 && (
+                        <div className="flex items-center justify-center gap-1 py-1 bg-green-50/40 border-b border-[var(--surface-border)]">
+                          <Timer size={10} className="text-green-500" />
+                          <span className="text-10 text-green-500 font-medium">
+                            {lang === "zh" ? "休息 " : "Rest "}
+                            {st.rest_sec >= 60
+                              ? `${Math.floor(st.rest_sec / 60)}${lang === "zh" ? " 分" : "m"}${st.rest_sec % 60 ? ` ${st.rest_sec % 60}${lang === "zh" ? " 秒" : "s"}` : ""}`
+                              : `${st.rest_sec}${lang === "zh" ? " 秒" : "s"}`}
                           </span>
-                          <span className="text-xs text-[var(--text-on-surface-muted)]">
-                            {Math.round(st.weight_kg * st.reps)} kg
-                          </span>
-                          <button onClick={() => setEditingSet({ id: st.id, weight: String(st.weight_kg), reps: String(st.reps) })}
-                            className="p-1 text-yellow-400 hover:text-yellow-500 transition-colors">
-                            <Pencil size={12} />
-                          </button>
-                          <button onClick={() => deleteSet(st.id)}
-                            className="p-1 text-red-400 hover:text-red-500 transition-colors">
-                            <X size={12} />
-                          </button>
-                        </>
+                        </div>
                       )}
+                      <div className="flex items-center gap-3 px-4 py-2.5">
+                        <span className="text-xs font-semibold text-[var(--text-on-surface-muted)] w-8 shrink-0">
+                          {lang === "zh" ? `第 ${idx + 1} 組` : `${t("exercise.setLabel")} ${idx + 1}`}
+                        </span>
+                        {editingSet?.id === st.id ? (
+                          /* ── Inline edit: weight + reps ── */
+                          <>
+                            <UnitInput value={editingSet.weight} onChange={v => setEditingSet(s => s ? { ...s, weight: v } : null)}
+                              unit="kg" py="py-1" pr="pr-7" />
+                            <span className="text-[var(--text-on-surface-muted)] text-xs">×</span>
+                            <UnitInput value={editingSet.reps} onChange={v => setEditingSet(s => s ? { ...s, reps: v } : null)}
+                              unit={lang === "zh" ? "下" : "reps"} py="py-1" pr="pr-7" />
+                            <button onClick={saveEditSet} className="p-1 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
+                              <Check size={13} />
+                            </button>
+                            <button onClick={() => setEditingSet(null)} className="p-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
+                              <X size={13} />
+                            </button>
+                          </>
+                        ) : (
+                          /* ── Normal view ── */
+                          <>
+                            <span className="flex-1 text-sm text-[var(--text-on-surface)]">
+                              <span className="font-bold">{st.weight_kg}</span>
+                              <span className="text-[var(--text-on-surface-muted)] text-xs"> kg × </span>
+                              <span className="font-bold">{st.reps}</span>
+                              <span className="text-[var(--text-on-surface-muted)] text-xs"> {lang === "zh" ? "下" : "reps"}</span>
+                            </span>
+                            <span className="text-xs text-[var(--text-on-surface-muted)]">
+                              {Math.round(st.weight_kg * st.reps)} kg
+                            </span>
+                            <button onClick={() => setEditingSet({ id: st.id, weight: String(st.weight_kg), reps: String(st.reps) })}
+                              className="p-1 text-yellow-400 hover:text-yellow-500 transition-colors">
+                              <Pencil size={12} />
+                            </button>
+                            <button onClick={() => deleteSet(st.id)}
+                              className="p-1 text-red-400 hover:text-red-500 transition-colors">
+                              <X size={12} />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
 
                 {addSetTo?.sessionId === sess.id ? (
                   <>
+                    {/* Rest time row */}
+                    {sess.sets.length > 0 && (
+                      <div className="flex items-center gap-2 px-4 py-2 bg-green-50/50 border-t border-[var(--surface-border)]">
+                        <Timer size={12} className="text-green-500 shrink-0" />
+                        <span className="text-xs text-green-600 font-medium shrink-0">
+                          {lang === "zh" ? "休息" : "Rest"}
+                        </span>
+                        <div className="relative w-20">
+                          <input
+                            className="input-base py-1 pr-8 text-xs text-green-700 border-green-200 focus:border-green-400 w-full"
+                            type="number" inputMode="decimal"
+                            value={addSetTo.rest}
+                            onChange={e => setAddSetTo(a => a ? { ...a, rest: e.target.value } : null)}
+                            placeholder={addSetTo.suggestedRest ? String(+(addSetTo.suggestedRest / 60).toFixed(1)) : "0"}
+                          />
+                          <span className="absolute right-2 top-1.5 text-10 text-green-500">min</span>
+                        </div>
+                        {addSetTo.suggestedRest != null && (
+                          <button
+                            onClick={() => setAddSetTo(a => a ? { ...a, rest: +(a.suggestedRest! / 60).toFixed(1) + "" } : null)}
+                            className="text-10 text-green-500 underline whitespace-nowrap">
+                            {lang === "zh"
+                              ? `自動偵測 ${Math.floor(addSetTo.suggestedRest / 60)}分${addSetTo.suggestedRest % 60}秒`
+                              : `Auto ${Math.floor(addSetTo.suggestedRest / 60)}m${addSetTo.suggestedRest % 60}s`}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {/* Weight × Reps row */}
                     <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface-container-low)] border-t border-[var(--surface-border)]">
                       <UnitInput value={addSetTo.w} onChange={v => setAddSetTo(a => a ? { ...a, w: v } : null)}
                         unit="kg" placeholder={t("exercise.weightKg")} />
@@ -1193,7 +1240,20 @@ export function ExerciseLog() {
                   </>
                 ) : (
                   <button
-                    onClick={() => setAddSetTo({ sessionId: sess.id, w: "", r: "" })}
+                    onClick={async () => {
+                      try {
+                        const db = await getDb();
+                        const [lastRow] = await db.select<{ logged_at: string | null }[]>(
+                          "SELECT logged_at FROM strength_set WHERE session_id=? ORDER BY set_number DESC LIMIT 1",
+                          [sess.id]);
+                        let suggested: number | null = null;
+                        if (lastRow?.logged_at) {
+                          const elapsed = Math.round((Date.now() - new Date(lastRow.logged_at).getTime()) / 1000);
+                          if (elapsed > 0 && elapsed < 3600) suggested = elapsed;
+                        }
+                        setAddSetTo({ sessionId: sess.id, w: "", r: "", rest: "", suggestedRest: suggested });
+                      } catch { setAddSetTo({ sessionId: sess.id, w: "", r: "", rest: "", suggestedRest: null }); }
+                    }}
                     className="w-full flex items-center justify-center gap-micro.5 py-2.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors border-t border-[var(--surface-border)]">
                     <Plus size={12} /> {t("exercise.addSet")}
                   </button>
@@ -1527,7 +1587,7 @@ export function ExerciseLog() {
         <BottomSheet maxH="max-h-[88vh]">
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--surface-border)] shrink-0">
               <h2 className="text-lg font-bold text-[var(--text-on-surface)]">{t("exercise.strModalTitle")}</h2>
-              <button onClick={() => { setShowStrength(false); setStrExName(""); setStrSearch(""); setStrBodyPart(""); setStrExNameEn(""); setStrSets([{ weight: "", reps: "" }]); }}
+              <button onClick={() => { setShowStrength(false); setStrExName(""); setStrSearch(""); setStrBodyPart(""); setStrExNameEn(""); setStrSets([{ weight: "", reps: "", rest: "" }]); }}
                 className="p-2 -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
                 <X size={20} />
               </button>
@@ -1618,26 +1678,38 @@ export function ExerciseLog() {
                 <p className="text-xs font-semibold text-[var(--text-on-surface-muted)] uppercase tracking-wide mb-3">{t("exercise.setsSetup")}</p>
                 <div className="space-y-tight">
                   {strSets.map((s, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-[var(--text-on-surface-muted)] w-12 shrink-0 text-center">
-                        {lang === "zh" ? `第 ${idx + 1} 組` : `${t("exercise.setLabel")} ${idx + 1}`}
-                      </span>
-                      <UnitInput value={s.weight} onChange={v => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, weight: v } : x))}
-                        unit="kg" py="py-2" placeholder={t("exercise.weightKg")} />
-                      <span className="text-[var(--text-on-surface-muted)] text-sm">×</span>
-                      <UnitInput value={s.reps} onChange={v => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, reps: v } : x))}
-                        unit={lang === "zh" ? "下" : "reps"} py="py-2" placeholder={t("exercise.reps")} />
+                    <div key={idx}>
+                      {/* Rest time input between sets */}
                       {idx > 0 && (
-                        <button onClick={() => setStrSets(ss => ss.filter((_, i) => i !== idx))}
-                          className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-                          <X size={14} />
-                        </button>
+                        <div className="flex items-center gap-2 pl-14 mb-1">
+                          <Timer size={11} className="text-green-500 shrink-0" />
+                          <span className="text-10 text-green-600 font-medium shrink-0">{lang === "zh" ? "休息" : "Rest"}</span>
+                          <UnitInput value={s.rest}
+                            onChange={v => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, rest: v } : x))}
+                            unit="min" py="py-1" placeholder="0" containerCls="relative w-20" />
+                        </div>
                       )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-[var(--text-on-surface-muted)] w-12 shrink-0 text-center">
+                          {lang === "zh" ? `第 ${idx + 1} 組` : `${t("exercise.setLabel")} ${idx + 1}`}
+                        </span>
+                        <UnitInput value={s.weight} onChange={v => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, weight: v } : x))}
+                          unit="kg" py="py-2" placeholder={t("exercise.weightKg")} />
+                        <span className="text-[var(--text-on-surface-muted)] text-sm">×</span>
+                        <UnitInput value={s.reps} onChange={v => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, reps: v } : x))}
+                          unit={lang === "zh" ? "下" : "reps"} py="py-2" placeholder={t("exercise.reps")} />
+                        {idx > 0 && (
+                          <button onClick={() => setStrSets(ss => ss.filter((_, i) => i !== idx))}
+                            className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                <button onClick={() => setStrSets(ss => [...ss, { weight: ss[ss.length - 1]?.weight ?? "", reps: "" }])}
+                <button onClick={() => setStrSets(ss => [...ss, { weight: ss[ss.length - 1]?.weight ?? "", reps: "", rest: "" }])}
                   className="mt-3 flex items-center gap-micro.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors">
                   <Plus size={13} /> {t("exercise.addSet")}
                 </button>

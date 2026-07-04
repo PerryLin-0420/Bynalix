@@ -6,6 +6,9 @@ import {
 import { format } from "date-fns";
 import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
 import { MetricPicker, metricKey, metricLabel, type MetricCfg } from "@/components/stats/MetricPicker";
+import { CorrelationNetwork } from "@/components/stats/CorrelationNetwork";
+import { WeekdayPatternCards } from "@/components/stats/WeekdayPatternCards";
+import { computeCorrelationNetwork, computeWeekdayPatterns, type CorrelationNetwork as NetworkData, type WeekdayPattern } from "@/lib/statistics/network";
 import { CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE } from "@/constants";
 import { clsx } from "clsx";
 import { useUserStore } from "@/store/userStore";
@@ -278,6 +281,8 @@ export function Statistics() {
   // Patterns tab (trend + lag)
   const [trendData, setTrendData] = useState<TrendTabData | null>(null);
   const [patternsLoading, setPatternsLoading] = useState(false);
+  const [network, setNetwork] = useState<NetworkData | null>(null);
+  const [weekdayPatterns, setWeekdayPatterns] = useState<WeekdayPattern[]>([]);
 
   // Advanced tab — new config UI
   interface VarCard { id: string; cfg: MetricCfg | null; confirmed: boolean; open: boolean }
@@ -438,6 +443,10 @@ export function Statistics() {
       const recs = await getDailyStatsRecords(profile.user_id, days, from, to);
       const allDates = buildDateRangePure(from, to);
       const rangeLen = Math.max(1, allDates.length);
+
+      // ── Correlation network + weekday patterns ────────────────────────────
+      setNetwork(computeCorrelationNetwork(recs, rangeLen));
+      setWeekdayPatterns(computeWeekdayPatterns(recs));
 
       // ── Raw maps ──────────────────────────────────────────────────────────
       const weightRaw = new Map(recs.filter(r => r.weight_kg  != null).map(r => [r.date, r.weight_kg!]));
@@ -1221,6 +1230,12 @@ export function Statistics() {
                 </div>
               ))}
             </div>
+
+            {/* ── Weekday-effect one-liner patterns ────────────────────── */}
+            <WeekdayPatternCards patterns={weekdayPatterns} lang={lang} />
+
+            {/* ── Correlation network graph ────────────────────────────── */}
+            {network && <CorrelationNetwork network={network} lang={lang} />}
 
             {/* ── Lag sections ─────────────────────────────────────────── */}
             {lagSections.map((section) => (
