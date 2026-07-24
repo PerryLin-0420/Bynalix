@@ -74,13 +74,34 @@ export function CorrelationNetwork({ network, lang }: {
 
   const edgeWidth = (r: number) => 1 + Math.min(Math.abs(r), 1) * 3.5;
 
-  // Quadratic bezier control point pulled toward center for a gentle curve
+  // Node draw radius (mirrors the value used when rendering the node circle)
+  const nodeRadius = (id: NetVar) => {
+    const n = nodes.find(x => x.id === id);
+    return n ? 8 + Math.min(n.density, 100) / 100 * 6 : 10;
+  };
+
+  // Pull point `p` toward `(cx,cy)` by distance `d` — approximates walking along
+  // the quadratic bezier's tangent near its endpoints.
+  const shrink = (p: { x: number; y: number }, cx: number, cy: number, d: number) => {
+    const dx = cx - p.x, dy = cy - p.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: p.x + (dx / len) * d, y: p.y + (dy / len) * d };
+  };
+
+  // Quadratic bezier control point pulled toward center for a gentle curve.
+  // Endpoints are trimmed back to each node's rim (plus room for the lag
+  // arrowhead) so the line and arrow sit outside the nodes instead of being
+  // hidden beneath the circles that are drawn on top.
   const edgePath = (e: NetEdge) => {
     const p1 = positions.get(e.source), p2 = positions.get(e.target);
     if (!p1 || !p2) return "";
     const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
     const cx = mx + (CX - mx) * 0.35, cy = my + (CY - my) * 0.35;
-    return `M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`;
+    const startGap = nodeRadius(e.source) + 2;
+    const endGap   = nodeRadius(e.target) + (e.lag > 0 ? edgeWidth(e.r) + 4 : 2);
+    const s = shrink(p1, cx, cy, startGap);
+    const t = shrink(p2, cx, cy, endGap);
+    return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
   };
 
   const domainsPresent = [...new Set(nodes.map(n => n.domain))];
