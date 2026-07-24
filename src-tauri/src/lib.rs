@@ -257,19 +257,24 @@ async fn table_columns(
 /// Result type for the `get_last_screen_off` command.
 #[derive(serde::Serialize)]
 struct ScreenOffResult {
-    /// Epoch-milliseconds of the last screen-off event, or -1 when unknown.
-    timestamp: i64,
+    /// Epoch-milliseconds the user fell asleep (start of the longest screen-off
+    /// window), or -1 when unknown.
+    sleep_start: i64,
+    /// Epoch-milliseconds the user woke up (end of that window), or -1 when
+    /// unknown.
+    wake_time: i64,
     /// Whether the Android PACKAGE_USAGE_STATS permission has been granted.
     /// Always false on non-Android platforms.
     has_permission: bool,
 }
 
-/// Return the last screen-off timestamp and permission status.
+/// Return the detected sleep window and permission status.
 ///
-/// On Android, MainActivity writes two files to app_config_dir on every
+/// On Android, MainActivity writes these files to app_config_dir on every
 /// onResume():
 ///   usage_permission.txt  →  "1" / "0"
-///   last_screen_off.txt   →  epoch-ms string (only when permission = 1)
+///   sleep_start.txt       →  epoch-ms string (only when permission = 1)
+///   wake_time.txt         →  epoch-ms string (only when permission = 1)
 ///
 /// Reads those files and returns a typed struct so the TypeScript layer can
 /// distinguish "no permission yet" from "permission granted but no data".
@@ -277,7 +282,9 @@ struct ScreenOffResult {
 async fn get_last_screen_off(app: tauri::AppHandle) -> Result<ScreenOffResult, String> {
     let data_dir = match app.path().app_config_dir() {
         Ok(d) => d,
-        Err(_) => return Ok(ScreenOffResult { timestamp: -1, has_permission: false }),
+        Err(_) => {
+            return Ok(ScreenOffResult { sleep_start: -1, wake_time: -1, has_permission: false })
+        }
     };
 
     let has_permission = {
@@ -289,8 +296,8 @@ async fn get_last_screen_off(app: tauri::AppHandle) -> Result<ScreenOffResult, S
                 == "1"
     };
 
-    let timestamp = {
-        let f = data_dir.join("last_screen_off.txt");
+    let read_ts = |name: &str| -> i64 {
+        let f = data_dir.join(name);
         if f.exists() {
             std::fs::read_to_string(&f)
                 .unwrap_or_default()
@@ -302,7 +309,11 @@ async fn get_last_screen_off(app: tauri::AppHandle) -> Result<ScreenOffResult, S
         }
     };
 
-    Ok(ScreenOffResult { timestamp, has_permission })
+    Ok(ScreenOffResult {
+        sleep_start: read_ts("sleep_start.txt"),
+        wake_time: read_ts("wake_time.txt"),
+        has_permission,
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

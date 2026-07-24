@@ -15,7 +15,7 @@ import { TimePicker } from "@/components/TimePicker";
 import { BodyHistoryDrawer } from "@/components/body/BodyHistoryDrawer";
 import { StickyHeader } from "@/components/layout/StickyHeader";
 import {
-  getLastScreenOff, openUsageSettings, refreshScreenStats,
+  getSleepWindow, openUsageSettings, refreshScreenStats,
   tsToHHMM,
 } from "@/lib/screenMonitor";
 import { PillButton } from "@/components/common/PillButton";
@@ -222,6 +222,7 @@ export function BodyStatus() {
   const [editingSleep, setEditingSleep]         = useState<{ id: number; quality: SleepQuality; startTime: string; wakeTime: string } | null>(null);
   // Android screen-monitor state for sleep prediction
   const [predictedSleepTs, setPredictedSleepTs]   = useState<number | null>(null);
+  const [predictedWakeTs, setPredictedWakeTs]     = useState<number | null>(null);
   const [screenPermGranted, setScreenPermGranted] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -934,15 +935,20 @@ export function BodyStatus() {
               setSleepNotes("");
               setSleepFormErr(null);
               setPredictedSleepTs(null);
+              setPredictedWakeTs(null);
               setScreenPermGranted(null);
               setShowSleepForm(true);
 
-              // Async: check permission + fetch screen-off prediction
-              const { timestamp, hasPermission } = await getLastScreenOff();
+              // Async: check permission + fetch detected sleep window
+              const { sleepStart, wakeTime, hasPermission } = await getSleepWindow();
               setScreenPermGranted(hasPermission);
-              if (timestamp) {
-                setPredictedSleepTs(timestamp);
-                setSleepStartTime(tsToHHMM(timestamp)); // prefill sleep start
+              if (sleepStart) {
+                setPredictedSleepTs(sleepStart);
+                setSleepStartTime(tsToHHMM(sleepStart)); // prefill fell-asleep
+              }
+              if (wakeTime) {
+                setPredictedWakeTs(wakeTime);
+                setSleepWakeTime(tsToHHMM(wakeTime)); // prefill woke-up (not "now")
               }
             }}
             className="w-full py-3.5 rounded-xl bg-[var(--surface)] text-[var(--text-on-surface)] border border-[var(--surface-border)] hover:bg-[var(--surface-container-low)] transition-all flex items-center justify-center gap-2 text-sm font-medium">
@@ -1060,19 +1066,23 @@ export function BodyStatus() {
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2.5 space-y-2">
               <p className="text-xs text-amber-600 leading-relaxed">
                 {lang === "zh"
-                  ? "啟用「使用情形存取」後，App 可自動預測入睡時間。"
-                  : "Grant Usage Access so the app can detect your sleep time automatically."}
+                  ? "啟用「使用情形存取」後，App 可自動預測入睡與起床時間。"
+                  : "Grant Usage Access so the app can detect your sleep and wake times automatically."}
               </p>
               <button
                 onClick={async () => {
                   openUsageSettings();
                   setTimeout(async () => {
                     refreshScreenStats();
-                    const { timestamp, hasPermission } = await getLastScreenOff();
+                    const { sleepStart, wakeTime, hasPermission } = await getSleepWindow();
                     setScreenPermGranted(hasPermission);
-                    if (timestamp) {
-                      setPredictedSleepTs(timestamp);
-                      setSleepStartTime(tsToHHMM(timestamp));
+                    if (sleepStart) {
+                      setPredictedSleepTs(sleepStart);
+                      setSleepStartTime(tsToHHMM(sleepStart));
+                    }
+                    if (wakeTime) {
+                      setPredictedWakeTs(wakeTime);
+                      setSleepWakeTime(tsToHHMM(wakeTime));
                     }
                   }, 2000);
                 }}
@@ -1101,6 +1111,12 @@ export function BodyStatus() {
                 {lang === "zh" ? "起床時間" : "Woke up"}
               </p>
               <TimePicker value={sleepWakeTime} onChange={setSleepWakeTime} />
+              {screenPermGranted === true && predictedWakeTs && (
+                <p className="text-10 text-emerald-500 mt-1 flex items-center gap-1">
+                  <Sparkles size={10} />
+                  {lang === "zh" ? "自動預估" : "Auto-predicted"}
+                </p>
+              )}
             </div>
           </div>
 
