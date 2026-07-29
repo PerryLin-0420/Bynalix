@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
-  ResponsiveContainer, LineChart, Line, ReferenceLine,
+  ResponsiveContainer,
 } from "recharts";
 import { format } from "date-fns";
 import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
@@ -41,15 +41,6 @@ interface LagRow {
 }
 
 interface TrendTabData {
-  chartPoints: {
-    date: string;
-    w: number | null;    // z-score for plotting
-    s: number | null;
-    c: number | null;
-    wRaw: number | null; // original values for tooltip
-    sRaw: number | null;
-    cRaw: number | null;
-  }[];
   trends: {
     weight:   { slope: number; significant: boolean } | null;
     sleep:    { slope: number; significant: boolean } | null;
@@ -458,17 +449,6 @@ export function Statistics() {
       const sZ = zScoreMap(sleepRaw);
       const cZ = zScoreMap(calRaw);
 
-      // ── Chart points ──────────────────────────────────────────────────────
-      const chartPoints = allDates.map(date => ({
-        date,
-        w: wZ.get(date) ?? null,
-        s: sZ.get(date) ?? null,
-        c: cZ.get(date) ?? null,
-        wRaw: weightRaw.get(date) ?? null,
-        sRaw: sleepRaw.get(date)  ?? null,
-        cRaw: calRaw.get(date)    ?? null,
-      }));
-
       // ── Current trend slope ───────────────────────────────────────────────
       const slopeWindow = Math.min(14, Math.max(7, Math.floor(rangeLen / 4)));
       const threshold   = adaptiveThreshold(rangeLen);
@@ -546,7 +526,7 @@ export function Statistics() {
         },
       ];
 
-      setTrendData({ chartPoints, trends, lagSections });
+      setTrendData({ trends, lagSections });
     } catch (e) { logError("Statistics.loadTrend", e); }
     setPatternsLoading(false);
   };
@@ -1154,8 +1134,7 @@ export function Statistics() {
           </div>
         );
 
-        const { chartPoints, trends, lagSections } = trendData;
-        const xInterval = Math.max(6, Math.floor(rangeTotal / 7) - 1);
+        const { trends, lagSections } = trendData;
 
         // Trend symbol helper
         const trendSymbol = (t: { slope: number; significant: boolean } | null) => {
@@ -1171,50 +1150,6 @@ export function Statistics() {
 
         return (
           <div className="space-y-form">
-
-            {/* ── Trend chart ───────────────────────────────────────────── */}
-            <div className="card">
-              <p className="text-xs text-[var(--text-on-surface-muted)] mb-3">
-                {lang === "zh"
-                  ? "Z-score 標準化 · 虛線為實際數值，空白為無記錄"
-                  : "Z-score normalized · dashed = recorded, gap = no data"}
-              </p>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={chartPoints} margin={{ top: 4, right: 4, bottom: 0, left: -32 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    interval={xInterval}
-                    tickFormatter={d => format(new Date(d), "M/d")}
-                    tick={{ fontSize: 10, fill: "var(--text-on-surface-muted)" }}
-                    axisLine={false} tickLine={false}
-                  />
-                  <YAxis hide />
-                  <ReferenceLine y={0} stroke="var(--surface-border)" strokeDasharray="4 4" />
-                  <Tooltip
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload?.length) return null;
-                      const pt = chartPoints.find(p => p.date === label);
-                      if (!pt) return null;
-                      return (
-                        <div className="bg-[var(--surface)] border border-[var(--surface-border)] rounded-xl px-3 py-2 text-xs shadow-lg space-y-0.5">
-                          <p className="font-semibold text-[var(--text-on-surface)] mb-1">{label}</p>
-                          {pt.wRaw != null && <p style={{ color: "#60a5fa" }}>{lang === "zh" ? "體重" : "Weight"}: {pt.wRaw.toFixed(1)} kg</p>}
-                          {pt.sRaw != null && <p style={{ color: "#c084fc" }}>{lang === "zh" ? "睡眠" : "Sleep"}: {pt.sRaw.toFixed(1)} hr</p>}
-                          {pt.cRaw != null && <p style={{ color: "#fb923c" }}>{lang === "zh" ? "熱量" : "Cal"}: {Math.round(pt.cRaw)} kcal</p>}
-                        </div>
-                      );
-                    }}
-                  />
-                  <Line dataKey="w" stroke="#60a5fa" strokeWidth={1.5} strokeDasharray="6 3"
-                    dot={false} connectNulls={false} name={lang === "zh" ? "體重" : "Weight"} />
-                  <Line dataKey="s" stroke="#c084fc" strokeWidth={1.5} strokeDasharray="6 3"
-                    dot={false} connectNulls={false} name={lang === "zh" ? "睡眠" : "Sleep"} />
-                  <Line dataKey="c" stroke="#fb923c" strokeWidth={1.5} strokeDasharray="6 3"
-                    dot={false} connectNulls={false} name={lang === "zh" ? "熱量" : "Cal"} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
 
             {/* ── Trend chips ───────────────────────────────────────────── */}
             <div className="grid grid-cols-3 gap-2">

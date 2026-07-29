@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export interface ScreenMonitorResult {
-  /** Epoch-ms of the last screen-off, or null if unavailable / too old. */
-  timestamp: number | null;
+export interface SleepWindowResult {
+  /** Epoch-ms the user fell asleep, or null if unavailable / stale. */
+  sleepStart: number | null;
+  /** Epoch-ms the user woke up, or null if unavailable / stale. */
+  wakeTime: number | null;
   /**
    * Whether PACKAGE_USAGE_STATS has been granted.
    * - false → user needs to enable the permission in Settings
@@ -13,29 +15,37 @@ export interface ScreenMonitorResult {
 }
 
 /**
- * Read the last screen-off timestamp and permission status written by
- * MainActivity's UsageStatsManager query.
+ * Read the detected sleep window (fell-asleep + woke-up timestamps) and
+ * permission status written by MainActivity's UsageStatsManager scan.
+ *
+ * The window is derived from the longest overnight screen-off gap, so both
+ * edges reflect the actual sleep rather than when the user opens the app —
+ * logging late (e.g. dismissing the alarm and picking the phone up later) no
+ * longer skews the times.
  *
  * Returns `hasPermission: false` on non-Android platforms so the UI can
  * skip the permission banner entirely on desktop.
  */
-export async function getLastScreenOff(): Promise<ScreenMonitorResult> {
+export async function getSleepWindow(): Promise<SleepWindowResult> {
   try {
-    const raw = await invoke<{ timestamp: number; has_permission: boolean }>(
+    const raw = await invoke<{ sleep_start: number; wake_time: number; has_permission: boolean }>(
       "get_last_screen_off"
     );
 
-    // Ignore timestamps older than 18 h (not today's sleep)
-    const ageMs = Date.now() - raw.timestamp;
-    const fresh = raw.timestamp > 0 && ageMs >= 0 && ageMs < 18 * 60 * 60_000;
+    // Only trust the window when the wake edge is recent (within 20 h): the
+    // user is logging this morning's sleep, not a days-old leftover.
+    const wakeAge = Date.now() - raw.wake_time;
+    const wakeFresh = raw.wake_time > 0 && wakeAge >= 0 && wakeAge < 20 * 60 * 60_000;
+    const startValid = raw.sleep_start > 0 && raw.sleep_start < raw.wake_time;
 
     return {
-      timestamp: fresh ? raw.timestamp : null,
+      sleepStart: wakeFresh && startValid ? raw.sleep_start : null,
+      wakeTime: wakeFresh ? raw.wake_time : null,
       hasPermission: raw.has_permission,
     };
   } catch {
     // Desktop build or command not available
-    return { timestamp: null, hasPermission: false };
+    return { sleepStart: null, wakeTime: null, hasPermission: false };
   }
 }
 
@@ -62,16 +72,4 @@ export function refreshScreenStats(): void {
 export function tsToHHMM(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-/**
- * Calculate sleep duration (as "HH:mm") from a sleep-start epoch-ms
- * timestamp to the current moment. Caps at 16 h.
- */
-export function calcDurationFromTs(sleepTs: number): string {
-  const diffMs = Math.max(0, Date.now() - sleepTs);
-  const totalMin = Math.round(diffMs / 60_000);
-  const h = Math.min(Math.floor(totalMin / 60), 16);
-  const m = totalMin % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }

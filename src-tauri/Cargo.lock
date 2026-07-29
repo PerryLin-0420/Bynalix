@@ -194,7 +194,7 @@ dependencies = [
 
 [[package]]
 name = "body-recorder"
-version = "1.4.0"
+version = "1.4.2"
 dependencies = [
  "serde",
  "serde_json",

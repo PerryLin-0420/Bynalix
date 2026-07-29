@@ -44,6 +44,11 @@ but deeper personal understanding through self-owned data.
 
 ## Changelog
 
+### v1.4.2
+- **Patterns tab** — removed the Z-score normalized trend chart (superseded by the trend chips and correlation network)
+- **Correlation network** — lag arrowheads are no longer hidden beneath the target nodes; edges are trimmed back to each node's rim so the direction arrow stays fully visible
+- **Sleep detection** — sleep is now inferred from the *longest* overnight screen-off gap instead of the single most-recent screen-off. Both fell-asleep and woke-up times are derived from actual screen activity, so logging late (dismissing the alarm and picking the phone up later) no longer skews the times; wake time is prefilled from the detected wake-up instead of the moment the form is opened
+
 ### v1.4.0
 - **Custom foods** — edit existing custom foods (pencil button); macro inputs no longer capped at 100 g
 - **Strength calories rework** — per-set MET model scaled by lift-to-bodyweight ratio (3.5 / 5.0 / 6.5 MET); reps drive work time, rest time counted at 2.0 MET; rest between sets can be entered manually or auto-detected from the previous set's log time (shown in green)
