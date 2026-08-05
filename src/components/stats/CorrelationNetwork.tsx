@@ -26,14 +26,6 @@ const RELIABILITY_LABEL: Record<Reliability, { zh: string; en: string }> = {
   insufficient: { zh: "資料不足", en: "Insufficient" },
 };
 
-const DOMAIN_LABEL: Record<VarDomain, { zh: string; en: string }> = {
-  body:     { zh: "身體", en: "Body" },
-  diet:     { zh: "飲食", en: "Diet" },
-  water:    { zh: "飲水", en: "Water" },
-  exercise: { zh: "運動", en: "Exercise" },
-  sleep:    { zh: "睡眠", en: "Sleep" },
-};
-
 // ── Ring ordering ────────────────────────────────────────────────────────────
 
 const indexOf = (order: NetVar[]) =>
@@ -220,8 +212,6 @@ export function CorrelationNetwork({ network, lang }: {
     return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
   };
 
-  const domainsPresent = [...new Set(ringNodes.map(n => n.domain))];
-
   if (edges.length === 0) {
     return (
       <div className="card text-center py-8">
@@ -314,14 +304,10 @@ export function CorrelationNetwork({ network, lang }: {
         })}
       </svg>
 
-      {/* Legend */}
+      {/* Legend — edges only. Which domains appear depends on what produced a
+          result, so a per-domain colour key would change shape run to run; the
+          node labels already say what each dot is. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
-        {domainsPresent.map(d => (
-          <span key={d} className="flex items-center gap-1 text-10 text-[var(--text-on-surface-muted)]">
-            <span className="w-2 h-2 rounded-full" style={{ background: DOMAIN_COLORS[d] }} />
-            {zh ? DOMAIN_LABEL[d].zh : DOMAIN_LABEL[d].en}
-          </span>
-        ))}
         <span className="flex items-center gap-1 text-10 text-[var(--text-on-surface-muted)]">
           <span className="inline-block w-4 h-0.5 rounded" style={{ background: POS_COLOR }} />
           {zh ? "正相關" : "Positive"}

@@ -20,9 +20,9 @@ function fmtDiff(v: number, unit: string): string {
 /**
  * "One-liner" weekend-vs-weekday pattern cards. Top N significant effects.
  *
- * The section always renders its header, even with nothing to show: returning
- * null on an empty result made the whole feature invisible, which reads as "not
- * implemented" rather than "nothing reached significance yet".
+ * Renders nothing at all when no effect clears the significance gate — missing
+ * weekend data is normal and expected, so an explanatory placeholder would just
+ * be noise on most days.
  */
 export function WeekdayPatternCards({ patterns, lang, maxCards = 4 }: {
   patterns: WeekdayPattern[];
@@ -31,6 +31,7 @@ export function WeekdayPatternCards({ patterns, lang, maxCards = 4 }: {
 }) {
   const zh = lang === "zh";
   const shown = patterns.slice(0, maxCards);
+  if (shown.length === 0) return null;
 
   return (
     <div className="card space-y-2">
@@ -41,20 +42,6 @@ export function WeekdayPatternCards({ patterns, lang, maxCards = 4 }: {
           {zh ? "週末 vs 平日" : "weekend vs weekday"}
         </span>
       </p>
-      {shown.length === 0 && (
-        <>
-          <p className="text-xs text-[var(--text-on-surface-muted)] leading-relaxed">
-            {zh
-              ? "此區間沒有找到週末與平日的顯著差異。"
-              : "No significant weekend-vs-weekday difference in this range."}
-          </p>
-          <p className="text-10 text-[var(--text-on-surface-muted)]">
-            {zh
-              ? "需通過 Welch t 檢定（p < 0.05），且週末與平日各至少 4 天有記錄。持續記錄或拉長區間以解鎖。"
-              : "Requires a Welch t-test at p < 0.05 with at least 4 logged days in each group. Keep logging or widen the range to unlock."}
-          </p>
-        </>
-      )}
       {shown.map(p => {
         const meta = NET_VARS[p.variable];
         const label = zh ? meta.labelZh : meta.labelEn;

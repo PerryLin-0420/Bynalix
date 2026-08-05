@@ -45,12 +45,12 @@ but deeper personal understanding through self-owned data.
 ## Changelog
 
 ### v1.4.3
-- **Weekday patterns are no longer invisible** — the weekend-vs-weekday section returned nothing at all when no effect reached significance, so the feature appeared to be missing entirely. It now always shows its header, and explains what it needs (Welch t-test at p < 0.05, at least 4 logged days per group) when there is nothing to report
 - **Walking time (Health Connect)** — daily walking minutes are read from Health Connect, where apps like Samsung Health and Google Fit publish their activity data, and added to the correlation network as a variable. No Android sensor reports walking *duration*, so this is the only way to get it; the data arrives already aggregated per calendar day, and sessions crossing midnight are split at the local day boundary. Shown on the Activity tab and deliberately kept out of the burn total, since TDEE's activity factor already accounts for everyday walking
 - **Minimum Android version is now 8.0 (API 26)**, required by the Health Connect client library
 - **Training frequency variables** — the correlation network gains *Strength freq* and *Cardio freq*, each a trailing 7-day count of training days (cardio includes general exercise entries). This lets frequency itself be correlated against weight, sleep, intake and the rest, rather than only per-session volume. Days with nothing logged count as non-training days; the first 6 days of a range are skipped while the window fills, and a variable is dropped entirely if the user never trained in range
 - **Correlation network layout** — variables with no significant link are no longer drawn on the ring; they're listed as compact chips below the graph, so the ring only carries variables that actually produced a result and the remaining nodes get more room
 - **Fewer crossings** — ring positions are no longer a fixed domain-sorted circle. Domains still stay grouped, but the ordering is now chosen by an exhaustive search that minimises edge crossings (on a representative dataset: 13 → 6 crossings)
+- **Simpler legend** — dropped the per-domain colour key from the correlation network; which domains appear now depends on what produced a result, so the key changed shape run to run. Only the edge legend (positive / negative / lagged) remains
 - **Cleaner edges** — thinner strokes, and edges now bow perpendicular to their chord instead of all bending through the centre, so overlapping chords separate into distinct arcs; long labels no longer clip at the graph edge
 
 ### v1.4.2
