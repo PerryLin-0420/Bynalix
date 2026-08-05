@@ -44,6 +44,11 @@ but deeper personal understanding through self-owned data.
 
 ## Changelog
 
+### v1.4.3
+- **Correlation network layout** — variables with no significant link are no longer drawn on the ring; they're listed as compact chips below the graph, so the ring only carries variables that actually produced a result and the remaining nodes get more room
+- **Fewer crossings** — ring positions are no longer a fixed domain-sorted circle. Domains still stay grouped, but the ordering is now chosen by an exhaustive search that minimises edge crossings (on a representative dataset: 13 → 6 crossings)
+- **Cleaner edges** — thinner strokes, and edges now bow perpendicular to their chord instead of all bending through the centre, so overlapping chords separate into distinct arcs; long labels no longer clip at the graph edge
+
 ### v1.4.2
 - **Patterns tab** — removed the Z-score normalized trend chart (superseded by the trend chips and correlation network)
 - **Correlation network** — lag arrowheads are no longer hidden beneath the target nodes; edges are trimmed back to each node's rim so the direction arrow stays fully visible
