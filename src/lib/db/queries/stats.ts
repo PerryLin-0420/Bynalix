@@ -57,7 +57,7 @@ export async function getDailyStatsRecords(
     "SELECT weight_kg FROM user_profile WHERE user_id=? ORDER BY user_id LIMIT 1", [userId]);
   const bodyWt = profRow?.weight_kg ?? 70;
 
-  const [weights, meals, water, exercise, strength, sleep, walk] = await Promise.all([
+  const [weights, meals, water, exercise, strength, sleep] = await Promise.all([
     db.select<{ log_date: string; weight_kg: number }[]>(`
       SELECT log_date, AVG(weight_kg) as weight_kg FROM weight_log
       WHERE user_id=? AND log_date BETWEEN ? AND ? AND measurement_type='fasting'
@@ -136,9 +136,6 @@ export async function getDailyStatsRecords(
         CASE quality WHEN 'good' THEN 3 WHEN 'normal' THEN 2 ELSE 1 END as sleep_quality,
         duration_hours as sleep_hours
       FROM sleep_log WHERE user_id=? AND sleep_date BETWEEN ? AND ?`, [userId, from, to]),
-    db.select<{ log_date: string; walk_min: number }[]>(`
-      SELECT log_date, walk_min FROM walk_log
-      WHERE user_id=? AND log_date BETWEEN ? AND ?`, [userId, from, to]),
   ]);
 
   const wMap   = new Map(weights.map(r  => [r.log_date, r.weight_kg]));
@@ -147,7 +144,6 @@ export async function getDailyStatsRecords(
   const eMap   = new Map(exercise.map(r => [r.log_date, r]));
   const sMap   = new Map(strength.map(r => [r.log_date, r.strength_volume_kg]));
   const slMap  = new Map(sleep.map(r    => [r.log_date, r]));
-  const wkMap  = new Map(walk.map(r     => [r.log_date, r.walk_min]));
 
   return dates.map(date => ({
     date,
@@ -165,7 +161,6 @@ export async function getDailyStatsRecords(
     strength_volume_kg: sMap.get(date) ?? null,
     sleep_quality:      slMap.get(date)?.sleep_quality ?? null,
     sleep_hours:        slMap.get(date)?.sleep_hours   ?? null,
-    walk_min:           wkMap.get(date) ?? null,
   }));
 }
 

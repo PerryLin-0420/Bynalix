@@ -7,11 +7,6 @@
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
-    <!-- Health Connect: read walking sessions written by the user's health app
-         (Samsung Health, Google Fit, ...). Granted inside the Health Connect
-         app, not via a runtime dialog. -->
-    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
-
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
@@ -19,20 +14,6 @@
 
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
-
-    <!-- Package visibility for Health Connect. On Android 13 and below it is a
-         separate APK; from Android 14 it is part of the platform and answers a
-         different settings action. Both are declared so resolveActivity can
-         find whichever this device has. -->
-    <queries>
-        <package android:name="com.google.android.apps.healthdata" />
-        <intent>
-            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
-        </intent>
-        <intent>
-            <action android:name="android.health.connect.action.HEALTH_HOME_SETTINGS" />
-        </intent>
-    </queries>
 
     <application
         android:icon="@mipmap/ic_launcher"
@@ -51,25 +32,7 @@
                 <!-- AndroidTV support -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-            <!-- Health Connect requires a target for its "why does this app want
-                 my data" link (Android 13 and below). -->
-            <intent-filter>
-                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
-            </intent-filter>
         </activity>
-
-        <!-- Same rationale hook for Android 14+, where it is surfaced through
-             the platform permission-usage screen instead. -->
-        <activity-alias
-            android:name="ViewPermissionUsageActivity"
-            android:targetActivity=".MainActivity"
-            android:exported="true"
-            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
-                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
-            </intent-filter>
-        </activity-alias>
 
         <provider
           android:name="androidx.core.content.FileProvider"

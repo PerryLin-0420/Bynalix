@@ -1,6 +1,6 @@
 import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import { format } from "date-fns";
-import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle, Timer, Footprints } from "lucide-react";
+import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle, Timer } from "lucide-react";
 import { clsx } from "clsx";
 import { PillButton } from "@/components/common/PillButton";
 import { BottomSheet } from "@/components/common/Modal";
@@ -19,8 +19,6 @@ import { leanBodyMass } from "@/lib/calculations/metabolism";
 import { ExerciseHistoryDrawer } from "@/components/exercise/ExerciseHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
 import { useSwipeTabs } from "@/hooks/useSwipe";
-import { syncWalkDays, getWalkDay } from "@/lib/db/queries/walk";
-import { openHealthConnect, refreshWalkStats, type WalkStatus } from "@/lib/healthConnect";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -259,21 +257,8 @@ export function ExerciseLog() {
   const [editingSet,     setEditingSet]     = useState<{ id: number; weight: string; reps: string } | null>(null);
   const [editingWater,   setEditingWater]   = useState<{ id: number; amount: string; time: string } | null>(null);
 
-  // ── Walking time (Health Connect) ───────────────────────────────────────────
-  const [walkMin, setWalkMin]       = useState<number | null>(null);
-  const [walkStatus, setWalkStatus] = useState<WalkStatus | null>(null);
-
-  /** Mirror Health Connect's daily totals, then show the selected day's. */
-  const loadWalk = async () => {
-    if (!profile) return;
-    try {
-      setWalkStatus(await syncWalkDays(profile.user_id));
-      setWalkMin(await getWalkDay(profile.user_id, selectedDate));
-    } catch (e) { logError("ExerciseLog.loadWalk", e); }
-  };
-
   useEffect(() => {
-    if (profile) { loadAll(); loadExerciseDb(); loadSessions(); loadRunningSessions(); loadWalk(); }
+    if (profile) { loadAll(); loadExerciseDb(); loadSessions(); loadRunningSessions(); }
     setWaterTime(format(new Date(), "HH:mm"));
   }, [profile, selectedDate]);
 
@@ -833,54 +818,6 @@ export function ExerciseLog() {
               )}
             </div>
           </div>
-
-          {/* Walking time, mirrored from Health Connect. Shown on its own and
-              kept out of the burn total above: it is the health app's own
-              activity-recognition output, and TDEE's activity factor already
-              accounts for everyday walking. */}
-          {walkStatus === "no_permission" ? (
-            <div className="card space-y-2">
-              <div className="flex items-center gap-2 text-[var(--text-on-surface-muted)]">
-                <Footprints size={18} />
-                <span className="text-sm font-medium">{lang === "zh" ? "步行時間" : "Walking time"}</span>
-              </div>
-              <p className="text-xs text-[var(--text-on-surface-muted)] leading-relaxed">
-                {lang === "zh"
-                  ? "在 Health Connect 中允許讀取「運動」資料後，App 會自動帶入每日步行時間。"
-                  : "Allow read access to Exercise data in Health Connect and your daily walking time will appear here automatically."}
-              </p>
-              <button
-                onClick={() => {
-                  openHealthConnect();
-                  setTimeout(async () => { refreshWalkStats(); await loadWalk(); }, 1500);
-                }}
-                className="text-xs font-semibold text-[var(--text-accent)] underline underline-offset-2">
-                {lang === "zh" ? "前往 Health Connect →" : "Open Health Connect →"}
-              </button>
-            </div>
-          ) : walkMin != null && walkMin > 0 ? (
-            <div className="card">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sky-500">
-                  <Footprints size={18} />
-                  <span className="text-sm font-medium">{lang === "zh" ? "步行時間" : "Walking time"}</span>
-                  <span className="text-10 text-[var(--text-on-surface-muted)] rounded-full border border-[var(--surface-border)] px-1.5 py-0.5">
-                    {lang === "zh" ? "自動" : "Auto"}
-                  </span>
-                </div>
-                <p className="text-xl font-bold text-[var(--text-on-surface)] tabular-nums">
-                  {walkMin >= 60
-                    ? `${Math.floor(walkMin / 60)}h ${Math.round(walkMin % 60)}m`
-                    : `${Math.round(walkMin)} min`}
-                </p>
-              </div>
-              <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
-                {lang === "zh"
-                  ? "來自 Health Connect，未計入上方今日消耗"
-                  : "From Health Connect, not included in the burn total above"}
-              </p>
-            </div>
-          ) : null}
 
           {/* Logged exercise entries */}
           {exEntries.map(e => (

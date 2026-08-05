@@ -72,8 +72,6 @@ export interface DailyStatsRecord {
   strength_volume_kg: number | null;
   sleep_quality:      number | null; // 3=good, 2=normal, 1=poor
   sleep_hours:        number | null;
-  /** Daily walking minutes mirrored from Health Connect. */
-  walk_min:           number | null;
 }
 
 // ─── Charts ──────────────────────────────────────────────────────────────────

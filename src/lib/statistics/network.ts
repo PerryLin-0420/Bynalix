@@ -20,7 +20,7 @@ import { RELIABILITY_THRESHOLDS, getReliability, type Reliability } from "./pear
 export type NetVar =
   | "weight_kg" | "calories" | "protein_g" | "carb_g" | "fat_g"
   | "water_ml" | "exercise_min" | "exercise_kcal" | "strength_volume_kg"
-  | "sleep_hours" | "strength_freq_wk" | "cardio_freq_wk" | "walk_min";
+  | "sleep_hours" | "strength_freq_wk" | "cardio_freq_wk";
 
 export type VarDomain = "body" | "diet" | "water" | "exercise" | "sleep";
 
@@ -39,7 +39,6 @@ export const NET_VARS: Record<NetVar, NetVarMeta> = {
   sleep_hours:        { labelZh: "睡眠時數", labelEn: "Sleep hours",  domain: "sleep" },
   strength_freq_wk:   { labelZh: "重訓頻率", labelEn: "Strength freq", domain: "exercise" },
   cardio_freq_wk:     { labelZh: "有氧頻率", labelEn: "Cardio freq",  domain: "exercise" },
-  walk_min:           { labelZh: "步行時間", labelEn: "Walking time", domain: "exercise" },
 };
 
 export const DOMAIN_COLORS: Record<VarDomain, string> = {
