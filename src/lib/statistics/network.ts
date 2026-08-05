@@ -20,7 +20,7 @@ import { RELIABILITY_THRESHOLDS, getReliability, type Reliability } from "./pear
 export type NetVar =
   | "weight_kg" | "calories" | "protein_g" | "carb_g" | "fat_g"
   | "water_ml" | "exercise_min" | "exercise_kcal" | "strength_volume_kg"
-  | "sleep_hours";
+  | "sleep_hours" | "strength_freq_wk" | "cardio_freq_wk";
 
 export type VarDomain = "body" | "diet" | "water" | "exercise" | "sleep";
 
@@ -37,6 +37,8 @@ export const NET_VARS: Record<NetVar, NetVarMeta> = {
   exercise_kcal:      { labelZh: "運動消耗", labelEn: "Exercise kcal", domain: "exercise" },
   strength_volume_kg: { labelZh: "重訓總量", labelEn: "Strength vol.", domain: "exercise" },
   sleep_hours:        { labelZh: "睡眠時數", labelEn: "Sleep hours",  domain: "sleep" },
+  strength_freq_wk:   { labelZh: "重訓頻率", labelEn: "Strength freq", domain: "exercise" },
+  cardio_freq_wk:     { labelZh: "有氧頻率", labelEn: "Cardio freq",  domain: "exercise" },
 };
 
 export const DOMAIN_COLORS: Record<VarDomain, string> = {
@@ -161,6 +163,43 @@ function seriesOf(recs: DailyStatsRecord[], v: NetVar): Map<string, number> {
   return m;
 }
 
+/**
+ * Training frequency as a trailing 7-day count of training days — a
+ * "sessions per week" figure evaluated at daily resolution, so it slots into
+ * the same differencing/correlation machinery as every other variable.
+ *
+ * A day with no logged session counts as a non-training day rather than as
+ * missing data: for frequency, "nothing logged" is the signal. The first six
+ * days of the range are skipped since their window is not yet a full week.
+ *
+ * Returns an empty map when the user never trained in the range, so the
+ * variable drops out of the graph entirely instead of showing up as a flat
+ * zero line with no possible relationships.
+ */
+function weeklyFrequency(
+  recs: DailyStatsRecord[],
+  field: "cardio_count" | "strength_count",
+): Map<string, number> {
+  const sorted = [...recs].sort((a, b) => a.date.localeCompare(b.date));
+  const trained = sorted.map(r => (((r as any)[field] as number | null) ?? 0) > 0 ? 1 : 0);
+  if (!trained.some(Boolean)) return new Map();
+
+  const out = new Map<string, number>();
+  let sum = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    sum += trained[i];
+    if (i >= 7) sum -= trained[i - 7];
+    if (i >= 6) out.set(sorted[i].date, sum);
+  }
+  return out;
+}
+
+/** Variables computed from the records rather than read off a single column. */
+const DERIVED_SERIES: Partial<Record<NetVar, (recs: DailyStatsRecord[]) => Map<string, number>>> = {
+  strength_freq_wk: recs => weeklyFrequency(recs, "strength_count"),
+  cardio_freq_wk:   recs => weeklyFrequency(recs, "cardio_count"),
+};
+
 /** Align two date-keyed maps into paired arrays, with a lag applied to `a`
  *  (lag = k means a's value k days earlier vs b's value today). */
 function alignPairs(
@@ -232,7 +271,7 @@ export function computeCorrelationNetwork(
   const maxLag  = opts.maxLag  ?? 3;
 
   const vars = Object.keys(NET_VARS) as NetVar[];
-  const raw  = new Map(vars.map(v => [v, seriesOf(recs, v)]));
+  const raw  = new Map(vars.map(v => [v, DERIVED_SERIES[v]?.(recs) ?? seriesOf(recs, v)]));
   const diff = new Map(vars.map(v => [v, firstDifference(raw.get(v)!)]));
 
   const evaluate = (a: NetVar, b: NetVar, lag: number) => {
@@ -336,6 +375,9 @@ export function computeWeekdayPatterns(
   const out: WeekdayPattern[] = [];
 
   for (const v of Object.keys(NET_VARS) as NetVar[]) {
+    // Derived variables are trailing 7-day windows, so every day's value already
+    // spans a full week — a weekend-vs-weekday split of them means nothing.
+    if (DERIVED_SERIES[v]) continue;
     const weekend: number[] = [], weekday: number[] = [];
     for (const r of recs) {
       const val = (r as any)[v] as number | null | undefined;

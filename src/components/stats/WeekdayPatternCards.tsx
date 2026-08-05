@@ -6,6 +6,8 @@ const VAR_UNIT: Record<NetVar, string> = {
   weight_kg: "kg", calories: "kcal", protein_g: "g", carb_g: "g", fat_g: "g",
   water_ml: "ml", exercise_min: "min", exercise_kcal: "kcal",
   strength_volume_kg: "kg", sleep_hours: "hr",
+  // Rolling weekly counts — excluded from weekday patterns, listed for completeness
+  strength_freq_wk: "x/wk", cardio_freq_wk: "x/wk",
 };
 
 function fmtDiff(v: number, unit: string): string {
@@ -14,7 +16,13 @@ function fmtDiff(v: number, unit: string): string {
   return `${rounded} ${unit}`;
 }
 
-/** "One-liner" weekend-vs-weekday pattern cards. Top N significant effects. */
+/**
+ * "One-liner" weekend-vs-weekday pattern cards. Top N significant effects.
+ *
+ * Renders nothing at all when no effect clears the significance gate — missing
+ * weekend data is normal and expected, so an explanatory placeholder would just
+ * be noise on most days.
+ */
 export function WeekdayPatternCards({ patterns, lang, maxCards = 4 }: {
   patterns: WeekdayPattern[];
   lang: string;

@@ -10,10 +10,11 @@ import {
 } from "@/lib/statistics/network";
 import type { Reliability } from "@/lib/statistics/pearson";
 
-const SIZE = 340;           // viewBox square
+const SIZE = 340;           // graph square the node ring is laid out in
+const PAD_X = 54;           // extra horizontal viewBox room so labels never clip
 const CX = SIZE / 2, CY = SIZE / 2;
-const R_NODE_RING = 118;    // node circle radius
-const R_LABEL = 148;        // label radius
+const R_NODE_RING = 112;    // node circle radius
+const R_LABEL = 138;        // label radius
 
 const POS_COLOR = "#10b981"; // positive correlation
 const NEG_COLOR = "#f43f5e"; // negative correlation
@@ -25,13 +26,89 @@ const RELIABILITY_LABEL: Record<Reliability, { zh: string; en: string }> = {
   insufficient: { zh: "資料不足", en: "Insufficient" },
 };
 
-const DOMAIN_LABEL: Record<VarDomain, { zh: string; en: string }> = {
-  body:     { zh: "身體", en: "Body" },
-  diet:     { zh: "飲食", en: "Diet" },
-  water:    { zh: "飲水", en: "Water" },
-  exercise: { zh: "運動", en: "Exercise" },
-  sleep:    { zh: "睡眠", en: "Sleep" },
-};
+// ── Ring ordering ────────────────────────────────────────────────────────────
+
+const indexOf = (order: NetVar[]) =>
+  new Map(order.map((id, i) => [id, i] as const));
+
+/**
+ * Count edge crossings for a circular ordering. Two chords cross exactly when
+ * one endpoint of the second lies strictly inside the arc spanned by the first;
+ * chords sharing an endpoint never cross.
+ */
+function countCrossings(idx: Map<NetVar, number>, edges: NetEdge[]): number {
+  let count = 0;
+  for (let i = 0; i < edges.length; i++) {
+    const a = idx.get(edges[i].source), b = idx.get(edges[i].target);
+    if (a == null || b == null) continue;
+    const lo = Math.min(a, b), hi = Math.max(a, b);
+    for (let j = i + 1; j < edges.length; j++) {
+      const c = idx.get(edges[j].source), d = idx.get(edges[j].target);
+      if (c == null || d == null) continue;
+      if (c === a || c === b || d === a || d === b) continue;
+      if ((c > lo && c < hi) !== (d > lo && d < hi)) count++;
+    }
+  }
+  return count;
+}
+
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [items];
+  const out: T[][] = [];
+  items.forEach((it, i) => {
+    for (const rest of permutations([...items.slice(0, i), ...items.slice(i + 1)])) {
+      out.push([it, ...rest]);
+    }
+  });
+  return out;
+}
+
+/**
+ * Lay the connected nodes out around the ring so that domains stay contiguous
+ * (grouped) while edge crossings are minimised.
+ *
+ * With at most 5 domains and 10 variables the search space is tiny, so we can
+ * be exhaustive rather than heuristic: fix the first domain (rotations are
+ * equivalent on a circle), try every ordering of the remaining domains, and
+ * refine each with adjacent same-domain swaps. Fully deterministic — the same
+ * data always renders the same graph.
+ */
+function orderRing(
+  connected: NetVar[],
+  domainOf: Map<NetVar, VarDomain>,
+  edges: NetEdge[],
+): NetVar[] {
+  if (connected.length < 4) return connected;
+
+  const groups = new Map<VarDomain, NetVar[]>();
+  for (const id of connected) {
+    const d = domainOf.get(id)!;
+    const arr = groups.get(d);
+    if (arr) arr.push(id); else groups.set(d, [id]);
+  }
+
+  const [head, ...rest] = [...groups.keys()].sort();
+  let best = connected;
+  let bestScore = Infinity;
+
+  for (const perm of permutations(rest)) {
+    let order = [head, ...perm].flatMap(d => groups.get(d)!);
+    let score = countCrossings(indexOf(order), edges);
+    for (let pass = 0; pass < 3 && score > 0; pass++) {
+      let improved = false;
+      for (let i = 0; i + 1 < order.length; i++) {
+        if (domainOf.get(order[i]) !== domainOf.get(order[i + 1])) continue;
+        const cand = [...order];
+        [cand[i], cand[i + 1]] = [cand[i + 1], cand[i]];
+        const s = countCrossings(indexOf(cand), edges);
+        if (s < score) { order = cand; score = s; improved = true; }
+      }
+      if (!improved) break;
+    }
+    if (score < bestScore) { bestScore = score; best = order; }
+  }
+  return best;
+}
 
 export function CorrelationNetwork({ network, lang }: {
   network: NetworkData;
@@ -43,20 +120,40 @@ export function CorrelationNetwork({ network, lang }: {
   const { nodes, edges } = network;
   const zh = lang === "zh";
 
-  // Circular layout: deterministic positions, grouped so same-domain nodes sit together
-  const positions = useMemo(() => {
-    const sorted = [...nodes].sort((a, b) => a.domain.localeCompare(b.domain));
+  /**
+   * Circular layout. Only variables that actually produced a significant link
+   * make it onto the ring — unlinked ones are listed separately below instead
+   * of taking up prime space and stretching every edge across the graph. Ring
+   * slots are allocated from the connected set (so spacing adapts to how many
+   * results there are) and ordered to minimise crossings.
+   */
+  const { positions, ringNodes, isolatedNodes } = useMemo(() => {
+    const degree = new Map<NetVar, number>();
+    for (const e of edges) {
+      degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
+      degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
+    }
+    const domainOf = new Map(nodes.map(n => [n.id, n.domain] as const));
+    const connected = nodes.filter(n => (degree.get(n.id) ?? 0) > 0);
+    const isolated  = nodes.filter(n => (degree.get(n.id) ?? 0) === 0);
+
+    const order = orderRing(connected.map(n => n.id), domainOf, edges);
+    const byId = new Map(nodes.map(n => [n.id, n] as const));
     const map = new Map<NetVar, { x: number; y: number; angle: number }>();
-    sorted.forEach((n, i) => {
-      const angle = -Math.PI / 2 + (i * 2 * Math.PI) / sorted.length;
-      map.set(n.id, {
+    order.forEach((id, i) => {
+      const angle = -Math.PI / 2 + (i * 2 * Math.PI) / order.length;
+      map.set(id, {
         x: CX + R_NODE_RING * Math.cos(angle),
         y: CY + R_NODE_RING * Math.sin(angle),
         angle,
       });
     });
-    return map;
-  }, [nodes]);
+    return {
+      positions: map,
+      ringNodes: order.map(id => byId.get(id)!),
+      isolatedNodes: isolated,
+    };
+  }, [nodes, edges]);
 
   const nodeLabel = (id: NetVar) => {
     const n = nodes.find(x => x.id === id);
@@ -72,7 +169,7 @@ export function CorrelationNetwork({ network, lang }: {
       (e.source === selNode && e.target === id) || (e.target === selNode && e.source === id));
   };
 
-  const edgeWidth = (r: number) => 1 + Math.min(Math.abs(r), 1) * 3.5;
+  const edgeWidth = (r: number) => 0.8 + Math.min(Math.abs(r), 1) * 2.2;
 
   // Node draw radius (mirrors the value used when rendering the node circle)
   const nodeRadius = (id: NetVar) => {
@@ -80,31 +177,40 @@ export function CorrelationNetwork({ network, lang }: {
     return n ? 8 + Math.min(n.density, 100) / 100 * 6 : 10;
   };
 
-  // Pull point `p` toward `(cx,cy)` by distance `d` — approximates walking along
-  // the quadratic bezier's tangent near its endpoints.
+  // Pull point `p` toward `(cx,cy)` by distance `d`. For a quadratic bezier the
+  // tangent at an endpoint points exactly at the control point, so this walks
+  // along the curve itself.
   const shrink = (p: { x: number; y: number }, cx: number, cy: number, d: number) => {
     const dx = cx - p.x, dy = cy - p.y;
     const len = Math.hypot(dx, dy) || 1;
     return { x: p.x + (dx / len) * d, y: p.y + (dy / len) * d };
   };
 
-  // Quadratic bezier control point pulled toward center for a gentle curve.
-  // Endpoints are trimmed back to each node's rim (plus room for the lag
-  // arrowhead) so the line and arrow sit outside the nodes instead of being
-  // hidden beneath the circles that are drawn on top.
-  const edgePath = (e: NetEdge) => {
+  /**
+   * Build an edge's path. The control point is offset *perpendicular* to the
+   * chord rather than pulled toward the centre: centre-pulled arcs all funnel
+   * through the middle of the graph and pile up on each other, whereas a
+   * consistent sideways bow — widened slightly per edge index — keeps chords
+   * that would otherwise be collinear as visibly separate arcs.
+   *
+   * Both endpoints are then trimmed back along the curve to the node rim (with
+   * room reserved for the lag arrowhead), so an edge attaches wherever its own
+   * curve meets the circle instead of at a fixed anchor point.
+   */
+  const edgePath = (e: NetEdge, i: number) => {
     const p1 = positions.get(e.source), p2 = positions.get(e.target);
     if (!p1 || !p2) return "";
-    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-    const cx = mx + (CX - mx) * 0.35, cy = my + (CY - my) * 0.35;
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const bow = len * 0.16 + (i % 3) * 4;
+    const cx = (p1.x + p2.x) / 2 + (-dy / len) * bow;
+    const cy = (p1.y + p2.y) / 2 + ( dx / len) * bow;
     const startGap = nodeRadius(e.source) + 2;
     const endGap   = nodeRadius(e.target) + (e.lag > 0 ? edgeWidth(e.r) + 4 : 2);
     const s = shrink(p1, cx, cy, startGap);
     const t = shrink(p2, cx, cy, endGap);
     return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
   };
-
-  const domainsPresent = [...new Set(nodes.map(n => n.domain))];
 
   if (edges.length === 0) {
     return (
@@ -137,7 +243,8 @@ export function CorrelationNetwork({ network, lang }: {
           : "Spearman on day-over-day changes · tap a node to focus, tap an edge for the scatter"}
       </p>
 
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full max-w-sm mx-auto block select-none">
+      <svg viewBox={`${-PAD_X} 0 ${SIZE + PAD_X * 2} ${SIZE}`}
+        className="w-full max-w-sm mx-auto block select-none">
         <defs>
           <marker id="net-arrow-pos" viewBox="0 0 8 8" refX="7" refY="4"
             markerWidth="5" markerHeight="5" orient="auto-start-reverse">
@@ -156,22 +263,22 @@ export function CorrelationNetwork({ network, lang }: {
           const selected = selEdge === e;
           return (
             <g key={i} opacity={dimmed ? 0.08 : 1} style={{ transition: "opacity .2s" }}>
-              <path d={edgePath(e)} fill="none" stroke={color}
+              <path d={edgePath(e, i)} fill="none" stroke={color}
                 strokeWidth={edgeWidth(e.r) + (selected ? 1 : 0)}
                 strokeDasharray={e.lag > 0 ? "6 4" : undefined}
                 strokeLinecap="round"
                 markerEnd={e.lag > 0 ? `url(#net-arrow-${e.r >= 0 ? "pos" : "neg"})` : undefined}
                 opacity={selected ? 1 : 0.75} />
               {/* invisible wide hit area */}
-              <path d={edgePath(e)} fill="none" stroke="transparent" strokeWidth={14}
+              <path d={edgePath(e, i)} fill="none" stroke="transparent" strokeWidth={14}
                 style={{ cursor: "pointer" }}
                 onClick={() => { setSelEdge(selected ? null : e); }} />
             </g>
           );
         })}
 
-        {/* Nodes */}
-        {nodes.map(n => {
+        {/* Nodes (only those carrying at least one significant link) */}
+        {ringNodes.map(n => {
           const pos = positions.get(n.id)!;
           const dimmed = isNodeDimmed(n.id);
           const selected = selNode === n.id;
@@ -197,14 +304,10 @@ export function CorrelationNetwork({ network, lang }: {
         })}
       </svg>
 
-      {/* Legend */}
+      {/* Legend — edges only. Which domains appear depends on what produced a
+          result, so a per-domain colour key would change shape run to run; the
+          node labels already say what each dot is. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
-        {domainsPresent.map(d => (
-          <span key={d} className="flex items-center gap-1 text-10 text-[var(--text-on-surface-muted)]">
-            <span className="w-2 h-2 rounded-full" style={{ background: DOMAIN_COLORS[d] }} />
-            {zh ? DOMAIN_LABEL[d].zh : DOMAIN_LABEL[d].en}
-          </span>
-        ))}
         <span className="flex items-center gap-1 text-10 text-[var(--text-on-surface-muted)]">
           <span className="inline-block w-4 h-0.5 rounded" style={{ background: POS_COLOR }} />
           {zh ? "正相關" : "Positive"}
@@ -218,6 +321,26 @@ export function CorrelationNetwork({ network, lang }: {
           {zh ? "延遲影響（箭頭=方向）" : "Lagged (arrow = direction)"}
         </span>
       </div>
+
+      {/* Variables with no significant link — listed instead of drawn, so the
+          graph only carries variables that actually produced a result */}
+      {isolatedNodes.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-[var(--surface-border)]">
+          <p className="text-10 text-[var(--text-on-surface-muted)] mb-1.5">
+            {zh ? "此區間無顯著關聯" : "No significant link in this range"}
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {isolatedNodes.map(n => (
+              <span key={n.id}
+                className="flex items-center gap-1 text-10 text-[var(--text-on-surface-muted)] rounded-full border border-[var(--surface-border)] px-2 py-0.5">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={{ background: DOMAIN_COLORS[n.domain] }} />
+                {zh ? n.labelZh : n.labelEn}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Edge detail: scatter of differenced pairs */}
       {selEdge && (

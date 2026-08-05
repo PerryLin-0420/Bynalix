@@ -65,6 +65,10 @@ export interface DailyStatsRecord {
   exercise_count:     number | null;
   exercise_min:       number | null;
   exercise_kcal:      number | null;
+  /** Cardio / general-exercise sessions logged that day. */
+  cardio_count:       number | null;
+  /** Strength-training sessions logged that day. */
+  strength_count:     number | null;
   strength_volume_kg: number | null;
   sleep_quality:      number | null; // 3=good, 2=normal, 1=poor
   sleep_hours:        number | null;

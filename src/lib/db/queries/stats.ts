@@ -75,28 +75,36 @@ export async function getDailyStatsRecords(
       SELECT log_date, SUM(amount_ml) as water_ml FROM water_log
       WHERE user_id=? AND log_date BETWEEN ? AND ?
       GROUP BY log_date`, [userId, from, to]),
-    db.select<{ log_date: string; exercise_count: number; exercise_min: number; exercise_kcal: number }[]>(`
+    db.select<{
+      log_date: string; exercise_count: number; exercise_min: number;
+      exercise_kcal: number; cardio_count: number; strength_count: number;
+    }[]>(`
       SELECT log_date,
         SUM(cnt) as exercise_count,
         SUM(mins) as exercise_min,
-        ROUND(SUM(kcal), 1) as exercise_kcal
+        ROUND(SUM(kcal), 1) as exercise_kcal,
+        SUM(cardio_cnt) as cardio_count,
+        SUM(strength_cnt) as strength_count
       FROM (
         -- generic exercise/cardio logged in exercise_log
         SELECT log_date, COUNT(*) as cnt,
           COALESCE(SUM(duration_min), 0) as mins,
-          COALESCE(SUM(calories_burned), 0) as kcal
+          COALESCE(SUM(calories_burned), 0) as kcal,
+          COUNT(*) as cardio_cnt, 0 as strength_cnt
         FROM exercise_log WHERE user_id=? AND log_date BETWEEN ? AND ?
         GROUP BY log_date
         UNION ALL
         -- structured cardio sessions: count + pre-computed calories (no interval join)
         SELECT log_date, COUNT(*) as cnt, 0 as mins,
-          COALESCE(SUM(calories_burned), 0) as kcal
+          COALESCE(SUM(calories_burned), 0) as kcal,
+          COUNT(*) as cardio_cnt, 0 as strength_cnt
         FROM running_session WHERE user_id=? AND log_date BETWEEN ? AND ?
         GROUP BY log_date
         UNION ALL
         -- structured cardio duration from intervals
         SELECT rs.log_date, 0 as cnt,
-          COALESCE(SUM(ri.duration_min), 0) as mins, 0 as kcal
+          COALESCE(SUM(ri.duration_min), 0) as mins, 0 as kcal,
+          0 as cardio_cnt, 0 as strength_cnt
         FROM running_session rs
         JOIN running_interval ri ON ri.session_id = rs.id
         WHERE rs.user_id=? AND rs.log_date BETWEEN ? AND ?
@@ -108,7 +116,8 @@ export async function getDailyStatsRecords(
             (CASE WHEN st.weight_kg / ? < 0.5 THEN 3.5 WHEN st.weight_kg / ? <= 1.0 THEN 5.0 ELSE 6.5 END)
             * ? * (st.reps * 3.0 / 3600.0)
             + COALESCE(st.rest_sec, 0) * 2.0 * ? / 3600.0
-          ), 1) as kcal
+          ), 1) as kcal,
+          0 as cardio_cnt, COUNT(DISTINCT ss.id) as strength_cnt
         FROM strength_session ss
         JOIN strength_set st ON st.session_id = ss.id
         WHERE ss.user_id=? AND ss.log_date BETWEEN ? AND ?
@@ -147,6 +156,8 @@ export async function getDailyStatsRecords(
     exercise_count:     eMap.get(date)?.exercise_count ?? null,
     exercise_min:       eMap.get(date)?.exercise_min   ?? null,
     exercise_kcal:      eMap.get(date)?.exercise_kcal  ?? null,
+    cardio_count:       eMap.get(date)?.cardio_count   ?? null,
+    strength_count:     eMap.get(date)?.strength_count ?? null,
     strength_volume_kg: sMap.get(date) ?? null,
     sleep_quality:      slMap.get(date)?.sleep_quality ?? null,
     sleep_hours:        slMap.get(date)?.sleep_hours   ?? null,
