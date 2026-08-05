@@ -272,6 +272,17 @@ CREATE TABLE IF NOT EXISTS sleep_log (
 
 CREATE INDEX IF NOT EXISTS idx_sleep_log_user_date ON sleep_log(user_id, sleep_date);
 
+-- Daily walking minutes mirrored from Health Connect (written there by the
+-- user's health app). Already aggregated per day at the source, so rows are
+-- replaced wholesale on each sync rather than accumulated.
+CREATE TABLE IF NOT EXISTS walk_log (
+  user_id INTEGER NOT NULL,
+  log_date TEXT NOT NULL,
+  walk_min REAL NOT NULL DEFAULT 0,
+  updated_at TEXT DEFAULT (datetime('now','localtime')),
+  PRIMARY KEY (user_id, log_date)
+);
+
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -345,6 +356,13 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   { v: 35, sql: "ALTER TABLE sleep_log ADD COLUMN wake_up_time TEXT" },
   { v: 36, sql: "ALTER TABLE strength_set ADD COLUMN rest_sec INTEGER" },
   { v: 37, sql: "ALTER TABLE strength_set ADD COLUMN logged_at TEXT" },
+  { v: 38, sql: `CREATE TABLE IF NOT EXISTS walk_log (
+      user_id INTEGER NOT NULL,
+      log_date TEXT NOT NULL,
+      walk_min REAL NOT NULL DEFAULT 0,
+      updated_at TEXT DEFAULT (datetime('now','localtime')),
+      PRIMARY KEY (user_id, log_date)
+    )` },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

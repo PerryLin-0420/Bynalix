@@ -316,6 +316,50 @@ async fn get_last_screen_off(app: tauri::AppHandle) -> Result<ScreenOffResult, S
     })
 }
 
+/// Result type for the `get_walk_days` command.
+#[derive(serde::Serialize)]
+struct WalkDaysResult {
+    /// "unavailable" (no Health Connect), "no_permission", or "ok".
+    status: String,
+    /// Raw JSON array of {date, min} objects, or "[]" when there is nothing.
+    days_json: String,
+}
+
+/// Return per-day walking minutes sourced from Health Connect.
+///
+/// MainActivity refreshes these files on every onResume(); see writeWalkStats
+/// there for the file contract. The data is already aggregated per calendar
+/// day, so this is a straight pass-through to the TypeScript layer.
+#[tauri::command]
+async fn get_walk_days(app: tauri::AppHandle) -> Result<WalkDaysResult, String> {
+    let unavailable = || WalkDaysResult {
+        status: "unavailable".to_string(),
+        days_json: "[]".to_string(),
+    };
+    let data_dir = match app.path().app_config_dir() {
+        Ok(d) => d,
+        Err(_) => return Ok(unavailable()),
+    };
+
+    let status = std::fs::read_to_string(data_dir.join("walk_status.txt"))
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if status.is_empty() {
+        return Ok(unavailable());
+    }
+
+    let days_json = std::fs::read_to_string(data_dir.join("walk_days.json"))
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    Ok(WalkDaysResult {
+        status,
+        days_json: if days_json.is_empty() { "[]".to_string() } else { days_json },
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -323,6 +367,7 @@ pub fn run() {
             vacuum_db_to_internal,
             import_db_replace,
             get_last_screen_off,
+            get_walk_days,
         ])
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_fs::init())

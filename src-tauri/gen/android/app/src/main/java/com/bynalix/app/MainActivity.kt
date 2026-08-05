@@ -12,7 +12,19 @@ import android.provider.Settings
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.request.ReadRecordsRequest
+import androidx.health.connect.client.time.TimeRangeFilter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+import java.util.Locale
 
 class MainActivity : TauriActivity() {
 
@@ -45,6 +57,39 @@ class MainActivity : TauriActivity() {
     fun refreshScreenStats() {
       writeScreenStats(applicationContext)
     }
+
+    /** Re-read walking sessions from Health Connect. */
+    @JavascriptInterface
+    fun refreshWalkStats() {
+      writeWalkStats(applicationContext)
+    }
+
+    /**
+     * Open Health Connect so the user can grant read access (or install it, on
+     * releases where it is not part of the platform). Permissions for Health
+     * Connect are managed inside that app rather than by a runtime dialog.
+     */
+    @JavascriptInterface
+    fun openHealthConnect() {
+      runOnUiThread {
+        try {
+          val settings = Intent(HEALTH_CONNECT_SETTINGS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+          }
+          if (settings.resolveActivity(packageManager) != null) {
+            startActivity(settings)
+            return@runOnUiThread
+          }
+          // Not installed — send the user to the store listing instead.
+          startActivity(Intent(Intent.ACTION_VIEW).apply {
+            data = android.net.Uri.parse(
+              "market://details?id=$HEALTH_CONNECT_PACKAGE"
+            )
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+          })
+        } catch (_: Exception) { /* ignore on unsupported devices */ }
+      }
+    }
   }
 
   override fun onWebViewCreate(webView: WebView) {
@@ -63,6 +108,7 @@ class MainActivity : TauriActivity() {
   override fun onResume() {
     super.onResume()
     writeScreenStats(applicationContext)
+    writeWalkStats(applicationContext)
   }
 
   // ── UsageStats helpers ────────────────────────────────────────────────────
@@ -71,6 +117,90 @@ class MainActivity : TauriActivity() {
 
     /** Minimum length of a screen-off gap to be treated as sleep (3 h). */
     private const val MIN_SLEEP_MS = 3 * 60 * 60_000L
+
+    const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
+    const val HEALTH_CONNECT_SETTINGS = "androidx.health.ACTION_HEALTH_CONNECT_SETTINGS"
+
+    /** How far back to pull walking history, matching the stats range. */
+    private const val WALK_HISTORY_DAYS = 90L
+
+    /**
+     * Pull per-day walking minutes out of Health Connect.
+     *
+     * Health Connect is the on-device store that apps like Samsung Health and
+     * Google Fit publish into, which is where a figure such as "walking time
+     * today" actually comes from — no Android sensor reports walking duration
+     * on its own. Because the records carry real start/end instants, daily
+     * totals are computed directly here and need none of the snapshot-and-diff
+     * bookkeeping a cumulative counter would require.
+     *
+     * Sessions that straddle midnight are split at the local day boundary so
+     * each day gets only the minutes that actually fall inside it.
+     *
+     * Files written:
+     *   walk_status.txt →  "unavailable" | "no_permission" | "ok"
+     *   walk_days.json  →  [{"date":"YYYY-MM-DD","min":42.5}, ...]
+     */
+    fun writeWalkStats(context: Context) {
+      val statusFile = File(context.dataDir, "walk_status.txt")
+      if (HealthConnectClient.getSdkStatus(context) != HealthConnectClient.SDK_AVAILABLE) {
+        statusFile.writeText("unavailable")
+        return
+      }
+
+      val client = try {
+        HealthConnectClient.getOrCreate(context)
+      } catch (_: Throwable) {
+        statusFile.writeText("unavailable"); return
+      }
+
+      CoroutineScope(Dispatchers.IO).launch {
+        try {
+          val needed = HealthPermission.getReadPermission(ExerciseSessionRecord::class)
+          if (!client.permissionController.getGrantedPermissions().contains(needed)) {
+            statusFile.writeText("no_permission")
+            return@launch
+          }
+
+          val zone = ZoneId.systemDefault()
+          val end = Instant.now()
+          val start = end.minus(Duration.ofDays(WALK_HISTORY_DAYS))
+          val records = client.readRecords(
+            ReadRecordsRequest(
+              recordType = ExerciseSessionRecord::class,
+              timeRangeFilter = TimeRangeFilter.between(start, end),
+            )
+          ).records
+
+          val perDay = sortedMapOf<String, Double>()
+          for (rec in records) {
+            if (rec.exerciseType != ExerciseSessionRecord.EXERCISE_TYPE_WALKING &&
+              rec.exerciseType != ExerciseSessionRecord.EXERCISE_TYPE_HIKING
+            ) continue
+            // Clip the session to each local day it overlaps.
+            var cursor = rec.startTime
+            while (cursor.isBefore(rec.endTime)) {
+              val day = cursor.atZone(zone).toLocalDate()
+              val dayEnd = day.plusDays(1).atStartOfDay(zone).toInstant()
+              val segEnd = if (dayEnd.isBefore(rec.endTime)) dayEnd else rec.endTime
+              val mins = Duration.between(cursor, segEnd).toMillis() / 60_000.0
+              if (mins > 0) perDay[day.toString()] = (perDay[day.toString()] ?: 0.0) + mins
+              cursor = segEnd
+            }
+          }
+
+          // Locale.US is required: the default locale would render decimals
+          // with a comma on many devices, producing invalid JSON.
+          val json = perDay.entries.joinToString(",", "[", "]") {
+            """{"date":"${it.key}","min":${String.format(Locale.US, "%.1f", it.value)}}"""
+          }
+          File(context.dataDir, "walk_days.json").writeText(json)
+          statusFile.writeText("ok")
+        } catch (_: Throwable) {
+          statusFile.writeText("unavailable")
+        }
+      }
+    }
 
     /**
      * Detect the user's most recent sleep window from the past 24 h of screen
