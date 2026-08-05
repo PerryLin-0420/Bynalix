@@ -20,12 +20,17 @@
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
-    <!-- Needed to resolve the Health Connect app on Android 13 and below,
-         where it ships as a separate APK rather than as part of the platform. -->
+    <!-- Package visibility for Health Connect. On Android 13 and below it is a
+         separate APK; from Android 14 it is part of the platform and answers a
+         different settings action. Both are declared so resolveActivity can
+         find whichever this device has. -->
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
         <intent>
             <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent>
+        <intent>
+            <action android:name="android.health.connect.action.HEALTH_HOME_SETTINGS" />
         </intent>
     </queries>
 

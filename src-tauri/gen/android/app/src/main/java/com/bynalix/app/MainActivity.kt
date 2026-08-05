@@ -65,26 +65,34 @@ class MainActivity : TauriActivity() {
     }
 
     /**
-     * Open Health Connect so the user can grant read access (or install it, on
-     * releases where it is not part of the platform). Permissions for Health
-     * Connect are managed inside that app rather than by a runtime dialog.
+     * Open Health Connect so the user can grant read access. Permissions are
+     * managed inside Health Connect itself rather than by a runtime dialog.
+     *
+     * Which intent opens it depends on where Health Connect lives: from
+     * Android 14 it is part of the platform and answers HEALTH_HOME_SETTINGS,
+     * whereas on 9–13 it is a separate APK answering the androidx action. Both
+     * are tried before falling back to the store listing, since the platform
+     * build does not respond to the APK's action at all.
      */
     @JavascriptInterface
     fun openHealthConnect() {
       runOnUiThread {
+        val candidates = listOf(
+          HEALTH_CONNECT_SETTINGS_PLATFORM, // Android 14+ (built in)
+          HEALTH_CONNECT_SETTINGS_APK,      // Android 9–13 (separate app)
+        )
+        for (action in candidates) {
+          try {
+            val intent = Intent(action).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+            if (intent.resolveActivity(packageManager) != null) {
+              startActivity(intent); return@runOnUiThread
+            }
+          } catch (_: Exception) { /* try the next one */ }
+        }
+        // Neither resolved — offer to install the standalone app.
         try {
-          val settings = Intent(HEALTH_CONNECT_SETTINGS).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-          }
-          if (settings.resolveActivity(packageManager) != null) {
-            startActivity(settings)
-            return@runOnUiThread
-          }
-          // Not installed — send the user to the store listing instead.
           startActivity(Intent(Intent.ACTION_VIEW).apply {
-            data = android.net.Uri.parse(
-              "market://details?id=$HEALTH_CONNECT_PACKAGE"
-            )
+            data = android.net.Uri.parse("market://details?id=$HEALTH_CONNECT_PACKAGE")
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
           })
         } catch (_: Exception) { /* ignore on unsupported devices */ }
@@ -119,7 +127,10 @@ class MainActivity : TauriActivity() {
     private const val MIN_SLEEP_MS = 3 * 60 * 60_000L
 
     const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
-    const val HEALTH_CONNECT_SETTINGS = "androidx.health.ACTION_HEALTH_CONNECT_SETTINGS"
+    /** Android 14+, where Health Connect ships as part of the platform. */
+    const val HEALTH_CONNECT_SETTINGS_PLATFORM = "android.health.connect.action.HEALTH_HOME_SETTINGS"
+    /** Android 9–13, where it is a separate app. */
+    const val HEALTH_CONNECT_SETTINGS_APK = "androidx.health.ACTION_HEALTH_CONNECT_SETTINGS"
 
     /** How far back to pull walking history, matching the stats range. */
     private const val WALK_HISTORY_DAYS = 90L
