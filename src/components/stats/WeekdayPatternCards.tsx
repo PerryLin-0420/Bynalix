@@ -6,6 +6,8 @@ const VAR_UNIT: Record<NetVar, string> = {
   weight_kg: "kg", calories: "kcal", protein_g: "g", carb_g: "g", fat_g: "g",
   water_ml: "ml", exercise_min: "min", exercise_kcal: "kcal",
   strength_volume_kg: "kg", sleep_hours: "hr",
+  // Rolling weekly counts — excluded from weekday patterns, listed for completeness
+  strength_freq_wk: "x/wk", cardio_freq_wk: "x/wk",
 };
 
 function fmtDiff(v: number, unit: string): string {
