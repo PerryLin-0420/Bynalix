@@ -28,25 +28,35 @@ const RELIABILITY_LABEL: Record<Reliability, { zh: string; en: string }> = {
 
 // ── Ring ordering ────────────────────────────────────────────────────────────
 
-const indexOf = (order: NetVar[]) =>
-  new Map(order.map((id, i) => [id, i] as const));
-
 /**
  * Count edge crossings for a circular ordering. Two chords cross exactly when
  * one endpoint of the second lies strictly inside the arc spanned by the first;
  * chords sharing an endpoint never cross.
+ *
+ * Endpoint positions are resolved into typed arrays first so the O(E²) sweep
+ * compares plain integers. Doing the map lookups inside that loop instead costs
+ * two hash lookups per pair, which dominates once the graph is dense.
  */
-function countCrossings(idx: Map<NetVar, number>, edges: NetEdge[]): number {
-  let count = 0;
-  for (let i = 0; i < edges.length; i++) {
-    const a = idx.get(edges[i].source), b = idx.get(edges[i].target);
+function countCrossings(order: NetVar[], edges: NetEdge[]): number {
+  const idx = new Map(order.map((id, i) => [id, i] as const));
+  const lo = new Int32Array(edges.length);
+  const hi = new Int32Array(edges.length);
+  let m = 0;
+  for (const e of edges) {
+    const a = idx.get(e.source), b = idx.get(e.target);
     if (a == null || b == null) continue;
-    const lo = Math.min(a, b), hi = Math.max(a, b);
-    for (let j = i + 1; j < edges.length; j++) {
-      const c = idx.get(edges[j].source), d = idx.get(edges[j].target);
-      if (c == null || d == null) continue;
-      if (c === a || c === b || d === a || d === b) continue;
-      if ((c > lo && c < hi) !== (d > lo && d < hi)) count++;
+    lo[m] = a < b ? a : b;
+    hi[m] = a < b ? b : a;
+    m++;
+  }
+
+  let count = 0;
+  for (let i = 0; i < m; i++) {
+    const l1 = lo[i], h1 = hi[i];
+    for (let j = i + 1; j < m; j++) {
+      const l2 = lo[j], h2 = hi[j];
+      if (l2 === l1 || l2 === h1 || h2 === l1 || h2 === h1) continue;
+      if ((l2 > l1 && l2 < h1) !== (h2 > l1 && h2 < h1)) count++;
     }
   }
   return count;
@@ -67,7 +77,7 @@ function permutations<T>(items: T[]): T[][] {
  * Lay the connected nodes out around the ring so that domains stay contiguous
  * (grouped) while edge crossings are minimised.
  *
- * With at most 5 domains and 10 variables the search space is tiny, so we can
+ * With at most 6 domains and 15 variables the search space is tiny, so we can
  * be exhaustive rather than heuristic: fix the first domain (rotations are
  * equivalent on a circle), try every ordering of the remaining domains, and
  * refine each with adjacent same-domain swaps. Fully deterministic — the same
@@ -93,19 +103,20 @@ function orderRing(
 
   for (const perm of permutations(rest)) {
     let order = [head, ...perm].flatMap(d => groups.get(d)!);
-    let score = countCrossings(indexOf(order), edges);
+    let score = countCrossings(order, edges);
     for (let pass = 0; pass < 3 && score > 0; pass++) {
       let improved = false;
       for (let i = 0; i + 1 < order.length; i++) {
         if (domainOf.get(order[i]) !== domainOf.get(order[i + 1])) continue;
         const cand = [...order];
         [cand[i], cand[i + 1]] = [cand[i + 1], cand[i]];
-        const s = countCrossings(indexOf(cand), edges);
+        const s = countCrossings(cand, edges);
         if (s < score) { order = cand; score = s; improved = true; }
       }
       if (!improved) break;
     }
     if (score < bestScore) { bestScore = score; best = order; }
+    if (bestScore === 0) break; // crossing-free; no ordering can do better
   }
   return best;
 }
@@ -290,9 +301,13 @@ export function CorrelationNetwork({ network, lang }: {
           return (
             <g key={n.id} opacity={dimmed ? 0.2 : 1} style={{ transition: "opacity .2s", cursor: "pointer" }}
               onClick={() => { setSelNode(selected ? null : n.id); setSelEdge(null); }}>
+              {/* Time-of-day nodes are drawn with a dashed rim so a clock
+                  variable reads differently from a measured quantity. */}
               <circle cx={pos.x} cy={pos.y} r={rNode}
                 fill={DOMAIN_COLORS[n.domain]}
-                stroke={selected ? "var(--text-on-surface)" : "var(--surface)"}
+                fillOpacity={n.domain === "time" ? 0.85 : 1}
+                stroke={selected ? "var(--text-on-surface)" : n.domain === "time" ? DOMAIN_COLORS.time : "var(--surface)"}
+                strokeDasharray={n.domain === "time" ? "3 2" : undefined}
                 strokeWidth={selected ? 2.5 : 1.5} />
               <text x={labelX} y={labelY} textAnchor={anchor} dominantBaseline="middle"
                 fontSize={11} fontWeight={selected ? 700 : 500}

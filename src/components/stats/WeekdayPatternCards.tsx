@@ -8,7 +8,11 @@ const VAR_UNIT: Record<NetVar, string> = {
   strength_volume_kg: "kg", sleep_hours: "hr",
   // Rolling weekly counts — excluded from weekday patterns, listed for completeness
   strength_freq_wk: "x/wk", cardio_freq_wk: "x/wk",
+  last_meal_hour: "hr", exercise_hour: "hr", wake_hour: "hr",
 };
+
+/** Clock-style variables read as later/earlier, not higher/lower. */
+const TIME_VARS = new Set<NetVar>(["last_meal_hour", "exercise_hour", "wake_hour"]);
 
 function fmtDiff(v: number, unit: string): string {
   const abs = Math.abs(v);
@@ -46,6 +50,7 @@ export function WeekdayPatternCards({ patterns, lang, maxCards = 4 }: {
         const label = zh ? meta.labelZh : meta.labelEn;
         const unit = VAR_UNIT[p.variable];
         const higher = p.diff > 0;
+        const isTime = TIME_VARS.has(p.variable);
         const pctTxt = `${Math.abs(Math.round(p.relPct))}%`;
         return (
           <div key={p.variable}
@@ -57,8 +62,12 @@ export function WeekdayPatternCards({ patterns, lang, maxCards = 4 }: {
             <div className="min-w-0">
               <p className="text-xs text-[var(--text-on-surface)]">
                 {zh
-                  ? <>週末的<span className="font-semibold">{label}</span>平均比平日{higher ? "高" : "低"} <span className="font-semibold">{pctTxt}</span>（{higher ? "+" : "−"}{fmtDiff(p.diff, unit)}）</>
-                  : <>Weekend <span className="font-semibold">{label.toLowerCase()}</span> averages <span className="font-semibold">{pctTxt}</span> {higher ? "higher" : "lower"} than weekdays ({higher ? "+" : "−"}{fmtDiff(p.diff, unit)})</>}
+                  ? (isTime
+                    ? <>週末的<span className="font-semibold">{label}</span>平均比平日{higher ? "晚" : "早"} <span className="font-semibold">{fmtDiff(p.diff, unit)}</span></>
+                    : <>週末的<span className="font-semibold">{label}</span>平均比平日{higher ? "高" : "低"} <span className="font-semibold">{pctTxt}</span>（{higher ? "+" : "−"}{fmtDiff(p.diff, unit)}）</>)
+                  : (isTime
+                    ? <>Weekend <span className="font-semibold">{label.toLowerCase()}</span> averages <span className="font-semibold">{fmtDiff(p.diff, unit)}</span> {higher ? "later" : "earlier"} than weekdays</>
+                    : <>Weekend <span className="font-semibold">{label.toLowerCase()}</span> averages <span className="font-semibold">{pctTxt}</span> {higher ? "higher" : "lower"} than weekdays ({higher ? "+" : "−"}{fmtDiff(p.diff, unit)})</>)}
               </p>
               <p className="text-10 text-[var(--text-on-surface-muted)] mt-0.5">
                 {zh

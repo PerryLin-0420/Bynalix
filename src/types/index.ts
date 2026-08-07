@@ -72,6 +72,10 @@ export interface DailyStatsRecord {
   strength_volume_kg: number | null;
   sleep_quality:      number | null; // 3=good, 2=normal, 1=poor
   sleep_hours:        number | null;
+  // Time-of-day derived variables (decimal hours)
+  last_meal_hour:     number | null; // latest meal_log time; < 4 AM unwraps to h+24
+  exercise_hour:      number | null; // latest exercise/strength/cardio log time
+  wake_hour:          number | null; // sleep_log wake_up_time
 }
 
 // ─── Charts ──────────────────────────────────────────────────────────────────
