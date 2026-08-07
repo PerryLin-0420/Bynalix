@@ -131,12 +131,8 @@ function ExerciseEntryCard({ e, editingEx, setEditingEx, saveEditEx, onDelete, k
             </div>
           </div>
           <div className="flex flex-col gap-micro shrink-0">
-            <button onClick={saveEditEx} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
-              <Check size={15} />
-            </button>
-            <button onClick={() => setEditingEx(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-              <X size={15} />
-            </button>
+            <button onClick={saveEditEx} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
+            <button onClick={() => setEditingEx(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
           </div>
         </div>
       ) : (
@@ -149,12 +145,8 @@ function ExerciseEntryCard({ e, editingEx, setEditingEx, saveEditEx, onDelete, k
           </div>
           <p className={`text-sm font-bold ${kcalColor}`}>{Math.round(e.calories_burned)} kcal</p>
           <button onClick={() => setEditingEx({ id: e.id, duration: String(e.duration_min), intensity: e.intensity })}
-            className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
-            <Pencil size={13} />
-          </button>
-          <button onClick={onDelete} className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-            <Trash2 size={14} />
-          </button>
+            className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={15} /></button>
+          <button onClick={onDelete} className="icon-btn text-red-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
         </div>
       )}
     </div>
@@ -924,9 +916,7 @@ export function ExerciseLog() {
                     </p>
                   </div>
                   <button onClick={() => deleteRunningSession(sess.id)}
-                    className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={14} />
-                  </button>
+                    className="icon-btn text-red-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                 </div>
 
                 {/* Interval rows */}
@@ -943,12 +933,8 @@ export function ExerciseLog() {
                           <span className="text-[var(--text-on-surface-muted)] text-xs">@</span>
                           <UnitInput value={editingRunInterval.time} onChange={v => setEditingRunInterval(x => x ? { ...x, time: v } : null)}
                             unit="min" py="py-1" />
-                          <button onClick={saveEditRunInterval} className="p-1 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
-                            <Check size={13} />
-                          </button>
-                          <button onClick={() => setEditingRunInterval(null)} className="p-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                            <X size={13} />
-                          </button>
+                          <button onClick={saveEditRunInterval} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={15} /></button>
+                          <button onClick={() => setEditingRunInterval(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={15} /></button>
                         </>
                       ) : (
                         <>
@@ -968,13 +954,9 @@ export function ExerciseLog() {
                             </span>
                           )}
                           <button onClick={() => setEditingRunInterval({ id: iv.id, distance: String(iv.distance_km), time: String(iv.duration_min) })}
-                            className="p-1 text-yellow-400 hover:text-yellow-500 transition-colors">
-                            <Pencil size={12} />
-                          </button>
+                            className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={15} /></button>
                           <button onClick={() => deleteRunningInterval(iv.id)}
-                            className="p-1 text-red-400 hover:text-red-500 transition-colors">
-                            <X size={12} />
-                          </button>
+                            className="icon-btn text-red-400 hover:text-red-500 transition-colors"><X size={15} /></button>
                         </>
                       )}
                     </div>
@@ -996,9 +978,7 @@ export function ExerciseLog() {
                     )}
                     <button onClick={addIntervalToRunning}
                       className="px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium shrink-0">{t("common.confirm")}</button>
-                    <button onClick={() => setAddRunIntervalTo(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                      <X size={14} />
-                    </button>
+                    <button onClick={() => setAddRunIntervalTo(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                   </div>
                 ) : (
                   <button onClick={() => setAddRunIntervalTo({ sessionId: sess.id, d: "", t: "" })}
@@ -1091,12 +1071,8 @@ export function ExerciseLog() {
                         <option value="">{t("exercise.bodyPart")}</option>
                         {BODY_PARTS.map(p => <option key={p} value={p}>{bpLabel(p)}</option>)}
                       </select>
-                      <button onClick={saveEditSession} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
-                        <Check size={15} />
-                      </button>
-                      <button onClick={() => setEditingSession(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                        <X size={15} />
-                      </button>
+                      <button onClick={saveEditSession} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
+                      <button onClick={() => setEditingSession(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                     </div>
                   ) : (
                     /* ── Normal view ── */
@@ -1116,13 +1092,9 @@ export function ExerciseLog() {
                         </p>
                       </div>
                       <button onClick={() => setEditingSession({ id: sess.id, name: sess.exercise_name, bodyPart: sess.body_part ?? "" })}
-                        className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
-                        <Pencil size={13} />
-                      </button>
+                        className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={15} /></button>
                       <button onClick={() => deleteSession(sess.id)}
-                        className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-                        <Trash2 size={14} />
-                      </button>
+                        className="icon-btn text-red-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                     </>
                   )}
                 </div>
@@ -1154,12 +1126,8 @@ export function ExerciseLog() {
                             <span className="text-[var(--text-on-surface-muted)] text-xs">×</span>
                             <UnitInput value={editingSet.reps} onChange={v => setEditingSet(s => s ? { ...s, reps: v } : null)}
                               unit={lang === "zh" ? "下" : "reps"} py="py-1" pr="pr-7" />
-                            <button onClick={saveEditSet} className="p-1 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
-                              <Check size={13} />
-                            </button>
-                            <button onClick={() => setEditingSet(null)} className="p-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                              <X size={13} />
-                            </button>
+                            <button onClick={saveEditSet} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={15} /></button>
+                            <button onClick={() => setEditingSet(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={15} /></button>
                           </>
                         ) : (
                           /* ── Normal view ── */
@@ -1174,13 +1142,9 @@ export function ExerciseLog() {
                               {Math.round(st.weight_kg * st.reps)} kg
                             </span>
                             <button onClick={() => setEditingSet({ id: st.id, weight: String(st.weight_kg), reps: String(st.reps) })}
-                              className="p-1 text-yellow-400 hover:text-yellow-500 transition-colors">
-                              <Pencil size={12} />
-                            </button>
+                              className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={15} /></button>
                             <button onClick={() => deleteSet(st.id)}
-                              className="p-1 text-red-400 hover:text-red-500 transition-colors">
-                              <X size={12} />
-                            </button>
+                              className="icon-btn text-red-400 hover:text-red-500 transition-colors"><X size={15} /></button>
                           </>
                         )}
                       </div>
@@ -1228,9 +1192,7 @@ export function ExerciseLog() {
                       <button onClick={addSetToSession}
                         className="px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium">{t("common.confirm")}</button>
                       <button onClick={() => { setAddSetTo(null); setAddSetErr(null); }}
-                        className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                        <X size={14} />
-                      </button>
+                        className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                     </div>
                     {addSetErr && (
                       <p className="text-xs text-red-500 flex items-center gap-micro px-4 pb-2">
@@ -1396,12 +1358,8 @@ export function ExerciseLog() {
                         unit="ml" py="py-1" containerCls="relative max-w-[110px]" />
                       <TimePicker value={editingWater.time}
                         onChange={v => setEditingWater(x => x ? { ...x, time: v } : null)} />
-                      <button onClick={saveEditWater} className="p-1 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
-                        <Check size={14} />
-                      </button>
-                      <button onClick={() => setEditingWater(null)} className="p-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                        <X size={14} />
-                      </button>
+                      <button onClick={saveEditWater} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
+                      <button onClick={() => setEditingWater(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                     </div>
                   ) : (
                     /* ── Normal view ── */
@@ -1452,7 +1410,7 @@ export function ExerciseLog() {
               <input autoFocus value={exSearch} onChange={e => setExSearch(e.target.value)}
                 className="input-base flex-1" placeholder={t("exercise.search")} />
               <button onClick={() => { setShowExForm(false); setSelEx(null); setExSearch(""); setExFormMode("cardio"); }}
-                className="p-2 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={18} /></button>
+                className="icon-btn-lg text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={20} /></button>
             </div>
 
             {/* Scrollable exercise list */}
@@ -1540,9 +1498,7 @@ export function ExerciseLog() {
                       </span>
                     )}
                   </div>
-                  <button onClick={() => setSelEx(null)} className="p-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] shrink-0 ml-2">
-                    <X size={14} />
-                  </button>
+                  <button onClick={() => setSelEx(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] shrink-0 ml-2"><X size={16} /></button>
                 </div>
 
                 {selEx.category === "重訓" && (
@@ -1588,9 +1544,7 @@ export function ExerciseLog() {
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--surface-border)] shrink-0">
               <h2 className="text-lg font-bold text-[var(--text-on-surface)]">{t("exercise.strModalTitle")}</h2>
               <button onClick={() => { setShowStrength(false); setStrExName(""); setStrSearch(""); setStrBodyPart(""); setStrExNameEn(""); setStrSets([{ weight: "", reps: "", rest: "" }]); }}
-                className="p-2 -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                <X size={20} />
-              </button>
+                className="icon-btn-lg -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={20} /></button>
             </div>
 
             <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
@@ -1700,9 +1654,7 @@ export function ExerciseLog() {
                           unit={lang === "zh" ? "下" : "reps"} py="py-2" placeholder={t("exercise.reps")} />
                         {idx > 0 && (
                           <button onClick={() => setStrSets(ss => ss.filter((_, i) => i !== idx))}
-                            className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-                            <X size={14} />
-                          </button>
+                            className="icon-btn text-red-400 hover:text-red-500 transition-colors"><X size={16} /></button>
                         )}
                       </div>
                     </div>
@@ -1744,7 +1696,7 @@ export function ExerciseLog() {
                   : t("exercise.addRun")}
               </h2>
               <button onClick={() => { setShowRunForm(false); setRunIntervals([{ distance: "", time: "" }]); setAddCardioType(""); }}
-                className="p-2 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={18} /></button>
+                className="icon-btn-lg text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={20} /></button>
             </div>
 
             {/* Cardio type selector */}
@@ -1800,9 +1752,7 @@ export function ExerciseLog() {
                   )}
                   {idx > 0 && (
                     <button onClick={() => setRunIntervals(xs => xs.filter((_, i) => i !== idx))}
-                      className="p-1 text-red-400 hover:text-red-500 shrink-0">
-                      <X size={14} />
-                    </button>
+                      className="icon-btn text-red-400 hover:text-red-500 shrink-0"><X size={16} /></button>
                   )}
                 </div>
               ))}
@@ -1857,9 +1807,7 @@ function ExRow({ ex, onSelect, onFav, isFav, isSelected, onDelete }: {
       </button>
       {ex.source_type === "user" && onDelete && (
         <button onClick={e => { e.stopPropagation(); onDelete(ex); }}
-          className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-          <Trash2 size={13} />
-        </button>
+          className="icon-btn text-red-400 hover:text-red-500 transition-colors"><Trash2 size={15} /></button>
       )}
     </div>
   );

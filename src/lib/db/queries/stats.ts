@@ -57,7 +57,7 @@ export async function getDailyStatsRecords(
     "SELECT weight_kg FROM user_profile WHERE user_id=? ORDER BY user_id LIMIT 1", [userId]);
   const bodyWt = profRow?.weight_kg ?? 70;
 
-  const [weights, meals, water, exercise, strength, sleep] = await Promise.all([
+  const [weights, meals, water, exercise, strength, sleep, lastMeal, exTime] = await Promise.all([
     db.select<{ log_date: string; weight_kg: number }[]>(`
       SELECT log_date, AVG(weight_kg) as weight_kg FROM weight_log
       WHERE user_id=? AND log_date BETWEEN ? AND ? AND measurement_type='fasting'
@@ -131,11 +131,25 @@ export async function getDailyStatsRecords(
       JOIN strength_set st ON st.session_id = ss.id
       WHERE ss.user_id=? AND ss.log_date BETWEEN ? AND ?
       GROUP BY ss.log_date`, [userId, from, to]),
-    db.select<{ log_date: string; sleep_quality: number; sleep_hours: number | null }[]>(`
+    db.select<{ log_date: string; sleep_quality: number; sleep_hours: number | null; wake_up_time: string | null }[]>(`
       SELECT sleep_date as log_date,
         CASE quality WHEN 'good' THEN 3 WHEN 'normal' THEN 2 ELSE 1 END as sleep_quality,
-        duration_hours as sleep_hours
+        duration_hours as sleep_hours,
+        wake_up_time
       FROM sleep_log WHERE user_id=? AND sleep_date BETWEEN ? AND ?`, [userId, from, to]),
+    db.select<{ log_date: string; last_meal_time: string }[]>(`
+      SELECT log_date, MAX(log_time) as last_meal_time FROM meal_log
+      WHERE user_id=? AND log_date BETWEEN ? AND ?
+      GROUP BY log_date`, [userId, from, to]),
+    db.select<{ log_date: string; ex_time: string }[]>(`
+      SELECT log_date, MAX(t) as ex_time FROM (
+        SELECT log_date, log_time as t FROM exercise_log     WHERE user_id=? AND log_date BETWEEN ? AND ?
+        UNION ALL
+        SELECT log_date, log_time as t FROM strength_session WHERE user_id=? AND log_date BETWEEN ? AND ?
+        UNION ALL
+        SELECT log_date, log_time as t FROM running_session  WHERE user_id=? AND log_date BETWEEN ? AND ?
+      ) WHERE t IS NOT NULL
+      GROUP BY log_date`, [userId, from, to, userId, from, to, userId, from, to]),
   ]);
 
   const wMap   = new Map(weights.map(r  => [r.log_date, r.weight_kg]));
@@ -144,6 +158,18 @@ export async function getDailyStatsRecords(
   const eMap   = new Map(exercise.map(r => [r.log_date, r]));
   const sMap   = new Map(strength.map(r => [r.log_date, r.strength_volume_kg]));
   const slMap  = new Map(sleep.map(r    => [r.log_date, r]));
+  const lmMap  = new Map(lastMeal.map(r => [r.log_date, r.last_meal_time]));
+  const etMap  = new Map(exTime.map(r   => [r.log_date, r.ex_time]));
+
+  /** "HH:MM[:SS]" -> decimal hours; unwrap=true maps post-midnight (< 4 AM) to h+24. */
+  const toHour = (t: string | null | undefined, unwrap = false): number | null => {
+    if (!t) return null;
+    const m = /^(\d{1,2}):(\d{2})/.exec(t);
+    if (!m) return null;
+    let h = parseInt(m[1]) + parseInt(m[2]) / 60;
+    if (unwrap && h < 4) h += 24;
+    return Math.round(h * 100) / 100;
+  };
 
   return dates.map(date => ({
     date,
@@ -161,6 +187,9 @@ export async function getDailyStatsRecords(
     strength_volume_kg: sMap.get(date) ?? null,
     sleep_quality:      slMap.get(date)?.sleep_quality ?? null,
     sleep_hours:        slMap.get(date)?.sleep_hours   ?? null,
+    last_meal_hour:     toHour(lmMap.get(date), true),
+    exercise_hour:      toHour(etMap.get(date)),
+    wake_hour:          toHour(slMap.get(date)?.wake_up_time),
   }));
 }
 

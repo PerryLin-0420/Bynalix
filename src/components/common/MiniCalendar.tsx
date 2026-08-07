@@ -95,19 +95,15 @@ export function MiniCalendar({
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={() => setCurrentMonth(m => subMonths(m, 1))}
-          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
-        >
-          <ChevronLeft size={16} />
-        </button>
+          className="icon-btn rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+        ><ChevronLeft size={16} /></button>
         <span className="text-sm font-semibold text-gray-800">
           {format(currentMonth, "yyyy年M月")}
         </span>
         <button
           onClick={() => setCurrentMonth(m => addMonths(m, 1))}
-          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
-        >
-          <ChevronRight size={16} />
-        </button>
+          className="icon-btn rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+        ><ChevronRight size={16} /></button>
       </div>
 
       {/* Weekday labels */}

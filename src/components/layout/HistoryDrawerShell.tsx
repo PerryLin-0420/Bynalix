@@ -31,9 +31,7 @@ export function HistoryDrawerShell({ open, title, onClose, children }: Props) {
         <div className="shrink-0" style={{ height: "env(safe-area-inset-top)" }} />
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="p-2 -mr-1 text-gray-400 hover:text-gray-600 transition-colors">
-            <X size={20} />
-          </button>
+          <button onClick={onClose} className="icon-btn-lg -mr-1 text-gray-400 hover:text-gray-600 transition-colors"><X size={20} /></button>
         </div>
         <div className="flex-1 overflow-y-auto">{children}</div>
       </div>

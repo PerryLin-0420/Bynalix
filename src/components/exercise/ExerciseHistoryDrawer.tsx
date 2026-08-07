@@ -162,10 +162,8 @@ export function ExerciseHistoryDrawer({ open, userId, onClose, onSelectDate }: P
                                   </span>
                                   <button
                                     onClick={() => deleteEntry(s.log_date, item.id)}
-                                    className="p-1 text-gray-300 hover:text-red-400 transition-colors shrink-0"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
+                                    className="icon-btn text-gray-300 hover:text-red-400 transition-colors shrink-0"
+                                  ><Trash2 size={15} /></button>
                                 </div>
                               ))}
                             </div>

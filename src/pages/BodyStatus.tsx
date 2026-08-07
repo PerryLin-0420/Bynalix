@@ -628,13 +628,9 @@ export function BodyStatus() {
                         <AlertCircle size={15} className="text-amber-400 shrink-0" />
                       )}
                       <button onClick={() => setEditingWeight({ id: w.id, weight: String(w.weight_kg), bodyFat: w.body_fat_pct != null ? String(w.body_fat_pct) : "", type: w.measurement_type })}
-                        className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
-                        <Pencil size={14} />
-                      </button>
+                        className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={16} /></button>
                       <button onClick={async () => { await deleteWeightEntry(w.id); loadWeightEntries(); }}
-                        className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-                        <Trash2 size={14} />
-                      </button>
+                        className="icon-btn text-red-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                     </div>
                   );
                 })()}
@@ -760,12 +756,8 @@ export function BodyStatus() {
                         <TimePicker value={editTime} onChange={setEditTime} />
                       </div>
                       <div className="flex gap-micro shrink-0">
-                        <button onClick={saveEdit} className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
-                          <Check size={14} />
-                        </button>
-                        <button onClick={() => setEditId(null)} className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                          <X size={14} />
-                        </button>
+                        <button onClick={saveEdit} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
+                        <button onClick={() => setEditId(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
@@ -811,12 +803,8 @@ export function BodyStatus() {
                       {getMuscleSummary(e) && <p className="text-xs text-emerald-600 mt-1 font-medium">{t("body.muscleShort")} {getMuscleSummary(e)} kg</p>}
                       {e.notes && <p className="text-xs text-[var(--text-on-surface-muted)] mt-1">{e.notes}</p>}
                     </div>
-                    <button onClick={() => startEdit(e)} className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors mt-0.5">
-                      <Pencil size={13} />
-                    </button>
-                    <button onClick={() => deleteEntry(e.id)} className="p-1.5 text-red-400 hover:text-red-500 transition-colors mt-0.5">
-                      <Trash2 size={14} />
-                    </button>
+                    <button onClick={() => startEdit(e)} className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors mt-0.5"><Pencil size={15} /></button>
+                    <button onClick={() => deleteEntry(e.id)} className="icon-btn text-red-400 hover:text-red-500 transition-colors mt-0.5"><Trash2 size={16} /></button>
                   </div>
                 )}
               </div>
@@ -867,13 +855,9 @@ export function BodyStatus() {
                         });
                         setShowEditSleepModal(true);
                       }}
-                      className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
-                      <Pencil size={14} />
-                    </button>
+                      className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={16} /></button>
                     <button onClick={() => deleteSleep(e.id)}
-                      className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+                      className="icon-btn text-red-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                   </div>
                 </div>
 
@@ -962,9 +946,7 @@ export function BodyStatus() {
         <BottomSheet>
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--surface-border)] shrink-0">
               <h2 className="text-lg font-bold text-[var(--text-on-surface)]">{t("body.bodyFormTitle")}</h2>
-              <button onClick={() => setShowForm(false)} className="p-2 -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                <X size={20} />
-              </button>
+              <button onClick={() => setShowForm(false)} className="icon-btn-lg -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={20} /></button>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-5 space-y-5">
               {/* Date + Time */}

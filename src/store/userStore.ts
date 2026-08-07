@@ -3,17 +3,32 @@ import { format, subDays } from "date-fns";
 import { getDb } from "@/lib/db";
 import type { UserProfile, ModeSettings, LatestWeightLog } from "@/types";
 
-const ACTIVITY_FROM_DAYS: [number, UserProfile["activity_level"]][] = [
-  [7, "extra_active"],
-  [5, "very_active"],
-  [3, "moderately_active"],
-  [1, "lightly_active"],
-  [0, "sedentary"],
+/**
+ * NEAT window. A single week is far too short to set an activity level from:
+ * the levels are a step function, so one quiet week could drop someone from
+ * very_active to sedentary and move their TDEE by ~840 kcal overnight.
+ *
+ * The window therefore grows with available history — a week at minimum, up to
+ * four weeks once that much exists — and days are weighted by recency so a
+ * genuine change of habit still moves the level within a couple of weeks
+ * instead of being averaged away.
+ */
+const NEAT_WINDOW_MIN_DAYS = 7;
+const NEAT_WINDOW_MAX_DAYS = 28;
+const NEAT_HALF_LIFE_DAYS  = 14;
+
+/** Thresholds are training sessions per week, not raw days in the window. */
+const ACTIVITY_FROM_WEEKLY_RATE: [number, UserProfile["activity_level"]][] = [
+  [6.5, "extra_active"],
+  [4.5, "very_active"],
+  [2.5, "moderately_active"],
+  [0.5, "lightly_active"],
+  [0,   "sedentary"],
 ];
 
-function activityFromActiveDays(days: number): UserProfile["activity_level"] {
-  for (const [min, level] of ACTIVITY_FROM_DAYS) {
-    if (days >= min) return level;
+function activityFromWeeklyRate(perWeek: number): UserProfile["activity_level"] {
+  for (const [min, level] of ACTIVITY_FROM_WEEKLY_RATE) {
+    if (perWeek >= min) return level;
   }
   return "sedentary";
 }
@@ -23,19 +38,40 @@ async function maybeSyncActivityLevel(
   profile: UserProfile,
 ): Promise<void> {
   const today = new Date();
-  if (today.getDay() !== 0) return; // Sunday only
-
   const todayStr = format(today, "yyyy-MM-dd");
+  const uid = profile.user_id;
+
+  // Re-evaluate weekly, but not tied to a particular weekday: gating on Sunday
+  // meant that not opening the app that day skipped the update entirely.
   const [lastRun] = await db.select<{ value: string }[]>(
     "SELECT value FROM app_settings WHERE key='last_activity_auto_update'"
   );
-  if (lastRun?.value === todayStr) return; // already ran today
+  if (lastRun?.value && lastRun.value > format(subDays(today, 7), "yyyy-MM-dd")) return;
 
-  const from = format(subDays(today, 6), "yyyy-MM-dd");
-  const uid  = profile.user_id;
+  // How long this profile has been logging anything at all. Below a week there
+  // is not enough to judge an activity level, and overwriting whatever the user
+  // chose in Profile with a guess from two days of data would be worse than
+  // leaving it alone.
+  const [firstRow] = await db.select<{ first_day: string | null }[]>(
+    `SELECT MIN(d) as first_day FROM (
+       SELECT MIN(log_date) d FROM exercise_log     WHERE user_id=?
+       UNION ALL SELECT MIN(log_date) FROM running_session  WHERE user_id=?
+       UNION ALL SELECT MIN(log_date) FROM strength_session WHERE user_id=?
+       UNION ALL SELECT MIN(log_date) FROM meal_log         WHERE user_id=?
+       UNION ALL SELECT MIN(log_date) FROM weight_log       WHERE user_id=?
+     ) WHERE d IS NOT NULL`,
+    [uid, uid, uid, uid, uid]
+  );
+  if (!firstRow?.first_day) return;
+  const historyDays = Math.floor(
+    (today.getTime() - new Date(firstRow.first_day).getTime()) / 86_400_000) + 1;
+  if (historyDays < NEAT_WINDOW_MIN_DAYS) return;
 
-  const [row] = await db.select<{ active_days: number }[]>(
-    `SELECT COUNT(DISTINCT log_date) as active_days FROM (
+  const windowDays = Math.min(historyDays, NEAT_WINDOW_MAX_DAYS);
+  const from = format(subDays(today, windowDays - 1), "yyyy-MM-dd");
+
+  const rows = await db.select<{ log_date: string }[]>(
+    `SELECT DISTINCT log_date FROM (
        SELECT log_date FROM exercise_log    WHERE user_id=? AND log_date BETWEEN ? AND ?
        UNION
        SELECT log_date FROM running_session WHERE user_id=? AND log_date BETWEEN ? AND ?
@@ -44,8 +80,18 @@ async function maybeSyncActivityLevel(
      )`,
     [uid, from, todayStr, uid, from, todayStr, uid, from, todayStr]
   );
+  const trained = new Set(rows.map(r => r.log_date));
 
-  const newLevel = activityFromActiveDays(row?.active_days ?? 0);
+  // Exponentially recency-weighted sessions per week.
+  let weightSum = 0, trainedSum = 0;
+  for (let i = 0; i < windowDays; i++) {
+    const w = Math.pow(0.5, i / NEAT_HALF_LIFE_DAYS);
+    weightSum += w;
+    if (trained.has(format(subDays(today, i), "yyyy-MM-dd"))) trainedSum += w;
+  }
+  const perWeek = weightSum > 0 ? (trainedSum / weightSum) * 7 : 0;
+
+  const newLevel = activityFromWeeklyRate(perWeek);
   if (newLevel !== profile.activity_level) {
     await db.execute(
       "UPDATE user_profile SET activity_level=? WHERE user_id=?",

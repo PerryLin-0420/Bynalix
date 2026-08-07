@@ -15,11 +15,19 @@ const BODY_PART_EN: Record<string, string> = {
   "肩": "Shoulders",
 };
 
+/**
+ * Body-part selection meaning "every part combined" rather than one specific
+ * part. Stored as a real value instead of an empty string so that "all parts"
+ * is an explicit choice the user made, and can satisfy the requirement to pick
+ * something before confirming.
+ */
+export const ALL_BODY_PARTS = "__all__";
+
 export interface MetricCfg {
   type: "strength" | "cardio" | "other" | "body" | "diet" | "burn";
   metric: string;
   exerciseName?: string;  // strength: exercise name (optional); cardio: "running"|"swimming"|"cycling"
-  bodyPart?: string;      // strength: body-part filter (priority selection)
+  bodyPart?: string;      // strength: body-part filter, or ALL_BODY_PARTS for the combined total
 }
 
 export function metricKey(cfg: MetricCfg): string {
@@ -44,7 +52,9 @@ export function metricLabel(cfg: MetricCfg, lang: string): string {
       return `${nameEn} · ${mStr}`;
     }
     if (cfg.bodyPart) {
-      const bpStr = lang === "en" ? (BODY_PART_EN[cfg.bodyPart] ?? cfg.bodyPart) : cfg.bodyPart;
+      const bpStr = cfg.bodyPart === ALL_BODY_PARTS
+        ? (lang === "zh" ? "全部位" : "All parts")
+        : lang === "en" ? (BODY_PART_EN[cfg.bodyPart] ?? cfg.bodyPart) : cfg.bodyPart;
       return `${bpStr} · ${mStr}`;
     }
   }
@@ -97,8 +107,9 @@ export const CARDIO_SUBTYPE_METRICS: Record<string, typeof CARDIO_COMMON_METRICS
 
 export const METRIC_OPTIONS: Record<string, { key: string; zh: string; en: string }[]> = {
   strength: [
-    { key: "max_weight",   zh: "最大重量", en: "Max Weight" },
-    { key: "total_volume", zh: "訓練量",   en: "Volume"     },
+    { key: "max_weight",   zh: "最大重量", en: "Max Weight"   },
+    { key: "total_volume", zh: "訓練量",   en: "Volume"       },
+    { key: "weekly_freq",  zh: "週頻率",   en: "Weekly Freq"  },
     // total_reps removed per product decision
   ],
   // cardio: omitted — cardio uses CARDIO_SUBTYPE_METRICS keyed by subtype
@@ -269,10 +280,21 @@ export function MetricPicker({
           </p>
           {bpLoading ? (
             <p className="text-xs text-gray-400 py-1">{lang === "zh" ? "載入中…" : "Loading…"}</p>
-          ) : bodyParts.length === 0 ? (
-            <p className="text-xs text-gray-400 py-1">{lang === "zh" ? "尚無部位資料" : "No body-part data"}</p>
           ) : (
             <div className="flex gap-micro.5 flex-wrap">
+              {/* Combined total across every part — offered first so a
+                  whole-body figure needs no part-by-part selection. */}
+              <button
+                onClick={() => setBodyPart(bodyPart === ALL_BODY_PARTS ? "" : ALL_BODY_PARTS)}
+                className={clsx(
+                  "px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                  bodyPart === ALL_BODY_PARTS
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                )}
+              >
+                {lang === "zh" ? "全部位" : "All parts"}
+              </button>
               {bodyParts.map(bp => (
                 <button
                   key={bp}

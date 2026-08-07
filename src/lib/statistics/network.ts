@@ -20,9 +20,10 @@ import { RELIABILITY_THRESHOLDS, getReliability, type Reliability } from "./pear
 export type NetVar =
   | "weight_kg" | "calories" | "protein_g" | "carb_g" | "fat_g"
   | "water_ml" | "exercise_min" | "exercise_kcal" | "strength_volume_kg"
-  | "sleep_hours" | "strength_freq_wk" | "cardio_freq_wk";
+  | "sleep_hours" | "strength_freq_wk" | "cardio_freq_wk"
+  | "last_meal_hour" | "exercise_hour" | "wake_hour";
 
-export type VarDomain = "body" | "diet" | "water" | "exercise" | "sleep";
+export type VarDomain = "body" | "diet" | "water" | "exercise" | "sleep" | "time";
 
 export interface NetVarMeta { labelZh: string; labelEn: string; domain: VarDomain }
 
@@ -39,6 +40,9 @@ export const NET_VARS: Record<NetVar, NetVarMeta> = {
   sleep_hours:        { labelZh: "睡眠時數", labelEn: "Sleep hours",  domain: "sleep" },
   strength_freq_wk:   { labelZh: "重訓頻率", labelEn: "Strength freq", domain: "exercise" },
   cardio_freq_wk:     { labelZh: "有氧頻率", labelEn: "Cardio freq",  domain: "exercise" },
+  last_meal_hour:     { labelZh: "最晚進食", labelEn: "Last meal",    domain: "time" },
+  exercise_hour:      { labelZh: "運動時段", labelEn: "Workout time", domain: "time" },
+  wake_hour:          { labelZh: "起床時間", labelEn: "Wake time",    domain: "time" },
 };
 
 export const DOMAIN_COLORS: Record<VarDomain, string> = {
@@ -47,6 +51,7 @@ export const DOMAIN_COLORS: Record<VarDomain, string> = {
   water:    "#38bdf8", // sky
   exercise: "#a78bfa", // violet
   sleep:    "#c084fc", // purple
+  time:     "#f59e0b", // amber
 };
 
 // ── Core statistics ──────────────────────────────────────────────────────────
@@ -194,6 +199,9 @@ function weeklyFrequency(
   return out;
 }
 
+/** Max qualifying edges kept per time-domain node (clutter control). */
+const TIME_EDGE_QUOTA = 3;
+
 /** Variables computed from the records rather than read off a single column. */
 const DERIVED_SERIES: Partial<Record<NetVar, (recs: DailyStatsRecord[]) => Map<string, number>>> = {
   strength_freq_wk: recs => weeklyFrequency(recs, "strength_count"),
@@ -286,6 +294,9 @@ export function computeCorrelationNetwork(
   for (let i = 0; i < vars.length; i++) {
     for (let j = i + 1; j < vars.length; j++) {
       const a = vars[i], b = vars[j];
+      // Time↔time pairs are trivially coupled (late wake → late meals) and
+      // only add clutter — never draw them.
+      if (NET_VARS[a].domain === "time" && NET_VARS[b].domain === "time") continue;
       const same = evaluate(a, b, 0);
       // Best lagged option in either direction
       let bestLagged: { res: NonNullable<ReturnType<typeof evaluate>>; src: NetVar; tgt: NetVar; lag: number } | null = null;
@@ -313,8 +324,21 @@ export function computeCorrelationNetwork(
     }
   }
 
+  // Per-time-node quota: keep only the strongest TIME_EDGE_QUOTA edges of each
+  // time-domain variable so a single clock variable can't fan out everywhere.
+  const quotaUsed = new Map<NetVar, number>();
+  const keptEdges = [...edges]
+    .sort((a, b) => Math.abs(b.r) - Math.abs(a.r))
+    .filter(e => {
+      const timeEnds = [e.source, e.target].filter(v => NET_VARS[v].domain === "time");
+      if (timeEnds.length === 0) return true;
+      if (timeEnds.some(v => (quotaUsed.get(v) ?? 0) >= TIME_EDGE_QUOTA)) return false;
+      for (const v of timeEnds) quotaUsed.set(v, (quotaUsed.get(v) ?? 0) + 1);
+      return true;
+    });
+
   const degree = new Map<NetVar, number>();
-  for (const e of edges) {
+  for (const e of keptEdges) {
     degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
     degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
   }
@@ -326,9 +350,12 @@ export function computeCorrelationNetwork(
     domain: NET_VARS[v].domain,
     density: rangeDays > 0 ? Math.round((raw.get(v)!.size / rangeDays) * 100) : 0,
     degree: degree.get(v) ?? 0,
-  })).filter(n => n.density > 0); // hide variables never logged in range
+  })).filter(n =>
+    // Time nodes are "discovery nodes": rendered only when they found something.
+    // Other variables show whenever they have any data in range.
+    NET_VARS[n.id].domain === "time" ? n.degree > 0 : n.density > 0);
 
-  return { nodes, edges };
+  return { nodes, edges: keptEdges };
 }
 
 // ── Weekday-effect patterns (Phase 3) ────────────────────────────────────────

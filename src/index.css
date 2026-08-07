@@ -163,6 +163,24 @@
            hover:bg-[var(--surface-container)] transition-all duration-150;
   }
 
+  /* ── Icon Buttons ───────────────────────────────────── */
+  /* Square tap targets for icon-only actions (confirm / cancel / edit /
+     delete / close).
+     The flex centring is the important part: a bare <svg> is an inline
+     element, so it sits on the text baseline and leaves descender space
+     below it — which makes the glyph look pushed toward the top of the
+     button. Centring it as a flex item removes that offset.
+     Sizes mirror .input-base's 44px touch target, one step down for the
+     denser inline rows. */
+  .icon-btn {
+    @apply inline-flex items-center justify-center shrink-0
+           w-9 h-9 rounded-xl transition-colors duration-150;
+  }
+  .icon-btn-lg {
+    @apply inline-flex items-center justify-center shrink-0
+           w-11 h-11 rounded-xl transition-colors duration-150;
+  }
+
   /* ── Input Fields ───────────────────────────────────── */
   .input-base {
     background-color: var(--surface-container-low);

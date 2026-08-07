@@ -31,8 +31,10 @@ but deeper personal understanding through self-owned data.
 - Body composition tracking (body fat, segmental muscle, body water, visceral fat, waist)
 - Goal & mode system (weight, calorie, macronutrient, and hydration targets)
 - Sleep & hydration tracking
-- Historical visualization
-- Correlation analysis
+- Historical visualization, with optional trend-line fitting
+- Correlation analysis — variable relationship network with lagged effects
+- Pattern discovery — weekend-vs-weekday effects, significance gated
+- Automatic sleep detection from screen activity (Android)
 - Custom exercises & foods
 - App lock — PIN and biometric unlock (Android)
 - Encrypted CSV export (password-protected, AES-256)
@@ -43,6 +45,14 @@ but deeper personal understanding through self-owned data.
 ---
 
 ## Changelog
+
+### v1.4.4
+- **Time-of-day variables** — the correlation network gains *Last meal*, *Workout time* and *Wake time*, so meal and training timing can be correlated against weight, sleep and intake. A last meal after midnight counts as later than one at 23:00 rather than wrapping to earliest; clock-to-clock pairs are skipped as trivially coupled, and each clock keeps only its three strongest links
+- **Steadier NEAT / TDEE** — the automatic activity level was derived from a bare 7-day count, so a single quiet week could drop someone from *very active* to *sedentary* and move their TDEE by ~840 kcal overnight. The window now grows with available history (one week minimum, up to four weeks) and weights days by recency, so a week off costs one step instead of four while a genuine change of habit still lands within a couple of weeks. It also no longer requires the app to be opened on a Sunday, and stays out of the way until there is a week of history rather than overwriting a manually chosen level
+- **Trend lines on the overview charts** — an opt-in orange dashed fit on weight, calories, water and sleep, with a caption giving the slope per week and how many logged days it used. X is the day offset rather than the array index, so gaps do not distort the slope, and days rendered as 0 because nothing was logged (food, water) are excluded from the fit rather than dragging it down. Needs at least 7 logged days before a line is drawn
+- **Bigger, properly centred icon buttons** — the confirm/cancel controls in the strength-set and food-entry editors were ~21px and their glyphs sat high in the button (a bare `<svg>` aligns to the text baseline). New `.icon-btn` / `.icon-btn-lg` classes give flex-centred 36px / 44px targets, applied to all 53 icon-only buttons across the app
+- **Advanced stats — strength** — new *Weekly Freq* metric (trailing 7-day count of training days), and an explicit **All parts** option so Volume, Max Weight and Weekly Freq can each be read for one body part or for every part combined. Previously a specific part or exercise had to be picked before a config could be confirmed
+- **History — daily water** — water intake chart added between the calorie charts and sleep. The dashed goal line and the pass/fail bar tinting come from your own target in Profile (body weight x ml/kg); with no target set neither is drawn, rather than measuring you against an invented standard
 
 ### v1.4.3
 - **Training frequency variables** — the correlation network gains *Strength freq* and *Cardio freq*, each a trailing 7-day count of training days (cardio includes general exercise entries). This lets frequency itself be correlated against weight, sleep, intake and the rest, rather than only per-session volume. Days with nothing logged count as non-training days; the first 6 days of a range are skipped while the window fills, and a variable is dropped entirely if the user never trained in range
@@ -142,20 +152,35 @@ Bynálix provides exploratory analytics designed to help users observe potential
 
 ## Installation
 
+Download the latest build from the Releases page:
+
 ### Android
-- Download APK from Releases
+- Download the APK from Releases
 - Install via sideloading
 
 ### Windows
-- Download `.exe` release package
+- Download the `.exe` installer
+
+### macOS
+- Download the universal `.dmg`
+
+### iOS
+- An unsigned `.ipa` is published for sideloading when the build succeeds
 
 ## Roadmap
 
-- UI refinement (performance + readability)
-- More analytics tools (correlation, trend, automatic directed factor relationship network)
-- Better visualization
-- Additional languages
-- Advanced export system
+Bynálix stays focused on local-first, long-term self-observation.
+
+Short term:
+- UI and performance refinement
+- Core data flow and stability
+
+Medium term:
+- Stronger visualization and interaction
+
+Long term:
+- Fuller personal data export and migration
+- Additional languages and cross-platform polish
 - Database-at-rest encryption (SQLCipher, key derived from PIN / biometric)
 
 ## License
