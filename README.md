@@ -45,6 +45,7 @@ but deeper personal understanding through self-owned data.
 ## Changelog
 
 ### v1.4.4
+- **Trend lines on the overview charts** — an opt-in orange dashed fit on weight, calories, water and sleep, with a caption giving the slope per week and how many logged days it used. X is the day offset rather than the array index, so gaps do not distort the slope, and days rendered as 0 because nothing was logged (food, water) are excluded from the fit rather than dragging it down. Needs at least 7 logged days before a line is drawn
 - **Bigger, properly centred icon buttons** — the confirm/cancel controls in the strength-set and food-entry editors were ~21px and their glyphs sat high in the button (a bare `<svg>` aligns to the text baseline). New `.icon-btn` / `.icon-btn-lg` classes give flex-centred 36px / 44px targets, applied to all 53 icon-only buttons across the app
 - **Advanced stats — strength** — new *Weekly Freq* metric (trailing 7-day count of training days), and an explicit **All parts** option so Volume, Max Weight and Weekly Freq can each be read for one body part or for every part combined. Previously a specific part or exercise had to be picked before a config could be confirmed
 - **History — daily water** — water intake chart added between the calorie charts and sleep, with a dashed line at the goal and bars tinted by whether the day met it

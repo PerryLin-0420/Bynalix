@@ -1,6 +1,6 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import {
-  LineChart, Line, BarChart, Bar, AreaChart, Area, Cell,
+  LineChart, Line, BarChart, Bar, ComposedChart, AreaChart, Area, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { format, subDays, parseISO, startOfWeek, getISOWeek } from "date-fns";
@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { StickyHeader } from "@/components/layout/StickyHeader";
 import { PillButton } from "@/components/common/PillButton";
 import { CardHeader } from "@/components/common/CardHeader";
+import { withTrend, slopePerWeek, fmtSlope } from "@/lib/statistics/trend";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
 import { computeTdee } from "@/lib/calculations/metabolism";
@@ -230,7 +231,9 @@ export function History() {
   const [calData, setCalData]       = useState<CalorieChartPoint[]>([]);
   const [mealCountData, setMealCountData] = useState<MealCountPoint[]>([]);
   const [waterData, setWaterData]   = useState<{ date: string; ml: number }[]>([]);
+  const [showTrend, setShowTrend]   = useState(false);
   const [loading, setLoading]       = useState(false);
+
 
   // Strength data
   const [strengthRows, setStrengthRows] = useState<StrengthDayRow[]>([]);
@@ -254,6 +257,16 @@ export function History() {
   const [bodyCompPoints, setBodyCompPoints] = useState<BodyCompPoint[]>([]);
   const [sleepPoints, setSleepPoints]       = useState<BodySleepPoint[]>([]);
   const [activeBodyChart, setActiveBodyChart] = useState<BodyChartMetric>("body_fat");
+  /**
+   * Fitted trend lines for the overview charts. Charts that render an unlogged
+   * day as 0 (calories, water) map those zeros back to null first — nobody eats
+   * 0 kcal, and leaving them in would pull the line toward however many days
+   * went unlogged rather than describing the days that were.
+   */
+  const weightTrend2 = useMemo(() => withTrend(weightData, r => r.weight ?? null), [weightData]);
+  const calTrend2    = useMemo(() => withTrend(calData,    r => (r.calories || null)), [calData]);
+  const waterTrend2  = useMemo(() => withTrend(waterData,  r => (r.ml || null)), [waterData]);
+  const sleepTrend2  = useMemo(() => withTrend(sleepPoints, r => r.hours ?? null), [sleepPoints]);
 
   const targets = (() => {
     if (!profile || !modeSettings) return null;
@@ -756,6 +769,18 @@ export function History() {
       ══════════════════════════════════════════════ */}
       {mainTab === "overview" && (
         <>
+          {/* One switch for every trend line below. Off by default: the raw
+              series is the primary reading, the fit is opt-in context. */}
+          <div className="flex justify-end">
+            <button onClick={() => setShowTrend(v => !v)}
+              className={clsx("px-3 py-1.5 rounded-full text-xs font-semibold transition-all border",
+                showTrend
+                  ? "bg-orange-500 text-white border-transparent"
+                  : "border-[var(--surface-border)] text-[var(--text-on-surface-muted)]")}>
+              {lang === "zh" ? "趨勢線" : "Trend line"}
+            </button>
+          </div>
+
           <div className="grid grid-cols-3 gap-3">
             <StatCard icon={Scale}    label={t("history.avgWeight")} value={avgWeight} unit="kg" trend={weightTrend} color="text-gray-600" trendFlat={t("history.trend.flat")} trendDown={t("history.trend.down")} trendUp={t("history.trend.up")} />
             <StatCard icon={Flame}    label={t("history.avgCalories")} value={avgCalorie > 0 ? String(avgCalorie) : "—"} unit="kcal" color="text-orange-500" />
@@ -773,7 +798,7 @@ export function History() {
               <EmptyState icon={Scale} message={t("history.noWeight")} />
             ) : (
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={weightData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                <LineChart data={weightTrend2.rows} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                   <CartesianGrid {...GRID_STROKE} />
                   <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
                     {...AXIS_COMMON} />
@@ -781,7 +806,7 @@ export function History() {
                     {...AXIS_COMMON} />
                   <Tooltip
                     labelFormatter={v => fmtDay(v as string)}
-                    formatter={(v: number) => [`${v} kg`, t("history.weightLabel")]}
+                    formatter={(v: number, name: string) => [`${v} kg`, name === "trend" ? (lang === "zh" ? "趨勢" : "Trend") : t("history.weightLabel")]}
                     contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
                   {modeSettings?.target_weight_kg && modeSettings?.mode !== "custom" && (
                     <ReferenceLine y={modeSettings.target_weight_kg} stroke="#10b981"
@@ -793,8 +818,18 @@ export function History() {
                     <Line type="monotone" dataKey="body_fat" stroke="#8b5cf6"
                       strokeWidth={1.5} dot={false} connectNulls strokeDasharray="5 5" />
                   )}
+                  {showTrend && <Line type="linear" dataKey="trend" stroke="#f97316" strokeWidth={2} strokeDasharray="7 4" dot={false} connectNulls isAnimationActive={false} />}
                 </LineChart>
               </ResponsiveContainer>
+            )}
+            {showTrend && weightTrend2.fit && (
+              <p className="text-10 text-orange-500 mt-1">
+                {lang === "zh" ? "趨勢 " : "Trend "}
+                {fmtSlope(slopePerWeek(weightTrend2.fit))} kg{lang === "zh" ? " / 週" : " / week"}
+                <span className="text-[var(--text-on-surface-muted)] ml-1">
+                  ({lang === "zh" ? "依 " : "from "}{weightTrend2.fit.n}{lang === "zh" ? " 天有效資料" : " logged days"})
+                </span>
+              </p>
             )}
           </div>
 
@@ -805,7 +840,7 @@ export function History() {
               <EmptyState icon={Flame} message={t("history.noFood")} />
             ) : (
               <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={calData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                <LineChart data={calTrend2.rows} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                   <CartesianGrid {...GRID_STROKE} />
                   <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
                     {...AXIS_COMMON} />
@@ -814,15 +849,25 @@ export function History() {
                   <Tooltip
                     labelFormatter={v => format(parseISO(v as string), "M/d")}
                     formatter={(v: number, name: string) => {
-                      const labels: Record<string, string> = { calories: t("history.dailyCalories"), target: t("history.targetLabel") };
+                      const labels: Record<string, string> = { calories: t("history.dailyCalories"), target: t("history.targetLabel"), trend: (lang === "zh" ? "趨勢" : "Trend") };
                       return [`${Math.round(v)} kcal`, labels[name] ?? name];
                     }}
                     contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
                   {targets && <ReferenceLine y={Math.round(targets.total_kcal)} stroke="#10b981" strokeDasharray="4 4" />}
                   <Line type="monotone" dataKey="calories" stroke="#111827"
                     strokeWidth={2} dot={days <= 14} connectNulls activeDot={{ r: 4, fill: "#111827" }} />
+                  {showTrend && <Line type="linear" dataKey="trend" stroke="#f97316" strokeWidth={2} strokeDasharray="7 4" dot={false} connectNulls isAnimationActive={false} />}
                 </LineChart>
               </ResponsiveContainer>
+            )}
+            {showTrend && calTrend2.fit && (
+              <p className="text-10 text-orange-500 mt-1">
+                {lang === "zh" ? "趨勢 " : "Trend "}
+                {fmtSlope(slopePerWeek(calTrend2.fit))} kcal{lang === "zh" ? " / 週" : " / week"}
+                <span className="text-[var(--text-on-surface-muted)] ml-1">
+                  ({lang === "zh" ? "依 " : "from "}{calTrend2.fit.n}{lang === "zh" ? " 天有效資料" : " logged days"})
+                </span>
+              </p>
             )}
           </div>
 
@@ -899,7 +944,7 @@ export function History() {
                   <EmptyState icon={Droplets} message={lang === "zh" ? "尚無飲水記錄" : "No water logged"} height="h-36" />
                 ) : (
                   <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={waterData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                    <ComposedChart data={waterTrend2.rows} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                       <CartesianGrid {...GRID_STROKE} />
                       <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
                         {...AXIS_COMMON} />
@@ -907,7 +952,7 @@ export function History() {
                         domain={[0, (dataMax: number) => Math.ceil(Math.max(dataMax, goal ?? 0) * 1.15)]} />
                       <Tooltip
                         labelFormatter={v => fmtDay(v as string)}
-                        formatter={(v: number) => [`${Math.round(v)} ml`, lang === "zh" ? "飲水量" : "Water"]}
+                        formatter={(v: number, name: string) => [`${Math.round(v)} ml`, name === "trend" ? (lang === "zh" ? "趨勢" : "Trend") : lang === "zh" ? "飲水量" : "Water"]}
                         contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
                       {goal && <ReferenceLine y={goal} stroke="#0ea5e9" strokeDasharray="4 4" />}
                       <Bar dataKey="ml" radius={[4, 4, 0, 0]}>
@@ -915,9 +960,19 @@ export function History() {
                           <Cell key={d.date} fill={goal ? (d.ml >= goal ? "#0ea5e9" : "#bae6fd") : "#38bdf8"} />
                         ))}
                       </Bar>
-                    </BarChart>
+                      {showTrend && <Line type="linear" dataKey="trend" stroke="#f97316" strokeWidth={2} strokeDasharray="7 4" dot={false} connectNulls isAnimationActive={false} />}
+                    </ComposedChart>
                   </ResponsiveContainer>
                 )}
+            {showTrend && waterTrend2.fit && (
+              <p className="text-10 text-orange-500 mt-1">
+                {lang === "zh" ? "趨勢 " : "Trend "}
+                {fmtSlope(slopePerWeek(waterTrend2.fit))} ml{lang === "zh" ? " / 週" : " / week"}
+                <span className="text-[var(--text-on-surface-muted)] ml-1">
+                  ({lang === "zh" ? "依 " : "from "}{waterTrend2.fit.n}{lang === "zh" ? " 天有效資料" : " logged days"})
+                </span>
+              </p>
+            )}
                 {!goal && (
                   <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
                     {lang === "zh"
@@ -938,7 +993,7 @@ export function History() {
               <>
                 {sleepPoints.some(p => p.hours != null) ? (
                   <ResponsiveContainer width="100%" height={160}>
-                    <LineChart data={sleepPoints} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
+                    <LineChart data={sleepTrend2.rows} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
                       <CartesianGrid {...GRID_STROKE} />
                       <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
                         {...AXIS_COMMON} />
@@ -946,18 +1001,18 @@ export function History() {
                         {...AXIS_COMMON} />
                       <Tooltip
                         labelFormatter={v => fmtDay(v as string)}
-                        formatter={(v: number, _: string, entry: any) => [
-                          `${v}h · ${entry.payload.qualityLabel}`,
-                          lang === "zh" ? "睡眠" : "Sleep",
-                        ]}
+                        formatter={(v: number, name: string, entry: any) => name === "trend"
+                          ? [`${v}h`, (lang === "zh" ? "趨勢" : "Trend")]
+                          : [`${v}h · ${entry.payload.qualityLabel}`, lang === "zh" ? "睡眠" : "Sleep"]}
                         contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
                       <Line type="monotone" dataKey="hours" stroke="#6366f1" strokeWidth={2} connectNulls
                         dot={sleepDot} activeDot={{ r: 5 }} />
+                      {showTrend && <Line type="linear" dataKey="trend" stroke="#f97316" strokeWidth={2} strokeDasharray="7 4" dot={false} connectNulls isAnimationActive={false} />}
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
                   <ResponsiveContainer width="100%" height={120}>
-                    <LineChart data={sleepPoints} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
+                    <LineChart data={sleepTrend2.rows} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
                       <CartesianGrid {...GRID_STROKE} />
                       <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
                         {...AXIS_COMMON} />
@@ -971,6 +1026,15 @@ export function History() {
                         dot={sleepDot} activeDot={{ r: 5 }} />
                     </LineChart>
                   </ResponsiveContainer>
+                )}
+                {showTrend && sleepTrend2.fit && (
+                  <p className="text-10 text-orange-500 mt-1">
+                    {lang === "zh" ? "趨勢 " : "Trend "}
+                    {fmtSlope(slopePerWeek(sleepTrend2.fit))} hr{lang === "zh" ? " / 週" : " / week"}
+                    <span className="text-[var(--text-on-surface-muted)] ml-1">
+                      ({lang === "zh" ? "依 " : "from "}{sleepTrend2.fit.n}{lang === "zh" ? " 天有效資料" : " logged days"})
+                    </span>
+                  </p>
                 )}
                 <SleepQualityLegend t={t} />
               </>
@@ -1540,7 +1604,7 @@ export function History() {
                 <div className="mt-3">
                   <p className="text-xs text-[var(--text-on-surface-muted)] mb-2">{lang === "zh" ? "睡眠時長" : "Sleep duration"}</p>
                   <ResponsiveContainer width="100%" height={110}>
-                    <LineChart data={sleepPoints} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
+                    <LineChart data={sleepTrend2.rows} margin={{ top: 4, right: 8, bottom: 0, left: -25 }}>
                       <CartesianGrid {...GRID_STROKE} />
                       <XAxis dataKey="date" tickFormatter={d => format(parseISO(d), "M/d")} interval={tickInterval}
                         tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
