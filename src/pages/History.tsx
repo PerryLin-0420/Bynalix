@@ -882,15 +882,19 @@ export function History() {
             </div>
           )}
 
-          {/* Daily water intake — dashed line marks the goal */}
+          {/* Daily water intake. The dashed line is the user's own goal from
+              Profile (body weight x ml/kg). When no goal has been set there is
+              nothing personal to draw against, so the line and the pass/fail
+              tinting are omitted rather than measured against an invented
+              standard. */}
           {(() => {
-            const goal = modeSettings?.water_goal_ml ?? 2000;
+            const goal = modeSettings?.water_goal_ml ?? null;
             return (
               <div className="card">
                 <CardHeader title={lang === "zh" ? "每日飲水量" : "Daily Water"}
-                  action={<span className="text-xs text-[var(--text-on-surface-muted)]">
+                  action={goal ? <span className="text-xs text-[var(--text-on-surface-muted)]">
                     {t("history.targetLabel")} {goal} ml
-                  </span>} />
+                  </span> : undefined} />
                 {waterData.length < 2 ? (
                   <EmptyState icon={Droplets} message={lang === "zh" ? "尚無飲水記錄" : "No water logged"} height="h-36" />
                 ) : (
@@ -900,19 +904,26 @@ export function History() {
                       <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
                         {...AXIS_COMMON} />
                       <YAxis {...AXIS_COMMON}
-                        domain={[0, (dataMax: number) => Math.ceil(Math.max(dataMax, goal) * 1.15)]} />
+                        domain={[0, (dataMax: number) => Math.ceil(Math.max(dataMax, goal ?? 0) * 1.15)]} />
                       <Tooltip
                         labelFormatter={v => fmtDay(v as string)}
                         formatter={(v: number) => [`${Math.round(v)} ml`, lang === "zh" ? "飲水量" : "Water"]}
                         contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
-                      <ReferenceLine y={goal} stroke="#0ea5e9" strokeDasharray="4 4" />
+                      {goal && <ReferenceLine y={goal} stroke="#0ea5e9" strokeDasharray="4 4" />}
                       <Bar dataKey="ml" radius={[4, 4, 0, 0]}>
                         {waterData.map(d => (
-                          <Cell key={d.date} fill={d.ml >= goal ? "#0ea5e9" : "#bae6fd"} />
+                          <Cell key={d.date} fill={goal ? (d.ml >= goal ? "#0ea5e9" : "#bae6fd") : "#38bdf8"} />
                         ))}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                )}
+                {!goal && (
+                  <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
+                    {lang === "zh"
+                      ? "在個人設定填入每公斤飲水量後，這裡會顯示你的目標線"
+                      : "Set your ml/kg in Profile and your goal line will appear here"}
+                  </p>
                 )}
               </div>
             );
