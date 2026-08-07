@@ -3,9 +3,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
   ResponsiveContainer,
 } from "recharts";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
-import { MetricPicker, metricKey, metricLabel, type MetricCfg } from "@/components/stats/MetricPicker";
+import { MetricPicker, metricKey, metricLabel, ALL_BODY_PARTS, type MetricCfg } from "@/components/stats/MetricPicker";
 import { CorrelationNetwork } from "@/components/stats/CorrelationNetwork";
 import { WeekdayPatternCards } from "@/components/stats/WeekdayPatternCards";
 import { computeCorrelationNetwork, computeWeekdayPatterns, type CorrelationNetwork as NetworkData, type WeekdayPattern } from "@/lib/statistics/network";
@@ -533,13 +533,34 @@ export function Statistics() {
     try {
       const db = await getDb();
       if (cfg.type === "strength") {
-        // body_part filter (new priority selection); exercise remains optional
-        const bpFilter = cfg.bodyPart    ? " AND ss.body_part=?"      : "";
-        const bpP      = cfg.bodyPart    ? [cfg.bodyPart]             : [];
+        // body_part filter (priority selection). ALL_BODY_PARTS is an explicit
+        // "combine every part" choice, so it applies no filter at all.
+        const onePart  = cfg.bodyPart && cfg.bodyPart !== ALL_BODY_PARTS;
+        const bpFilter = onePart      ? " AND ss.body_part=?"      : "";
+        const bpP      = onePart      ? [cfg.bodyPart!]            : [];
         const exFilter = cfg.exerciseName ? " AND ss.exercise_name=?" : "";
         const exP      = cfg.exerciseName ? [cfg.exerciseName]        : [];
         const extra    = bpFilter + exFilter;
         const extraP   = [...bpP, ...exP];
+        if (cfg.metric === "weekly_freq") {
+          // Sessions per week, evaluated daily as a trailing 7-day count of
+          // distinct training days. Reads from 6 days before the range start so
+          // the very first day already has a full window behind it.
+          const warmFrom = format(subDays(new Date(from), 6), "yyyy-MM-dd");
+          const rows = await db.select<{ date: string }[]>(
+            `SELECT DISTINCT ss.log_date as date FROM strength_session ss
+             WHERE ss.user_id=? AND ss.log_date BETWEEN ? AND ?${extra}
+             ORDER BY ss.log_date`,
+            [profile.user_id, warmFrom, to, ...extraP]);
+          const trained = new Set(rows.map(r => r.date));
+          return buildDateRangePure(from, to).map(date => {
+            let n = 0;
+            for (let k = 0; k < 7; k++) {
+              if (trained.has(format(subDays(new Date(date), k), "yyyy-MM-dd"))) n++;
+            }
+            return { date, value: n };
+          });
+        }
         if (cfg.metric === "max_weight") {
           return await db.select(`SELECT ss.log_date as date, MAX(st.weight_kg) as value FROM strength_session ss JOIN strength_set st ON st.session_id=ss.id WHERE ss.user_id=? AND ss.log_date BETWEEN ? AND ?${extra} GROUP BY ss.log_date ORDER BY ss.log_date`, [profile.user_id, from, to, ...extraP]);
         } else if (cfg.metric === "total_volume") {

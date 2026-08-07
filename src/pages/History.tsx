@@ -229,6 +229,7 @@ export function History() {
   const [weightData, setWeightData] = useState<WeightChartPoint[]>([]);
   const [calData, setCalData]       = useState<CalorieChartPoint[]>([]);
   const [mealCountData, setMealCountData] = useState<MealCountPoint[]>([]);
+  const [waterData, setWaterData]   = useState<{ date: string; ml: number }[]>([]);
   const [loading, setLoading]       = useState(false);
 
   // Strength data
@@ -366,6 +367,21 @@ export function History() {
         setCalData(c);
         setMealCountData(m);
       }
+
+      // Water intake — same for both branches above, so it is fetched from the
+      // resolved from/to rather than duplicated inside each. Days with no log
+      // are a real zero here, not missing data.
+      const wdb = await getDb();
+      const wRows2 = await wdb.select<{ log_date: string; ml: number }[]>(
+        `SELECT log_date, SUM(amount_ml) as ml FROM water_log
+         WHERE user_id=? AND log_date BETWEEN ? AND ?
+         GROUP BY log_date`, [profile.user_id, from, to]);
+      const wlMap = new Map(wRows2.map(r => [r.log_date, r.ml]));
+      const wDates: string[] = [];
+      for (const c = new Date(from); format(c, "yyyy-MM-dd") <= to; c.setDate(c.getDate() + 1)) {
+        wDates.push(format(c, "yyyy-MM-dd"));
+      }
+      setWaterData(wDates.map(d => ({ date: d, ml: wlMap.get(d) ?? 0 })));
     } catch (e) { logError("History", e); }
     setLoading(false);
   };
@@ -865,6 +881,42 @@ export function History() {
               </div>
             </div>
           )}
+
+          {/* Daily water intake — dashed line marks the goal */}
+          {(() => {
+            const goal = modeSettings?.water_goal_ml ?? 2000;
+            return (
+              <div className="card">
+                <CardHeader title={lang === "zh" ? "每日飲水量" : "Daily Water"}
+                  action={<span className="text-xs text-[var(--text-on-surface-muted)]">
+                    {t("history.targetLabel")} {goal} ml
+                  </span>} />
+                {waterData.length < 2 ? (
+                  <EmptyState icon={Droplets} message={lang === "zh" ? "尚無飲水記錄" : "No water logged"} height="h-36" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={waterData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                      <CartesianGrid {...GRID_STROKE} />
+                      <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval}
+                        {...AXIS_COMMON} />
+                      <YAxis {...AXIS_COMMON}
+                        domain={[0, (dataMax: number) => Math.ceil(Math.max(dataMax, goal) * 1.15)]} />
+                      <Tooltip
+                        labelFormatter={v => fmtDay(v as string)}
+                        formatter={(v: number) => [`${Math.round(v)} ml`, lang === "zh" ? "飲水量" : "Water"]}
+                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
+                      <ReferenceLine y={goal} stroke="#0ea5e9" strokeDasharray="4 4" />
+                      <Bar dataKey="ml" radius={[4, 4, 0, 0]}>
+                        {waterData.map(d => (
+                          <Cell key={d.date} fill={d.ml >= goal ? "#0ea5e9" : "#bae6fd"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Sleep trend */}
           <div className="card">

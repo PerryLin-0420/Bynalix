@@ -44,6 +44,11 @@ but deeper personal understanding through self-owned data.
 
 ## Changelog
 
+### v1.4.4
+- **Bigger, properly centred icon buttons** — the confirm/cancel controls in the strength-set and food-entry editors were ~21px and their glyphs sat high in the button (a bare `<svg>` aligns to the text baseline). New `.icon-btn` / `.icon-btn-lg` classes give flex-centred 36px / 44px targets, applied to all 53 icon-only buttons across the app
+- **Advanced stats — strength** — new *Weekly Freq* metric (trailing 7-day count of training days), and an explicit **All parts** option so Volume, Max Weight and Weekly Freq can each be read for one body part or for every part combined. Previously a specific part or exercise had to be picked before a config could be confirmed
+- **History — daily water** — water intake chart added between the calorie charts and sleep, with a dashed line at the goal and bars tinted by whether the day met it
+
 ### v1.4.3
 - **Training frequency variables** — the correlation network gains *Strength freq* and *Cardio freq*, each a trailing 7-day count of training days (cardio includes general exercise entries). This lets frequency itself be correlated against weight, sleep, intake and the rest, rather than only per-session volume. Days with nothing logged count as non-training days; the first 6 days of a range are skipped while the window fills, and a variable is dropped entirely if the user never trained in range
 - **Correlation network layout** — variables with no significant link are no longer drawn on the ring; they're listed as compact chips below the graph, so the ring only carries variables that actually produced a result and the remaining nodes get more room
