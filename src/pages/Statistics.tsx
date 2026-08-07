@@ -141,14 +141,10 @@ function FactorInsightCard({ label, r, density, isGood, insight, dcClx, reliabil
               </div>
             )}
             {onEdit && (
-              <button onClick={onEdit} className="p-1 text-gray-400 hover:text-yellow-500 transition-colors">
-                <Pencil size={13} />
-              </button>
+              <button onClick={onEdit} className="icon-btn text-gray-400 hover:text-yellow-500 transition-colors"><Pencil size={15} /></button>
             )}
             {onRemove && (
-              <button onClick={onRemove} className="p-1 text-gray-400 hover:text-red-400 transition-colors">
-                <X size={13} />
-              </button>
+              <button onClick={onRemove} className="icon-btn text-gray-400 hover:text-red-400 transition-colors"><X size={15} /></button>
             )}
           </div>
         </div>
@@ -773,10 +769,8 @@ export function Statistics() {
               {goalConfirmed && !goalOpen && (
                 <button
                   onClick={() => onSetGoalOpen(true)}
-                  className="p-1.5 text-gray-400 hover:text-yellow-500 transition-colors"
-                >
-                  <Pencil size={14} />
-                </button>
+                  className="icon-btn text-gray-400 hover:text-yellow-500 transition-colors"
+                ><Pencil size={16} /></button>
               )}
             </div>
           </div>
@@ -1270,9 +1264,7 @@ export function Statistics() {
               <p className="text-sm font-semibold text-[var(--text-on-surface)]">
                 {lang === "zh" ? `變數 ${globalIdx + 1}` : `Variable ${globalIdx + 1}`}
               </p>
-              <button onClick={onClose} className="p-2 -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                <X size={20} />
-              </button>
+              <button onClick={onClose} className="icon-btn-lg -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={20} /></button>
             </div>
             <div className="overflow-y-auto flex-1 px-5 py-4">
               <MetricPicker

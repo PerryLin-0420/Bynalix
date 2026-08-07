@@ -818,13 +818,9 @@ export function FoodLog() {
                             </div>
                           </div>
                           <button onClick={saveEditEntry}
-                            className="p-1.5 text-[var(--text-accent-mid)] hover:text-[var(--text-accent)] transition-colors">
-                            <Check size={14} />
-                          </button>
+                            className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)] transition-colors"><Check size={16} /></button>
                           <button onClick={() => setEditEntry(null)}
-                            className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors">
-                            <X size={14} />
-                          </button>
+                            className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors"><X size={16} /></button>
                         </>
                       ) : (
                         /* ── Normal row ── */
@@ -843,13 +839,9 @@ export function FoodLog() {
                               quantity: String(e.quantity), unit: e.unit,
                               meal_type: KEY_TO_LABEL[e.meal_type] ?? e.meal_type,
                             })}
-                            className="p-1.5 text-yellow-400 hover:text-yellow-500 transition-colors">
-                            <Pencil size={13} />
-                          </button>
+                            className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={15} /></button>
                           <button onClick={() => deleteEntry(e.meal_log_id)}
-                            className="p-1.5 text-red-400 hover:text-red-500 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
+                            className="icon-btn text-red-400 hover:text-red-500 transition-colors"><Trash2 size={15} /></button>
                         </>
                       )}
                     </div>
@@ -885,9 +877,7 @@ export function FoodLog() {
                   ? (lang === "en" ? `Edit ${getMealLabel(editingMealGroup)}` : `編輯 ${getMealLabel(editingMealGroup)}`)
                   : t("food.addMealTitle")}
               </h2>
-              <button onClick={closeSheet} className="p-2 -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                <X size={20} />
-              </button>
+              <button onClick={closeSheet} className="icon-btn-lg -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={20} /></button>
             </div>
 
             <div className="overflow-y-auto flex-1">
@@ -1071,13 +1061,9 @@ export function FoodLog() {
                         {food.source_type === "custom" && (
                           <>
                             <button onClick={e => { e.stopPropagation(); openEditCustomFood(food); }}
-                              className="p-1.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors shrink-0">
-                              <Pencil size={13} />
-                            </button>
+                              className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] transition-colors shrink-0"><Pencil size={15} /></button>
                             <button onClick={e => { e.stopPropagation(); deleteCustomFood(food); }}
-                              className="p-1.5 text-red-400 hover:text-red-500 transition-colors shrink-0">
-                              <Trash2 size={13} />
-                            </button>
+                              className="icon-btn text-red-400 hover:text-red-500 transition-colors shrink-0"><Trash2 size={15} /></button>
                           </>
                         )}
                       </div>
@@ -1158,9 +1144,7 @@ export function FoodLog() {
                           <span className="font-bold text-[var(--text-on-surface)]">P</span>{item.p.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">C</span>{item.c.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">F</span>{item.f.toFixed(1)}
                         </span>
                         <button onClick={() => setBasket(b => b.filter((_, i) => i !== idx))}
-                          className="p-1 text-red-400 hover:text-red-500 transition-colors">
-                          <X size={13} />
-                        </button>
+                          className="icon-btn text-red-400 hover:text-red-500 transition-colors"><X size={15} /></button>
                       </div>
                     ))}
                   </div>
