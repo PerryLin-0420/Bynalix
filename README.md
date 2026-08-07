@@ -31,8 +31,10 @@ but deeper personal understanding through self-owned data.
 - Body composition tracking (body fat, segmental muscle, body water, visceral fat, waist)
 - Goal & mode system (weight, calorie, macronutrient, and hydration targets)
 - Sleep & hydration tracking
-- Historical visualization
-- Correlation analysis
+- Historical visualization, with optional trend-line fitting
+- Correlation analysis — variable relationship network with lagged effects
+- Pattern discovery — weekend-vs-weekday effects, significance gated
+- Automatic sleep detection from screen activity (Android)
 - Custom exercises & foods
 - App lock — PIN and biometric unlock (Android)
 - Encrypted CSV export (password-protected, AES-256)
@@ -148,20 +150,35 @@ Bynálix provides exploratory analytics designed to help users observe potential
 
 ## Installation
 
+Download the latest build from the Releases page:
+
 ### Android
-- Download APK from Releases
+- Download the APK from Releases
 - Install via sideloading
 
 ### Windows
-- Download `.exe` release package
+- Download the `.exe` installer
+
+### macOS
+- Download the universal `.dmg`
+
+### iOS
+- An unsigned `.ipa` is published for sideloading when the build succeeds
 
 ## Roadmap
 
-- UI refinement (performance + readability)
-- More analytics tools (correlation, trend, automatic directed factor relationship network)
-- Better visualization
-- Additional languages
-- Advanced export system
+Bynálix stays focused on local-first, long-term self-observation.
+
+Short term:
+- UI and performance refinement
+- Core data flow and stability
+
+Medium term:
+- Stronger visualization and interaction
+
+Long term:
+- Fuller personal data export and migration
+- Additional languages and cross-platform polish
 - Database-at-rest encryption (SQLCipher, key derived from PIN / biometric)
 
 ## License
