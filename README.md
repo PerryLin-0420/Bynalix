@@ -46,6 +46,11 @@ but deeper personal understanding through self-owned data.
 
 ## Changelog
 
+### v1.4.5
+- **Flexible water goal** — the 7-day adherence card's water metric now uses the same 80–110%-of-target band as calories, instead of a one-sided ≥90% floor with no ceiling
+- **Macro Balance metric** — new row under Calories on the 7-day adherence card: a day only counts as a hit when protein, carbs and fat are each within 80–110% of their own target, not just total calories
+- **Trend lines on by default** — the overview trend-line toggle (History) now starts enabled, with a green check shown on the button when active
+
 ### v1.4.4
 - **Time-of-day variables** — the correlation network gains *Last meal*, *Workout time* and *Wake time*, so meal and training timing can be correlated against weight, sleep and intake. A last meal after midnight counts as later than one at 23:00 rather than wrapping to earliest; clock-to-clock pairs are skipped as trivially coupled, and each clock keeps only its three strongest links
 - **Steadier NEAT / TDEE** — the automatic activity level was derived from a bare 7-day count, so a single quiet week could drop someone from *very active* to *sedentary* and move their TDEE by ~840 kcal overnight. The window now grows with available history (one week minimum, up to four weeks) and weights days by recency, so a week off costs one step instead of four while a genuine change of habit still lands within a couple of weeks. It also no longer requires the app to be opened on a Sunday, and stays out of the way until there is a week of history rather than overwriting a manually chosen level

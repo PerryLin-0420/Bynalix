@@ -7,7 +7,7 @@ import { format, subDays, parseISO, startOfWeek, getISOWeek } from "date-fns";
 import { fmtDay as fmtDayFn } from "@/lib/dateFormat";
 import {
   TrendingDown, TrendingUp, Minus, Scale, Flame, Droplets,
-  Dumbbell, Activity, Timer, Footprints, Moon,
+  Dumbbell, Activity, Timer, Footprints, Moon, Check,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useUserStore } from "@/store/userStore";
@@ -231,7 +231,7 @@ export function History() {
   const [calData, setCalData]       = useState<CalorieChartPoint[]>([]);
   const [mealCountData, setMealCountData] = useState<MealCountPoint[]>([]);
   const [waterData, setWaterData]   = useState<{ date: string; ml: number }[]>([]);
-  const [showTrend, setShowTrend]   = useState(false);
+  const [showTrend, setShowTrend]   = useState(true);
   const [loading, setLoading]       = useState(false);
 
 
@@ -769,14 +769,14 @@ export function History() {
       ══════════════════════════════════════════════ */}
       {mainTab === "overview" && (
         <>
-          {/* One switch for every trend line below. Off by default: the raw
-              series is the primary reading, the fit is opt-in context. */}
+          {/* One switch for every trend line below. On by default. */}
           <div className="flex justify-end">
             <button onClick={() => setShowTrend(v => !v)}
-              className={clsx("px-3 py-1.5 rounded-full text-xs font-semibold transition-all border",
+              className={clsx("flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border",
                 showTrend
                   ? "bg-orange-500 text-white border-transparent"
                   : "border-[var(--surface-border)] text-[var(--text-on-surface-muted)]")}>
+              {showTrend && <Check size={13} className="text-green-400" strokeWidth={3} />}
               {lang === "zh" ? "趨勢線" : "Trend line"}
             </button>
           </div>

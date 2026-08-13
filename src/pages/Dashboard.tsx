@@ -83,6 +83,8 @@ export function Dashboard() {
         {
           calories: targets?.total_kcal ?? 2000,
           protein:  targets?.protein_g  ?? 150,
+          carb:     targets?.carb_g     ?? 200,
+          fat:      targets?.fat_g      ?? 60,
           water_ml: modeSettings?.water_goal_ml ?? 2000,
         },
       ));
@@ -544,10 +546,11 @@ export function Dashboard() {
   const WeeklyAdherenceCard = (() => {
     if (!extras) return null;
     const items = [
-      { label: lang === "zh" ? "熱量"   : "Calories", hit: extras.weekly.calorie,  color: "#38bdf8" },
-      { label: lang === "zh" ? "蛋白質" : "Protein",  hit: extras.weekly.protein,  color: "#c084fc" },
-      { label: lang === "zh" ? "飲水"   : "Water",    hit: extras.weekly.water,    color: "#60a5fa" },
-      { label: lang === "zh" ? "運動"   : "Exercise", hit: extras.weekly.exercise, color: "#fb923c" },
+      { label: lang === "zh" ? "熱量"     : "Calories",      hit: extras.weekly.calorie,  color: "#38bdf8" },
+      { label: lang === "zh" ? "營養均衡" : "Macro Balance",  hit: extras.weekly.balance,  color: "#facc15" },
+      { label: lang === "zh" ? "蛋白質"   : "Protein",        hit: extras.weekly.protein,  color: "#c084fc" },
+      { label: lang === "zh" ? "飲水"     : "Water",          hit: extras.weekly.water,    color: "#60a5fa" },
+      { label: lang === "zh" ? "運動"     : "Exercise",       hit: extras.weekly.exercise, color: "#fb923c" },
     ];
     return (
       <div className="card">
@@ -572,8 +575,12 @@ export function Dashboard() {
           })}
         </div>
         <p className="text-10 text-[var(--text-on-surface-muted)] mt-3">
-          {lang === "zh" ? "熱量達標：攝取在目標的 80–110% 範圍內"
-                        : "Calorie goal: within 80–110% of target"}
+          {lang === "zh" ? "熱量與飲水達標：攝取在目標的 80–110% 範圍內"
+                        : "Calorie & water goals: within 80–110% of target"}
+        </p>
+        <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
+          {lang === "zh" ? "營養均衡達標：蛋白質、碳水、脂肪皆在目標的 80–110% 範圍內"
+                        : "Macro balance: protein, carb & fat all within 80–110% of target"}
         </p>
       </div>
     );
