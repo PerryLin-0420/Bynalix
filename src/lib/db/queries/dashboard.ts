@@ -7,6 +7,7 @@ export interface DashboardExtras {
   streak:      number;
   weekly: {
     calorie:  number;  // days hit (0–7)
+    balance:  number;  // days where protein/carb/fat all hit 80–110% of target
     protein:  number;
     water:    number;
     exercise: number;
@@ -22,7 +23,7 @@ export interface DashboardExtras {
 export async function getDashboardExtras(
   userId: number,
   today: string,
-  targets: { calories: number; protein: number; water_ml: number },
+  targets: { calories: number; protein: number; carb: number; fat: number; water_ml: number },
 ): Promise<DashboardExtras> {
   const db = await getDb();
 
@@ -66,10 +67,12 @@ export async function getDashboardExtras(
         userId, d90from, today, userId, d90from, today, userId, d90from, today,
       ],
     ),
-    db.select<{ log_date: string; calories: number; protein: number }[]>(
+    db.select<{ log_date: string; calories: number; protein: number; carb: number; fat: number }[]>(
       `SELECT ml.log_date,
-         ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal), 1) as calories,
-         ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g),     1) as protein
+         ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal),      1) as calories,
+         ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g),          1) as protein,
+         ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g),    1) as carb,
+         ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g),              1) as fat
        FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
        WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
        GROUP BY ml.log_date`,
@@ -116,8 +119,12 @@ export async function getDashboardExtras(
   const waterMap = new Map(weeklyWater.map(r => [r.log_date, r.water_ml]));
   const exDates  = new Set(weeklyExercise.map(r => r.log_date));
 
-  let calHit = 0, proteinHit = 0, waterHit = 0, exHit = 0;
-  const calTarget = targets.calories || 1;
+  let calHit = 0, balanceHit = 0, proteinHit = 0, waterHit = 0, exHit = 0;
+  const calTarget     = targets.calories || 1;
+  const proteinTarget = targets.protein  || 1;
+  const carbTarget    = targets.carb     || 1;
+  const fatTarget     = targets.fat      || 1;
+  const waterTarget   = targets.water_ml || 1;
   for (let i = 0; i < 7; i++) {
     const d = format(subDays(new Date(today), i), "yyyy-MM-dd");
     const meal = mealMap.get(d);
@@ -125,8 +132,16 @@ export async function getDashboardExtras(
       const calRatio = meal.calories / calTarget;
       if (calRatio >= 0.8 && calRatio <= 1.1) calHit++;
       if (meal.protein >= targets.protein * 0.9) proteinHit++;
+
+      const proteinRatio = meal.protein / proteinTarget;
+      const carbRatio    = meal.carb    / carbTarget;
+      const fatRatio     = meal.fat     / fatTarget;
+      if (proteinRatio >= 0.8 && proteinRatio <= 1.1
+        && carbRatio    >= 0.8 && carbRatio    <= 1.1
+        && fatRatio     >= 0.8 && fatRatio     <= 1.1) balanceHit++;
     }
-    if ((waterMap.get(d) ?? 0) >= targets.water_ml * 0.9) waterHit++;
+    const waterRatio = (waterMap.get(d) ?? 0) / waterTarget;
+    if (waterRatio >= 0.8 && waterRatio <= 1.1) waterHit++;
     if (exDates.has(d)) exHit++;
   }
 
@@ -136,6 +151,7 @@ export async function getDashboardExtras(
     streak,
     weekly: {
       calorie:  calHit,
+      balance:  balanceHit,
       protein:  proteinHit,
       water:    waterHit,
       exercise: exHit,
