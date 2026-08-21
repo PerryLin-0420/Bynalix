@@ -11,7 +11,6 @@
  *   testing ~50 pairs × lags guarantees false positives without a gate.
  */
 
-import { format } from "date-fns";
 import type { DailyStatsRecord } from "@/types";
 import { RELIABILITY_THRESHOLDS, getReliability, type Reliability } from "./pearson";
 
@@ -56,26 +55,51 @@ export const DOMAIN_COLORS: Record<VarDomain, string> = {
 
 // ── Core statistics ──────────────────────────────────────────────────────────
 
-/** Average-tie ranks for Spearman. */
-function ranks(xs: number[]): number[] {
-  const idx = xs.map((v, i) => [v, i] as const).sort((a, b) => a[0] - b[0]);
-  const out = new Array<number>(xs.length);
-  let i = 0;
-  while (i < idx.length) {
-    let j = i;
-    while (j + 1 < idx.length && idx[j + 1][0] === idx[i][0]) j++;
-    const avgRank = (i + j) / 2 + 1;
-    for (let k = i; k <= j; k++) out[idx[k][1]] = avgRank;
-    i = j + 1;
-  }
-  return out;
+/**
+ * Scratch space for the rank computation.
+ *
+ * A network runs tens of thousands of Spearman correlations (every variable
+ * pair, at every lag), and the timeline multiplies that by its frame count.
+ * Ranking allocated an array of [value, index] tuples per call, which made
+ * garbage collection — not the statistics — the dominant cost. The buffers are
+ * allocated once per network and reused for every correlation in it.
+ */
+interface RankScratch {
+  order: Int32Array;
+  rx: Float64Array;
+  ry: Float64Array;
 }
 
-function pearsonRaw(x: number[], y: number[]): number {
-  const n = x.length;
+function makeRankScratch(capacity: number): RankScratch {
+  return {
+    order: new Int32Array(capacity),
+    rx: new Float64Array(capacity),
+    ry: new Float64Array(capacity),
+  };
+}
+
+/** Average-tie ranks of `xs[0..n)`, written into `out`. */
+function ranksInto(xs: ArrayLike<number>, n: number, out: Float64Array, order: Int32Array): void {
+  const idx = order.subarray(0, n);
+  for (let i = 0; i < n; i++) idx[i] = i;
+  idx.sort((a, b) => xs[a] - xs[b]);
+  let i = 0;
+  while (i < n) {
+    let j = i;
+    const v = xs[idx[i]];
+    while (j + 1 < n && xs[idx[j + 1]] === v) j++;
+    const avgRank = (i + j) / 2 + 1;
+    for (let k = i; k <= j; k++) out[idx[k]] = avgRank;
+    i = j + 1;
+  }
+}
+
+/** Pearson r over the first `n` entries of two buffers. */
+function pearsonBuf(x: ArrayLike<number>, y: ArrayLike<number>, n: number): number {
   if (n < 2) return 0;
-  const mx = x.reduce((s, v) => s + v, 0) / n;
-  const my = y.reduce((s, v) => s + v, 0) / n;
+  let sxv = 0, syv = 0;
+  for (let i = 0; i < n; i++) { sxv += x[i]; syv += y[i]; }
+  const mx = sxv / n, my = syv / n;
   let num = 0, sx = 0, sy = 0;
   for (let i = 0; i < n; i++) {
     const dx = x[i] - mx, dy = y[i] - my;
@@ -85,9 +109,19 @@ function pearsonRaw(x: number[], y: number[]): number {
   return den === 0 ? 0 : num / den;
 }
 
+/** Spearman over the first `n` entries of two buffers, using shared scratch. */
+function spearmanBuf(
+  x: ArrayLike<number>, y: ArrayLike<number>, n: number, scratch: RankScratch,
+): number {
+  if (n < 2) return 0;
+  ranksInto(x, n, scratch.rx, scratch.order);
+  ranksInto(y, n, scratch.ry, scratch.order);
+  return pearsonBuf(scratch.rx, scratch.ry, n);
+}
+
 /** Spearman rank correlation. */
 export function spearman(x: number[], y: number[]): number {
-  return pearsonRaw(ranks(x), ranks(y));
+  return spearmanBuf(x, y, Math.min(x.length, y.length), makeRankScratch(Math.min(x.length, y.length)));
 }
 
 // Regularized incomplete beta via continued fraction (Lentz), for Student-t CDF.
@@ -146,14 +180,46 @@ export function pValueForR(r: number, n: number): number {
 
 // ── Series construction ──────────────────────────────────────────────────────
 
-/** Consecutive-day first differences: only dates whose previous day also has data. */
-function firstDifference(map: Map<string, number>): Map<string, number> {
-  const out = new Map<string, number>();
-  for (const [date, v] of map) {
-    const prev = new Date(date);
-    prev.setDate(prev.getDate() - 1);
-    const pv = map.get(format(prev, "yyyy-MM-dd"));
-    if (pv != null) out.set(date, v - pv);
+/**
+ * Days since 1970-01-01 for a "YYYY-MM-DD" string (Hinnant's civil algorithm).
+ *
+ * Differencing and lagging are both "step back k days", which used to mean
+ * constructing a Date, mutating it and re-formatting it for every value of
+ * every variable at every lag. Turning each date into an integer once makes
+ * those steps plain subtraction — which is what made the timeline's hundreds
+ * of network builds affordable.
+ */
+function dayNumber(iso: string): number {
+  const yRaw = +iso.slice(0, 4), m = +iso.slice(5, 7), d = +iso.slice(8, 10);
+  const y   = yRaw - (m <= 2 ? 1 : 0);
+  const era = Math.floor(y / 400);
+  const yoe = y - era * 400;                                        // [0, 399]
+  const doy = Math.floor((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + d - 1;
+  const doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+  return era * 146097 + doe - 719468;
+}
+
+/**
+ * A date-keyed series as one slot per calendar day of the range, missing days
+ * held as NaN. Indexing by day means "yesterday" is `i - 1` whether or not
+ * yesterday was logged, so gaps stay gaps instead of silently closing up.
+ */
+function toDense(series: Map<string, number>, dayIndex: Map<string, number>, span: number): Float64Array {
+  const out = new Float64Array(span).fill(NaN);
+  for (const [date, v] of series) {
+    const i = dayIndex.get(date);
+    if (i !== undefined) out[i] = v;
+  }
+  return out;
+}
+
+/** Consecutive-day first differences: only days whose previous day also has data. */
+function denseDifference(raw: Float64Array): Float64Array {
+  const out = new Float64Array(raw.length).fill(NaN);
+  for (let i = 1; i < raw.length; i++) {
+    const v = raw[i], prev = raw[i - 1];
+    // NaN fails self-comparison, which is the cheapest "has a value" test.
+    if (v === v && prev === prev) out[i] = v - prev;
   }
   return out;
 }
@@ -208,25 +274,6 @@ const DERIVED_SERIES: Partial<Record<NetVar, (recs: DailyStatsRecord[]) => Map<s
   cardio_freq_wk:   recs => weeklyFrequency(recs, "cardio_count"),
 };
 
-/** Align two date-keyed maps into paired arrays, with a lag applied to `a`
- *  (lag = k means a's value k days earlier vs b's value today). */
-function alignPairs(
-  a: Map<string, number>, b: Map<string, number>, lag: number,
-): { x: number[]; y: number[]; dates: string[] } {
-  const x: number[] = [], y: number[] = [], dates: string[] = [];
-  for (const [date, bv] of b) {
-    let key = date;
-    if (lag > 0) {
-      const d = new Date(date);
-      d.setDate(d.getDate() - lag);
-      key = format(d, "yyyy-MM-dd");
-    }
-    const av = a.get(key);
-    if (av != null) { x.push(av); y.push(bv); dates.push(date); }
-  }
-  return { x, y, dates };
-}
-
 // ── Network computation ──────────────────────────────────────────────────────
 
 export interface NetNode {
@@ -260,6 +307,12 @@ export interface NetworkOptions {
   maxP?: number;      // default 0.05
   minN?: number;      // default LOW_PAIRS (14)
   maxLag?: number;    // default 3 (phase-2 directed edges); 0 disables lag search
+  /**
+   * Keep each edge's aligned scatter points. Default true. The timeline builds
+   * hundreds of networks and never opens a scatter, so it turns this off and
+   * keeps only the edge statistics.
+   */
+  keepPairs?: boolean;
 }
 
 /**
@@ -277,17 +330,71 @@ export function computeCorrelationNetwork(
   const maxP    = opts.maxP    ?? 0.05;
   const minN    = opts.minN    ?? RELIABILITY_THRESHOLDS.LOW_PAIRS;
   const maxLag  = opts.maxLag  ?? 3;
+  const keepPairs = opts.keepPairs ?? true;
 
   const vars = Object.keys(NET_VARS) as NetVar[];
-  const raw  = new Map(vars.map(v => [v, DERIVED_SERIES[v]?.(recs) ?? seriesOf(recs, v)]));
-  const diff = new Map(vars.map(v => [v, firstDifference(raw.get(v)!)]));
+  if (recs.length === 0) return { nodes: [], edges: [] };
 
-  const evaluate = (a: NetVar, b: NetVar, lag: number) => {
-    const { x, y, dates } = alignPairs(diff.get(a)!, diff.get(b)!, lag);
-    if (x.length < minN) return null;
-    const r = spearman(x, y);
-    const p = pValueForR(r, x.length);
-    return { r, p, n: x.length, pairs: dates.map((d, i) => ({ x: x[i], y: y[i], date: d })) };
+  // ── Calendar-day index ─────────────────────────────────────────────────────
+  // One slot per day between the first and last record, so a missing day is an
+  // empty slot rather than a shorter array: differencing and lagging are then
+  // index arithmetic that cannot accidentally pair non-adjacent days.
+  const dayIndex = new Map<string, number>();
+  let minDay = Infinity, maxDay = -Infinity;
+  for (const r of recs) {
+    const dn = dayNumber(r.date);
+    if (dn < minDay) minDay = dn;
+    if (dn > maxDay) maxDay = dn;
+  }
+  const span = maxDay - minDay + 1;
+  const dateAt = new Array<string>(span);
+  for (const r of recs) {
+    const i = dayNumber(r.date) - minDay;
+    dayIndex.set(r.date, i);
+    dateAt[i] = r.date;
+  }
+
+  const diff   = new Map<NetVar, Float64Array>();
+  const logged = new Map<NetVar, number>();   // days with a value, for density
+  for (const v of vars) {
+    const raw = DERIVED_SERIES[v]?.(recs) ?? seriesOf(recs, v);
+    logged.set(v, raw.size);
+    diff.set(v, denseDifference(toDense(raw, dayIndex, span)));
+  }
+
+  // ── Pair evaluation ────────────────────────────────────────────────────────
+  // Buffers are filled by `align` and consumed immediately, so one set is
+  // shared by every evaluation instead of allocating per candidate.
+  const xBuf = new Float64Array(span);
+  const yBuf = new Float64Array(span);
+  const dayBuf = new Int32Array(span);
+  const scratch = makeRankScratch(span);
+
+  /** Pair up `a` shifted `lag` days back against `b`; returns the pair count. */
+  const align = (a: NetVar, b: NetVar, lag: number): number => {
+    const da = diff.get(a)!, db = diff.get(b)!;
+    let k = 0;
+    for (let i = lag; i < span; i++) {
+      const av = da[i - lag], bv = db[i];
+      if (av === av && bv === bv) { xBuf[k] = av; yBuf[k] = bv; dayBuf[k] = i; k++; }
+    }
+    return k;
+  };
+
+  interface Candidate { r: number; n: number; source: NetVar; target: NetVar; lag: number }
+
+  const evaluate = (a: NetVar, b: NetVar, lag: number): Candidate | null => {
+    const n = align(a, b, lag);
+    if (n < minN) return null;
+    return { r: spearmanBuf(xBuf, yBuf, n, scratch), n, source: a, target: b, lag };
+  };
+
+  /** Re-run the winning alignment to materialise its scatter points. */
+  const pairsOf = (c: Candidate): { x: number; y: number; date: string }[] => {
+    const n = align(c.source, c.target, c.lag);
+    const out = new Array<{ x: number; y: number; date: string }>(n);
+    for (let i = 0; i < n; i++) out[i] = { x: xBuf[i], y: yBuf[i], date: dateAt[dayBuf[i]] };
+    return out;
   };
 
   const edges: NetEdge[] = [];
@@ -299,27 +406,27 @@ export function computeCorrelationNetwork(
       if (NET_VARS[a].domain === "time" && NET_VARS[b].domain === "time") continue;
       const same = evaluate(a, b, 0);
       // Best lagged option in either direction
-      let bestLagged: { res: NonNullable<ReturnType<typeof evaluate>>; src: NetVar; tgt: NetVar; lag: number } | null = null;
+      let bestLagged: Candidate | null = null;
       for (let lag = 1; lag <= maxLag; lag++) {
         for (const [src, tgt] of [[a, b], [b, a]] as [NetVar, NetVar][]) {
           const res = evaluate(src, tgt, lag);
-          if (res && (!bestLagged || Math.abs(res.r) > Math.abs(bestLagged.res.r))) {
-            bestLagged = { res, src, tgt, lag };
-          }
+          if (res && (!bestLagged || Math.abs(res.r) > Math.abs(bestLagged.r))) bestLagged = res;
         }
       }
       const laggedWins = bestLagged &&
-        Math.abs(bestLagged.res.r) > (same ? Math.abs(same.r) : 0) + 0.05;
-      const pick = laggedWins
-        ? { ...bestLagged!.res, source: bestLagged!.src, target: bestLagged!.tgt, lag: bestLagged!.lag }
-        : same ? { ...same, source: a, target: b, lag: 0 } : null;
+        Math.abs(bestLagged.r) > (same ? Math.abs(same.r) : 0) + 0.05;
+      const pick = laggedWins ? bestLagged! : same;
       if (!pick) continue;
-      if (Math.abs(pick.r) < minAbsR || pick.p > maxP || pick.n < minN) continue;
+      if (Math.abs(pick.r) < minAbsR || pick.n < minN) continue;
+      // The p-value's continued fraction is the most expensive thing here, so
+      // it is computed for the one candidate that survived, not for all of them.
+      const p = pValueForR(pick.r, pick.n);
+      if (p > maxP) continue;
       edges.push({
         source: pick.source, target: pick.target,
-        r: pick.r, n: pick.n, p: pick.p, lag: pick.lag,
+        r: pick.r, n: pick.n, p, lag: pick.lag,
         reliability: getReliability(pick.n),
-        pairs: pick.pairs,
+        pairs: keepPairs ? pairsOf(pick) : [],
       });
     }
   }
@@ -348,7 +455,7 @@ export function computeCorrelationNetwork(
     labelZh: NET_VARS[v].labelZh,
     labelEn: NET_VARS[v].labelEn,
     domain: NET_VARS[v].domain,
-    density: rangeDays > 0 ? Math.round((raw.get(v)!.size / rangeDays) * 100) : 0,
+    density: rangeDays > 0 ? Math.round((logged.get(v)! / rangeDays) * 100) : 0,
     degree: degree.get(v) ?? 0,
   })).filter(n =>
     // Time nodes are "discovery nodes": rendered only when they found something.

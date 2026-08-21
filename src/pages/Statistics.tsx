@@ -7,6 +7,7 @@ import { format, subDays } from "date-fns";
 import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
 import { MetricPicker, metricKey, metricLabel, ALL_BODY_PARTS, type MetricCfg } from "@/components/stats/MetricPicker";
 import { CorrelationNetwork } from "@/components/stats/CorrelationNetwork";
+import { TimelineSlideshow } from "@/components/stats/TimelineSlideshow";
 import { WeekdayPatternCards } from "@/components/stats/WeekdayPatternCards";
 import { computeCorrelationNetwork, computeWeekdayPatterns, type CorrelationNetwork as NetworkData, type WeekdayPattern } from "@/lib/statistics/network";
 import { CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE } from "@/constants";
@@ -30,7 +31,7 @@ import type { DailyStatsRecord } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StatTab = "pearson" | "advanced" | "patterns";
+type StatTab = "pearson" | "advanced" | "patterns" | "timeline";
 
 interface LagRow {
   factor: string;
@@ -253,7 +254,7 @@ export function Statistics() {
   const dStr = (n: number) => lang === "zh" ? `${n}天` : `${n} days`;
 
   const [activeTab, setActiveTab] = useState<StatTab>("pearson");
-  const STAT_TABS = ["pearson", "advanced", "patterns"] as const;
+  const STAT_TABS = ["pearson", "advanced", "patterns", "timeline"] as const;
   const statSwipe = useSwipeTabs(STAT_TABS, activeTab, setActiveTab as (t: string) => void);
 
   const { days, showCustom, setShowCustom, customRange, setCustomRange, modeCustom, setModeCustom, getFromTo, rangeTotal, selectPreset } = useDateRange(90);
@@ -956,7 +957,11 @@ export function Statistics() {
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-on-bg)]">{t("stats.title")}</h1>
             <p className="text-[var(--text-on-bg-muted)] font-bold text-sm mt-0.5">
-              {modeCustom && customRange.start && customRange.end
+              {/* The timeline tab spans every window at once, so the page-level
+                  range does not apply to it. */}
+              {activeTab === "timeline"
+                ? (lang === "zh" ? "時間線幻燈片" : "Timeline slideshow")
+                : modeCustom && customRange.start && customRange.end
                 ? `${format(new Date(customRange.start), "M/d")} — ${format(new Date(customRange.end), "M/d")}`
                 : (lang === "zh" ? `近 ${dStr(days)}` : `Last ${dStr(days)}`)}
             </p>
@@ -969,15 +974,17 @@ export function Statistics() {
             </button>
           </div>
         </div>
-        <DateRangePills
-          days={days} modeCustom={modeCustom} showCustom={showCustom}
-          onSelectPreset={selectPreset}
-          onToggleCustom={() => setShowCustom(v => !v)}
-          pillPx="px-2.5"
-        />
+        {activeTab !== "timeline" && (
+          <DateRangePills
+            days={days} modeCustom={modeCustom} showCustom={showCustom}
+            onSelectPreset={selectPreset}
+            onToggleCustom={() => setShowCustom(v => !v)}
+            pillPx="px-2.5"
+          />
+        )}
       </StickyHeader>
 
-      {showCustom && (
+      {showCustom && activeTab !== "timeline" && (
         <DateRangePickerCard
           customRange={customRange} activeDates={activeDates}
           onRangeChange={r => { setCustomRange(r); setModeCustom(!!(r.start && r.end)); }}
@@ -1006,6 +1013,10 @@ export function Statistics() {
         <PillButton onClick={() => setActiveTab("patterns")} isActive={activeTab === "patterns"}
           className="flex-1 py-2 text-sm">
           {lang === "zh" ? "規律" : "Patterns"}
+        </PillButton>
+        <PillButton onClick={() => setActiveTab("timeline")} isActive={activeTab === "timeline"}
+          className="flex-1 py-2 text-sm">
+          {lang === "zh" ? "時間線" : "Timeline"}
         </PillButton>
       </div>
 
@@ -1252,6 +1263,11 @@ export function Statistics() {
           TAB: 進階統計 (Advanced) — v2
       ══════════════════════════════════════════ */}
       {activeTab === "advanced" && renderAdvancedStats(modeSettings?.mode === "custom" ? 2 : 1)}
+
+      {/* ══════════════════════════════════════════
+          TAB: 時間線 (Timeline) — window-shrinking slideshow
+      ══════════════════════════════════════════ */}
+      {activeTab === "timeline" && <TimelineSlideshow userId={profile.user_id} lang={lang} />}
     </div>
 
     {/* ── MetricPicker bottom sheet modal (variable picker) — both slots ── */}
