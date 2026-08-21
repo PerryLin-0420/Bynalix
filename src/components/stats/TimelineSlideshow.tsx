@@ -13,9 +13,9 @@ import { MiniCalendar } from "@/components/common/MiniCalendar";
 import { CardHeader } from "@/components/common/CardHeader";
 import { NET_VARS, type NetEdge, type NetVar } from "@/lib/statistics/network";
 import {
-  buildTimeline, diffNetworks, planTimeline, timelineSeries, edgeTracks,
+  buildTimeline, diffNetworks, findLinkShifts, planTimeline, timelineSeries, edgeTracks,
   TIMELINE_MIN_WINDOW, TIMELINE_STEP_OPTIONS, TIMELINE_DURATION_OPTIONS,
-  type TimelineFrame, type EdgeTrack,
+  type TimelineFrame, type EdgeTrack, type LinkShift,
 } from "@/lib/statistics/timeline";
 import { getDailyStatsRecords, getDataDateBounds } from "@/lib/db/queries/stats";
 import { logError } from "@/lib/error";
@@ -28,6 +28,9 @@ const MIN_FRAME_MS = 50;
 
 /** Gained/lost links listed per frame before the rest are summarised as a count. */
 const MAX_CHANGE_ROWS = 4;
+
+/** Turning points listed before the rest are summarised as a count. */
+const MAX_SHIFT_ROWS = 6;
 
 // ── Small shared bits ────────────────────────────────────────────────────────
 
@@ -103,10 +106,12 @@ export function TimelineSlideshow({ userId, lang }: Props) {
 
   // ── Build state ───────────────────────────────────────────────────────────
   const [frames, setFrames]       = useState<TimelineFrame[]>([]);
+  const [shifts, setShifts]       = useState<LinkShift[]>([]);
   const [ringOrder, setRingOrder] = useState<NetVar[]>([]);
   const [built, setBuilt]         = useState<{ start: string; end: string; step: number; widened: boolean } | null>(null);
   const [building, setBuilding]   = useState(false);
-  const [progress, setProgress]   = useState({ done: 0, total: 0 });
+  const [progress, setProgress]   = useState<{ done: number; total: number; phase: "frames" | "shifts" }>(
+    { done: 0, total: 0, phase: "frames" });
   const abortRef = useRef(false);
 
   // ── Playback state ────────────────────────────────────────────────────────
@@ -166,13 +171,13 @@ export function TimelineSlideshow({ userId, lang }: Props) {
     abortRef.current = false;
     setBuilding(true);
     setPlaying(false);
-    setProgress({ done: 0, total: plan.frameCount });
+    setProgress({ done: 0, total: plan.frameCount, phase: "frames" });
     try {
       const recs = await getDailyStatsRecords(userId, 0, startDate, bounds.last);
       const res  = await buildTimeline(
         recs,
         { startDate, endDate: bounds.last, stepDays },
-        (done, total) => setProgress({ done, total }),
+        (done, total) => setProgress({ done, total, phase: "frames" }),
         () => abortRef.current,
       );
       if (res.frames.length) {
@@ -181,6 +186,13 @@ export function TimelineSlideshow({ userId, lang }: Props) {
         setRingOrder(unionRingOrder(res.frames.map(f => f.network)));
         setBuilt({ start: startDate, end: bounds.last, step: res.effectiveStep, widened: res.stepWidened });
         setIdx(0);
+        // Second pass over the same records: where does each link turn on?
+        setProgress({ done: 0, total: 0, phase: "shifts" });
+        setShifts(abortRef.current ? [] : await findLinkShifts(
+          recs, res.frames, {},
+          (done, total) => setProgress({ done, total, phase: "shifts" }),
+          () => abortRef.current,
+        ));
       }
     } catch (e) { logError("Timeline.build", e); }
     setBuilding(false);
@@ -392,7 +404,9 @@ export function TimelineSlideshow({ userId, lang }: Props) {
             </div>
             <div className="flex items-center justify-between">
               <p className="text-10 text-[var(--text-on-surface-muted)]">
-                {zh ? "計算中" : "Building"} {progress.done}/{progress.total}
+                {progress.phase === "shifts"
+                  ? (zh ? "分析變化起點" : "Finding turning points")
+                  : (zh ? "計算中" : "Building")} {progress.done}/{progress.total}
               </p>
               <button onClick={cancelBuild}
                 className="flex items-center gap-1 text-10 font-semibold text-rose-500 hover:text-rose-600">
@@ -574,6 +588,92 @@ export function TimelineSlideshow({ userId, lang }: Props) {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* ── Turning points ───────────────────────────────────────── */}
+          <div className="card">
+            <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-1">
+              {zh ? "變化起點" : "Turning points"}
+            </p>
+            <p className="text-10 text-[var(--text-on-surface-muted)] mb-2.5">
+              {zh
+                ? "把記錄從某一天切成前後兩段，找出兩段相關性差最多的那一天。綠色＝從該日起到最新資料才成立，紅色＝只在該日之前的資料成立"
+                : "Each date splits the record in two; the one where the halves disagree most is the turning point. Green = holds from that date through to your latest data; red = holds only in the data before it"}
+            </p>
+
+            {shifts.length === 0 ? (
+              <p className="text-xs text-[var(--text-on-surface-muted)]">
+                {zh
+                  ? "這段記錄裡沒有找到明顯的轉折點 — 關聯的強弱並沒有隨著起點改變而明顯不同。"
+                  : "No clear turning point in this range — the links do not behave differently before and after any single date."}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {shifts.slice(0, MAX_SHIFT_ROWS).map(sh => {
+                  const emerged = sh.direction === "emerged";
+                  // Always read chronologically — before, then since — so which
+                  // period each number belongs to never has to be inferred from
+                  // the direction of the change.
+                  const periods = [
+                    { label: zh ? "之前" : "before", days: sh.beforeDays, c: sh.before, strong: !emerged },
+                    { label: zh ? "之後" : "since",  days: sh.sinceDays,  c: sh.since,  strong: emerged },
+                  ];
+                  return (
+                    <button key={sh.key}
+                      onClick={() => { setPlaying(false); setIdx(sh.frameIndex); }}
+                      className={clsx(
+                        "w-full text-left rounded-xl border-l-4 bg-[var(--surface-container-low)] px-3 py-2",
+                        emerged ? "border-l-emerald-400" : "border-l-rose-300")}>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-xs font-semibold text-[var(--text-on-surface)] truncate">
+                          {sh.lag > 0
+                            ? `${varLabel(sh.source)} →${sh.lag}d ${varLabel(sh.target)}`
+                            : `${varLabel(sh.source)} ↔ ${varLabel(sh.target)}`}
+                        </span>
+                        <span className={clsx("text-10 font-semibold shrink-0",
+                          emerged ? "text-emerald-600" : "text-rose-500")}>
+                          {emerged
+                            ? (zh ? `${md(sh.date)} 起` : `since ${md(sh.date)}`)
+                            : (zh ? `${md(sh.date)} 前` : `until ${md(sh.date)}`)}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-1.5 mt-1 text-10">
+                        {periods.map(({ label, days, c, strong }, i) => (
+                          <span key={label} className="flex items-center gap-1">
+                            {i > 0 && <span className="text-gray-300 mr-0.5">→</span>}
+                            <span className="text-[var(--text-on-surface-muted)]">{label} {dayStr(days)}</span>
+                            <span className={clsx("font-mono",
+                              !strong ? "text-[var(--text-on-surface-muted)]"
+                                : c.r >= 0 ? "font-bold text-emerald-600" : "font-bold text-rose-500")}>
+                              {c.r >= 0 ? "+" : ""}{c.r.toFixed(2)}
+                            </span>
+                            <span className="text-[var(--text-on-surface-muted)]">n={c.n}</span>
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-9 text-[var(--text-on-surface-muted)] mt-0.5">
+                        {emerged
+                          ? (zh ? "此關聯只在較新的資料中成立" : "holds only in the newer data")
+                          : (zh ? "此關聯只在較早的資料中成立" : "holds only in the older data")}
+                        {" · p "}
+                        {sh.pAdjusted < 0.001 ? "< 0.001" : `= ${sh.pAdjusted.toFixed(3)}`}
+                      </p>
+                    </button>
+                  );
+                })}
+                {shifts.length > MAX_SHIFT_ROWS && (
+                  <p className="text-10 text-[var(--text-on-surface-muted)]">
+                    {zh ? `…另有 ${shifts.length - MAX_SHIFT_ROWS} 組` : `…and ${shifts.length - MAX_SHIFT_ROWS} more`}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <p className="text-9 text-[var(--text-on-surface-muted)] mt-2 pt-2 border-t border-[var(--surface-border)]">
+              {zh
+                ? `p 值為「前後兩段相關性不同」的檢定（Fisher z），並已對整趟搜尋的 ${shifts[0]?.tests ?? 0} 次切點比較做校正。點一下任一列可跳到該日的關係圖。`
+                : `p tests whether the two periods differ (Fisher z), corrected for all ${shifts[0]?.tests ?? 0} splits tried in the search. Tap a row to jump to that date's graph.`}
+            </p>
           </div>
 
           {/* ── Cross-frame trend ────────────────────────────────────── */}

@@ -14,7 +14,11 @@
  * the frame before it, so the player can name what changed without recomputing.
  */
 
-import { computeCorrelationNetwork, type CorrelationNetwork, type NetEdge, type NetVar } from "./network";
+import { format, parseISO, subDays } from "date-fns";
+import {
+  computeCorrelationNetwork, correlationDifferenceP, pairCorrelationIn, prepareSeries,
+  type CorrelationNetwork, type NetEdge, type NetVar, type PairCorrelation,
+} from "./network";
 import { RELIABILITY_THRESHOLDS } from "./pearson";
 import type { DailyStatsRecord } from "@/types";
 
@@ -357,4 +361,199 @@ export function edgeTracks(frames: TimelineFrame[]): EdgeTrack[] {
   }
   return [...tracks.values()].sort((a, b) =>
     b.presence - a.presence || Math.abs(b.meanR) - Math.abs(a.meanR));
+}
+
+// ── Turning points: when a link starts (or stops) holding ────────────────────
+
+/**
+ * Every window in a run ends on the same day, so watching a link across the
+ * frames tells you *which stretch of the record carries it*. What it does not
+ * tell you is how strong the relationship was in the stretch that the window
+ * dropped — and that is the interesting half: a link that appears once the
+ * early data is gone is only a story if the early data was doing something
+ * different.
+ *
+ * So each candidate date is scored as a split of the record: the correlation
+ * on everything since that date, against the correlation on everything before
+ * it. The date where those two disagree the most is the turning point, and both
+ * numbers are reported so the claim can be checked rather than trusted.
+ *
+ * Presence in the slideshow alone would also miss the case where a link never
+ * disappears but changes strength — a relationship strong enough to survive
+ * being diluted by the old data still shows up as an edge in every frame.
+ */
+export interface LinkShift {
+  key:    string;
+  source: NetVar;
+  target: NetVar;
+  lag:    number;
+  /** Which side is stronger: the recent stretch, or the old one. */
+  direction: "emerged" | "faded";
+  /** The split: `date` onward is the "since" period, everything earlier is "before". */
+  date:  string;
+  /** Frame whose window starts on `date`, so the player can jump to it. */
+  frameIndex: number;
+  sinceDays:  number;
+  beforeDays: number;
+  since:  PairCorrelation;
+  before: PairCorrelation;
+  /** |since.r| − |before.r|; positive when the link belongs to the recent stretch. */
+  contrast: number;
+  /** p for the two periods differing, corrected for the whole search. */
+  pAdjusted: number;
+  /** Split tests the correction accounts for. */
+  tests: number;
+}
+
+export interface ShiftOptions {
+  /** Smallest |r| the stronger side must reach — the network's own edge bar. */
+  minAbsR?: number;
+  /**
+   * Largest p the difference between the two periods may have *after*
+   * correcting for the search. Every pair is tried against every candidate
+   * split and the best is kept, so an uncorrected threshold would be met by
+   * chance many times over: with a few thousand splits tried, the best one on
+   * pure noise clears p < 0.05 routinely. Bonferroni against the number of
+   * splits evaluated is the blunt but honest correction, and together with the
+   * difference test it is what keeps this list short. Deliberately stricter
+   * than the network's own edge threshold, because this is a search.
+   */
+  maxP?: number;
+  /** Pairs each side needs. */
+  minSide?: number;
+  /** Days each side needs; a split with a fortnight on one side means nothing. */
+  minPeriodDays?: number;
+  /** How far apart the two sides must be before it counts as a turning point. */
+  minContrast?: number;
+
+  /** Cap on split dates tried per pair; they are spread evenly over the run. */
+  maxCandidates?: number;
+}
+
+const SHIFT_DEFAULTS = {
+  minAbsR:       0.3,
+  maxP:          0.01,
+  minSide:       RELIABILITY_THRESHOLDS.LOW_PAIRS,
+  minPeriodDays: RELIABILITY_THRESHOLDS.HIGH_PAIRS,
+  minContrast:   0.25,
+  maxCandidates: 48,
+} as const;
+
+/**
+ * The directed form a pair took most often across the frames it qualified in.
+ * A pair can be drawn same-day in one frame and lagged in another; the split
+ * test needs one reading, and the majority one is the pair's usual shape.
+ */
+function dominantForm(frames: TimelineFrame[], key: string): { source: NetVar; target: NetVar; lag: number } | null {
+  const counts = new Map<string, { form: { source: NetVar; target: NetVar; lag: number }; n: number }>();
+  for (const f of frames) {
+    for (const e of f.network.edges) {
+      if (edgeKey(e) !== key) continue;
+      const id = `${e.source}>${e.target}@${e.lag}`;
+      const hit = counts.get(id);
+      if (hit) hit.n++;
+      else counts.set(id, { form: { source: e.source, target: e.target, lag: e.lag }, n: 1 });
+    }
+  }
+  let best: { form: { source: NetVar; target: NetVar; lag: number }; n: number } | null = null;
+  for (const c of counts.values()) if (!best || c.n > best.n) best = c;
+  return best?.form ?? null;
+}
+
+/**
+ * Split dates to try: frame starts that leave a real period on both sides.
+ * Returned earliest-first (frames are already ordered widest window first),
+ * which is what lets the tie rule prefer the earliest adequate split.
+ */
+function splitCandidates(frames: TimelineFrame[], minPeriodDays: number, maxCandidates: number): TimelineFrame[] {
+  const total = frames[0]?.days ?? 0;
+  const usable = frames.filter(f =>
+    f.days >= minPeriodDays && total - f.days >= minPeriodDays);
+  if (usable.length <= maxCandidates) return usable;
+  const stride = usable.length / maxCandidates;
+  return Array.from({ length: maxCandidates }, (_, i) => usable[Math.floor(i * stride)]);
+}
+
+/**
+ * Find, for every pair the run ever drew, the date that best splits the record
+ * into "before" and "since" — or nothing, when no split separates them.
+ *
+ * `recs` must be the same records the frames were built from. The scan yields
+ * to the browser between chunks and honours `shouldAbort`, like the build.
+ * Results are sorted by how sharply the two periods disagree.
+ */
+export async function findLinkShifts(
+  recs: DailyStatsRecord[],
+  frames: TimelineFrame[],
+  opts: ShiftOptions = {},
+  onProgress?: (done: number, total: number) => void,
+  shouldAbort?: () => boolean,
+): Promise<LinkShift[]> {
+  const o = { ...SHIFT_DEFAULTS, ...opts };
+  if (frames.length < 3) return [];
+
+  const prep = prepareSeries(recs);
+  if (!prep) return [];
+
+  const rangeStart = frames[0].from;
+  const rangeEnd   = frames[0].to;
+  const candidates = splitCandidates(frames, o.minPeriodDays, o.maxCandidates);
+  const tracks     = edgeTracks(frames);
+  if (candidates.length === 0 || tracks.length === 0) return [];
+
+  const shifts: LinkShift[] = [];
+  const tests = tracks.length * candidates.length;
+  let chunkStart = Date.now();
+
+  for (let t = 0; t < tracks.length; t++) {
+    if (shouldAbort?.()) break;
+    const form = dominantForm(frames, tracks[t].key);
+    if (!form) continue;
+
+    let best: LinkShift | null = null;
+    for (const frame of candidates) {
+      const since  = pairCorrelationIn(prep, form.source, form.target, form.lag, frame.from, rangeEnd);
+      const before = pairCorrelationIn(prep, form.source, form.target, form.lag,
+        rangeStart, format(subDays(parseISO(frame.from), 1), "yyyy-MM-dd"));
+      if (!since || !before) continue;
+      if (since.n < o.minSide || before.n < o.minSide) continue;
+
+      const contrast = Math.abs(since.r) - Math.abs(before.r);
+      const strong   = contrast > 0 ? since : before;
+      // The side the turning point rests on has to clear the same bar an edge
+      // does; otherwise "it changed" would just mean "both sides are noise".
+      if (Math.abs(strong.r) < o.minAbsR) continue;
+      if (Math.abs(contrast) < o.minContrast) continue;
+      const pAdjusted = Math.min(1,
+        correlationDifferenceP(since.r, since.n, before.r, before.n) * tests);
+      if (pAdjusted > o.maxP) continue;
+
+      // Candidates compete on how sharply the two periods disagree, not on the
+      // raw gap between the two r's. The difference test prices in both sample
+      // sizes, so it prefers the split with the most evidence behind it: once a
+      // relationship has turned on, every later split still sees it, but each
+      // one sees it on less data, and a raw-gap score would drift to whichever
+      // late date happened to leave the least noise on the other side —
+      // reporting the change as later than it was. Candidates run
+      // earliest-first, so an exact tie keeps the earliest date.
+      if (best && pAdjusted >= best.pAdjusted) continue;
+
+      best = {
+        key: tracks[t].key, source: form.source, target: form.target, lag: form.lag,
+        direction: contrast > 0 ? "emerged" : "faded",
+        date: frame.from, frameIndex: frame.index,
+        sinceDays: frame.days, beforeDays: frames[0].days - frame.days,
+        since, before, contrast, pAdjusted, tests,
+      };
+    }
+    if (best) shifts.push(best);
+
+    onProgress?.(t + 1, tracks.length);
+    if (Date.now() - chunkStart > 40) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      chunkStart = Date.now();
+    }
+  }
+
+  return shifts.sort((a, b) => Math.abs(b.contrast) - Math.abs(a.contrast));
 }

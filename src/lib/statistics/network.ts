@@ -178,6 +178,45 @@ export function pValueForR(r: number, n: number): number {
   return ibeta(df / 2, 0.5, df / (df + t * t));
 }
 
+/** Two-tailed tail probability of the standard normal beyond |z|. */
+function normalTwoTailP(z: number): number {
+  const a = Math.abs(z);
+  if (a === 0) return 1;
+  if (a > 6) {
+    // The polynomial below saturates around 1e-7, which would flatten every
+    // strong result onto the same number; the asymptotic tail keeps them apart.
+    const phi = Math.exp(-a * a / 2) / Math.sqrt(2 * Math.PI);
+    return Math.max(Number.MIN_VALUE, 2 * phi / a * (1 - 1 / (a * a) + 3 / (a ** 4)));
+  }
+  // erf via Abramowitz & Stegun 7.1.26
+  const x = a / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 +
+    t * (-1.453152027 + t * 1.061405429))));
+  const erf = 1 - poly * Math.exp(-x * x);
+  return Math.max(0, 1 - erf);
+}
+
+/**
+ * Two-tailed p-value for two independent correlations being equal
+ * (Fisher's r-to-z transform).
+ *
+ * Asking "is the stronger period significant?" is the wrong question when
+ * comparing two stretches of a record: a modest correlation over 140 days
+ * clears any single-sample threshold on its own, even when the 40-day stretch
+ * it is being contrasted against is far too short to say anything at all.
+ * Testing the *difference* prices in both sample sizes, so a split with a scrap
+ * of data on one side stops looking like a discovery.
+ */
+export function correlationDifferenceP(r1: number, n1: number, r2: number, n2: number): number {
+  if (n1 < 4 || n2 < 4) return 1;
+  const clamp = (r: number) => Math.max(-0.9999, Math.min(0.9999, r));
+  const z1 = Math.atanh(clamp(r1));
+  const z2 = Math.atanh(clamp(r2));
+  const se = Math.sqrt(1 / (n1 - 3) + 1 / (n2 - 3));
+  return normalTwoTailP((z1 - z2) / se);
+}
+
 // ── Series construction ──────────────────────────────────────────────────────
 
 /**
@@ -274,6 +313,155 @@ const DERIVED_SERIES: Partial<Record<NetVar, (recs: DailyStatsRecord[]) => Map<s
   cardio_freq_wk:   recs => weeklyFrequency(recs, "cardio_count"),
 };
 
+/** One slot per calendar day spanned by the records. */
+interface DayGrid {
+  dayIndex: Map<string, number>;
+  /** Day number of slot 0, so any date can be resolved to a slot. */
+  minDay: number;
+  span: number;
+  /** Date string per slot; undefined for days with no record at all. */
+  dateAt: string[];
+}
+
+function buildDayGrid(recs: DailyStatsRecord[]): DayGrid {
+  let minDay = Infinity, maxDay = -Infinity;
+  for (const r of recs) {
+    const dn = dayNumber(r.date);
+    if (dn < minDay) minDay = dn;
+    if (dn > maxDay) maxDay = dn;
+  }
+  const span = maxDay - minDay + 1;
+  const dayIndex = new Map<string, number>();
+  const dateAt = new Array<string>(span);
+  for (const r of recs) {
+    const i = dayNumber(r.date) - minDay;
+    dayIndex.set(r.date, i);
+    dateAt[i] = r.date;
+  }
+  return { dayIndex, minDay, span, dateAt };
+}
+
+/**
+ * Days at the head of a range that a variable's differenced series cannot use.
+ *
+ * Every series loses its first day to differencing. The weekly-frequency
+ * variables lose seven, because their value is itself a trailing 7-day window:
+ * the first six days of a range have no full week behind them, and the seventh
+ * is the first that can be differenced against a complete predecessor.
+ */
+function warmupOf(v: NetVar): number {
+  return DERIVED_SERIES[v] ? 7 : 1;
+}
+
+/** The raw date→value series for a variable, derived or read off its column. */
+function rawSeries(recs: DailyStatsRecord[], v: NetVar): Map<string, number> {
+  return DERIVED_SERIES[v]?.(recs) ?? seriesOf(recs, v);
+}
+
+/** Day-indexed first differences for a variable. */
+function diffSeries(recs: DailyStatsRecord[], v: NetVar, grid: DayGrid): Float64Array {
+  return denseDifference(toDense(rawSeries(recs, v), grid.dayIndex, grid.span));
+}
+
+/**
+ * Pair up `da` shifted `lag` days back against `db`, writing into the given
+ * buffers; returns the pair count. Only days where both series have a
+ * difference contribute, so gaps drop out on both sides.
+ */
+function alignDiff(
+  da: Float64Array, db: Float64Array, lag: number,
+  xBuf: Float64Array, yBuf: Float64Array, dayBuf: Int32Array,
+): number {
+  let k = 0;
+  for (let i = lag; i < db.length; i++) {
+    const av = da[i - lag], bv = db[i];
+    // NaN fails self-comparison, which is the cheapest "has a value" test.
+    if (av === av && bv === bv) { xBuf[k] = av; yBuf[k] = bv; dayBuf[k] = i; k++; }
+  }
+  return k;
+}
+
+export interface PairCorrelation {
+  r: number;
+  n: number;
+  p: number;
+  reliability: Reliability;
+}
+
+/**
+ * Differenced series for every network variable over one range, built once so
+ * that any number of sub-ranges can be measured off them.
+ *
+ * The timeline asks "what was this pair doing before the window started, and
+ * what has it done since" at dozens of candidate split dates for dozens of
+ * pairs. Re-deriving the series for each of those slices would cost more than
+ * the whole slideshow; slicing prepared ones is a bounded scan.
+ */
+export interface PreparedSeries {
+  grid: DayGrid;
+  diff: Map<NetVar, Float64Array>;
+  /** Reused by every measurement; calls are sequential and consume immediately. */
+  xBuf: Float64Array;
+  yBuf: Float64Array;
+  dayBuf: Int32Array;
+  scratch: RankScratch;
+}
+
+export function prepareSeries(recs: DailyStatsRecord[]): PreparedSeries | null {
+  if (recs.length === 0) return null;
+  const grid = buildDayGrid(recs);
+  const diff = new Map<NetVar, Float64Array>();
+  for (const v of Object.keys(NET_VARS) as NetVar[]) diff.set(v, diffSeries(recs, v, grid));
+  return {
+    grid, diff,
+    xBuf: new Float64Array(grid.span),
+    yBuf: new Float64Array(grid.span),
+    dayBuf: new Int32Array(grid.span),
+    scratch: makeRankScratch(grid.span),
+  };
+}
+
+/**
+ * The differenced Spearman correlation for one variable pair over a sub-range
+ * of the prepared series — the same statistic the network draws its edges from,
+ * for one pair over any stretch of the record.
+ *
+ * Days that a from-scratch computation on that stretch could not have used are
+ * excluded (see `warmupOf`), so the result matches what the network would
+ * report had it been given only those records. `from`/`to` are inclusive dates;
+ * omitting either extends to that end of the prepared range.
+ *
+ * Returns null when the stretch cannot support a correlation at all (n < 3);
+ * whether it is strong or reliable enough to act on is the caller's judgement,
+ * which is why no |r| or p gate is applied here.
+ */
+export function pairCorrelationIn(
+  prep: PreparedSeries,
+  source: NetVar,
+  target: NetVar,
+  lag = 0,
+  from?: string,
+  to?: string,
+): PairCorrelation | null {
+  const da = prep.diff.get(source), db = prep.diff.get(target);
+  if (!da || !db) return null;
+  const { grid, xBuf, yBuf, dayBuf, scratch } = prep;
+
+  const startIdx = from ? dayNumber(from) - grid.minDay : 0;
+  const endIdx   = to   ? dayNumber(to)   - grid.minDay : grid.span - 1;
+  const first = Math.max(startIdx + warmupOf(target), startIdx + warmupOf(source) + lag, 0);
+  const last  = Math.min(endIdx, grid.span - 1);
+
+  let n = 0;
+  for (let i = first; i <= last; i++) {
+    const av = da[i - lag], bv = db[i];
+    if (av === av && bv === bv) { xBuf[n] = av; yBuf[n] = bv; dayBuf[n] = i; n++; }
+  }
+  if (n < 3) return null;
+  const r = spearmanBuf(xBuf, yBuf, n, scratch);
+  return { r, n, p: pValueForR(r, n), reliability: getReliability(n) };
+}
+
 // ── Network computation ──────────────────────────────────────────────────────
 
 export interface NetNode {
@@ -335,31 +523,17 @@ export function computeCorrelationNetwork(
   const vars = Object.keys(NET_VARS) as NetVar[];
   if (recs.length === 0) return { nodes: [], edges: [] };
 
-  // ── Calendar-day index ─────────────────────────────────────────────────────
   // One slot per day between the first and last record, so a missing day is an
   // empty slot rather than a shorter array: differencing and lagging are then
   // index arithmetic that cannot accidentally pair non-adjacent days.
-  const dayIndex = new Map<string, number>();
-  let minDay = Infinity, maxDay = -Infinity;
-  for (const r of recs) {
-    const dn = dayNumber(r.date);
-    if (dn < minDay) minDay = dn;
-    if (dn > maxDay) maxDay = dn;
-  }
-  const span = maxDay - minDay + 1;
-  const dateAt = new Array<string>(span);
-  for (const r of recs) {
-    const i = dayNumber(r.date) - minDay;
-    dayIndex.set(r.date, i);
-    dateAt[i] = r.date;
-  }
+  const grid = buildDayGrid(recs);
+  const { span, dateAt } = grid;
 
   const diff   = new Map<NetVar, Float64Array>();
   const logged = new Map<NetVar, number>();   // days with a value, for density
   for (const v of vars) {
-    const raw = DERIVED_SERIES[v]?.(recs) ?? seriesOf(recs, v);
-    logged.set(v, raw.size);
-    diff.set(v, denseDifference(toDense(raw, dayIndex, span)));
+    logged.set(v, rawSeries(recs, v).size);
+    diff.set(v, diffSeries(recs, v, grid));
   }
 
   // ── Pair evaluation ────────────────────────────────────────────────────────
@@ -370,16 +544,8 @@ export function computeCorrelationNetwork(
   const dayBuf = new Int32Array(span);
   const scratch = makeRankScratch(span);
 
-  /** Pair up `a` shifted `lag` days back against `b`; returns the pair count. */
-  const align = (a: NetVar, b: NetVar, lag: number): number => {
-    const da = diff.get(a)!, db = diff.get(b)!;
-    let k = 0;
-    for (let i = lag; i < span; i++) {
-      const av = da[i - lag], bv = db[i];
-      if (av === av && bv === bv) { xBuf[k] = av; yBuf[k] = bv; dayBuf[k] = i; k++; }
-    }
-    return k;
-  };
+  const align = (a: NetVar, b: NetVar, lag: number): number =>
+    alignDiff(diff.get(a)!, diff.get(b)!, lag, xBuf, yBuf, dayBuf);
 
   interface Candidate { r: number; n: number; source: NetVar; target: NetVar; lag: number }
 
