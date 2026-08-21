@@ -34,6 +34,7 @@ but deeper personal understanding through self-owned data.
 - Historical visualization, with optional trend-line fitting
 - Correlation analysis — variable relationship network with lagged effects
 - Pattern discovery — weekend-vs-weekday effects, significance gated
+- Timeline slideshow — replay the correlation network as the analysis window shrinks day by day
 - Automatic sleep detection from screen activity (Android)
 - Custom exercises & foods
 - App lock — PIN and biometric unlock (Android)
@@ -45,6 +46,16 @@ but deeper personal understanding through self-owned data.
 ---
 
 ## Changelog
+
+### v1.5.0
+- **Timeline tab** — a new tab beside Patterns that plays the correlation network back as a slideshow. Pick a start date A; the window end stays pinned to your latest logged day, and each frame moves the start forward one step — A→now, A+1→now, A+2→now — down to the shortest window a correlation can stand on (15 days). Playing it back shows which relationships survive as the old data drops away and which only ever lived in it. Step defaults to one day (1/2/3/7/14 available) and the whole run can be set to play in 5, 10, 20 or 40 seconds, with play/pause, frame stepping, looping and a scrubber
+- **Stable layout across frames** — every frame is laid out on one ring ordering computed from all frames at once, so a variable keeps its slot for the whole run and the only thing moving on screen is the links themselves. A variable with no link in the current frame is held faded in place rather than removed
+- **Per-frame change readout** — each frame lists the links it gained, lost and moved against the previous one, flagging sign flips and changes in lead/lag direction, plus a running comparison against the widest window: links gained and lost, and the shift in mean |r|
+- **Turning points** — a card that answers *when* a relationship started, not only that it exists. Every candidate date splits the record in two, and the correlation on everything since it is tested against the correlation on everything before it — Fisher's r-to-z on the difference, so a split with only a scrap of data on one side stops looking like a discovery. The date where the two periods disagree most sharply is reported with both r's, both sample sizes and both period lengths: green when the link holds only from that date through to your latest data, red when it holds only in the data before it. Tapping a row jumps the player to that date's graph. Since every pair is tried against every split and the best one kept, the p-value is Bonferroni-corrected against the whole search — on synthetic records with a seeded change of behaviour the reported date lands within a few days of the truth, while pure-noise records usually produce nothing at all. It also catches what watching the slideshow cannot: a relationship strong enough to survive being diluted by the old data never disappears from the graph, so its onset is invisible frame by frame but obvious in the split
+- **Across-the-run chart and persistence strips** — link count and mean |r| plotted against window length (tap a point to jump to that frame), and a strip per variable pair showing exactly which windows it held a link in, with the share of frames it survived. A pair at 100% holds no matter where the window starts; one that only shows on the left lives in the older data
+- **Bounded build cost** — the frame count and the total days analysed are both capped, so a multi-year history widens its step instead of running for minutes. Building is chunked with a progress bar and can be cancelled mid-run
+- **~12× faster correlation networks** — differencing and lagging were building and re-formatting a `Date` for every value of every variable at every lag, which dominated the whole computation. Days are now integers indexed into dense per-day arrays, ranking reuses shared buffers instead of allocating tuples per call, and each pair's p-value is computed once for the candidate that survives rather than for all seven. Output is unchanged, verified identical across window lengths, gapped data and option variants
+- **Readable labels on crowded rings** — with more than 12 variables on the ring, labels shrink slightly and every other label at the top and bottom is pushed further out, so neighbouring names no longer overlap
 
 ### v1.4.5
 - **Flexible water goal** — the 7-day adherence card's water metric now uses the same 80–110%-of-target band as calories, instead of a one-sided ≥90% floor with no ceiling

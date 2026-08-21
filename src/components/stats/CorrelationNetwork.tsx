@@ -121,10 +121,49 @@ function orderRing(
   return best;
 }
 
-export function CorrelationNetwork({ network, lang }: {
+/**
+ * A single ring ordering shared by a whole sequence of networks.
+ *
+ * Laying each frame out on its own would move every node whenever an edge
+ * appears or disappears, and a slideshow of shifting rings shows motion rather
+ * than change. Ordering the union of all frames once pins each variable to one
+ * slot for the entire run, so the only thing that moves between frames is the
+ * edges — which is the thing being compared.
+ */
+export function unionRingOrder(networks: NetworkData[]): NetVar[] {
+  const domainOf = new Map<NetVar, VarDomain>();
+  const linked   = new Set<NetVar>();
+  const edges: NetEdge[] = [];
+  const seen     = new Set<string>();
+  for (const net of networks) {
+    for (const n of net.nodes) domainOf.set(n.id, n.domain);
+    for (const e of net.edges) {
+      linked.add(e.source); linked.add(e.target);
+      // One representative per variable pair: crossing counts depend on which
+      // slots an edge joins, not on how many frames repeated it.
+      const key = e.source < e.target ? `${e.source}|${e.target}` : `${e.target}|${e.source}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      edges.push(e);
+    }
+  }
+  return orderRing([...linked], domainOf, edges);
+}
+
+interface CorrelationNetworkProps {
   network: NetworkData;
   lang: string;
-}) {
+  /**
+   * Fixed ring slots (from `unionRingOrder`). Every listed variable keeps its
+   * position whatever this frame contains, and one with no edge here is drawn
+   * faded in place instead of being moved to the unlinked list below.
+   */
+  ringOrder?: NetVar[];
+  title?: string;
+  subtitle?: string;
+}
+
+export function CorrelationNetwork({ network, lang, ringOrder, title, subtitle }: CorrelationNetworkProps) {
   const [selNode, setSelNode] = useState<NetVar | null>(null);
   const [selEdge, setSelEdge] = useState<NetEdge | null>(null);
 
@@ -138,7 +177,7 @@ export function CorrelationNetwork({ network, lang }: {
    * slots are allocated from the connected set (so spacing adapts to how many
    * results there are) and ordered to minimise crossings.
    */
-  const { positions, ringNodes, isolatedNodes } = useMemo(() => {
+  const { positions, ringNodes, isolatedNodes, unlinked } = useMemo(() => {
     const degree = new Map<NetVar, number>();
     for (const e of edges) {
       degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
@@ -147,9 +186,11 @@ export function CorrelationNetwork({ network, lang }: {
     const domainOf = new Map(nodes.map(n => [n.id, n.domain] as const));
     const connected = nodes.filter(n => (degree.get(n.id) ?? 0) > 0);
     const isolated  = nodes.filter(n => (degree.get(n.id) ?? 0) === 0);
-
-    const order = orderRing(connected.map(n => n.id), domainOf, edges);
     const byId = new Map(nodes.map(n => [n.id, n] as const));
+
+    // Fixed layout: slots come from the caller and never depend on this frame,
+    // so a variable stays put as edges come and go around it.
+    const order = ringOrder ?? orderRing(connected.map(n => n.id), domainOf, edges);
     const map = new Map<NetVar, { x: number; y: number; angle: number }>();
     order.forEach((id, i) => {
       const angle = -Math.PI / 2 + (i * 2 * Math.PI) / order.length;
@@ -161,10 +202,17 @@ export function CorrelationNetwork({ network, lang }: {
     });
     return {
       positions: map,
-      ringNodes: order.map(id => byId.get(id)!),
-      isolatedNodes: isolated,
+      // With a fixed layout the ring also carries variables that produced no
+      // edge in this frame (drawn faded), so a link going missing reads as the
+      // link disappearing rather than as a node leaving.
+      ringNodes: order.flatMap(id => {
+        const n = byId.get(id);
+        return n ? [n] : [];
+      }),
+      isolatedNodes: ringOrder ? [] : isolated,
+      unlinked: new Set(order.filter(id => (degree.get(id) ?? 0) === 0)),
     };
-  }, [nodes, edges]);
+  }, [nodes, edges, ringOrder]);
 
   const nodeLabel = (id: NetVar) => {
     const n = nodes.find(x => x.id === id);
@@ -181,6 +229,9 @@ export function CorrelationNetwork({ network, lang }: {
   };
 
   const edgeWidth = (r: number) => 0.8 + Math.min(Math.abs(r), 1) * 2.2;
+
+  /** Past this many slots the ring runs out of room for full-size labels. */
+  const crowded = ringNodes.length > 12;
 
   // Node draw radius (mirrors the value used when rendering the node circle)
   const nodeRadius = (id: NetVar) => {
@@ -223,7 +274,10 @@ export function CorrelationNetwork({ network, lang }: {
     return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
   };
 
-  if (edges.length === 0) {
+  // A slideshow frame with no qualifying edge still draws its (empty) ring:
+  // collapsing to a text card mid-playback would hide the very thing the
+  // timeline is showing — that the relationships are gone at this window.
+  if (edges.length === 0 && !ringOrder) {
     return (
       <div className="card text-center py-8">
         <p className="text-sm text-[var(--text-on-surface-muted)]">
@@ -242,16 +296,16 @@ export function CorrelationNetwork({ network, lang }: {
     <div className="card">
       <div className="flex items-center justify-between mb-1">
         <p className="text-sm font-semibold text-[var(--text-on-surface)]">
-          {zh ? "變因關係網絡" : "Variable Network"}
+          {title ?? (zh ? "變因關係網絡" : "Variable Network")}
         </p>
         <span className="text-10 text-[var(--text-on-surface-muted)]">
           {zh ? "相關 ≠ 因果" : "Correlation ≠ causation"}
         </span>
       </div>
       <p className="text-10 text-[var(--text-on-surface-muted)] mb-2">
-        {zh
+        {subtitle ?? (zh
           ? "以每日「變化量」計算 Spearman 相關 · 點節點聚焦、點連線看散點"
-          : "Spearman on day-over-day changes · tap a node to focus, tap an edge for the scatter"}
+          : "Spearman on day-over-day changes · tap a node to focus, tap an edge for the scatter")}
       </p>
 
       <svg viewBox={`${-PAD_X} 0 ${SIZE + PAD_X * 2} ${SIZE}`}
@@ -289,15 +343,24 @@ export function CorrelationNetwork({ network, lang }: {
         })}
 
         {/* Nodes (only those carrying at least one significant link) */}
-        {ringNodes.map(n => {
+        {ringNodes.map((n, i) => {
           const pos = positions.get(n.id)!;
-          const dimmed = isNodeDimmed(n.id);
+          // On a fixed ring, a variable with nothing attached in this frame is
+          // held at low opacity rather than removed, so the slot stays readable
+          // as its links come back in a later frame.
+          const dimmed = isNodeDimmed(n.id) || unlinked.has(n.id);
           const selected = selNode === n.id;
           const rNode = 8 + Math.min(n.density, 100) / 100 * 6; // 8–14 by density
-          const labelX = CX + R_LABEL * Math.cos(pos.angle);
-          const labelY = CY + R_LABEL * Math.sin(pos.angle);
           const anchor = Math.abs(Math.cos(pos.angle)) < 0.35
             ? "middle" : Math.cos(pos.angle) > 0 ? "start" : "end";
+          // Near the top and bottom of the ring, neighbouring labels are both
+          // centred and sit almost side by side, so on a crowded ring they run
+          // into each other. Pushing every other one further out separates them
+          // vertically; elsewhere the labels grow away from each other anyway.
+          const labelR = anchor === "middle" && crowded && i % 2 === 1
+            ? R_LABEL + 11 : R_LABEL;
+          const labelX = CX + labelR * Math.cos(pos.angle);
+          const labelY = CY + labelR * Math.sin(pos.angle);
           return (
             <g key={n.id} opacity={dimmed ? 0.2 : 1} style={{ transition: "opacity .2s", cursor: "pointer" }}
               onClick={() => { setSelNode(selected ? null : n.id); setSelEdge(null); }}>
@@ -310,7 +373,7 @@ export function CorrelationNetwork({ network, lang }: {
                 strokeDasharray={n.domain === "time" ? "3 2" : undefined}
                 strokeWidth={selected ? 2.5 : 1.5} />
               <text x={labelX} y={labelY} textAnchor={anchor} dominantBaseline="middle"
-                fontSize={11} fontWeight={selected ? 700 : 500}
+                fontSize={crowded ? 9.5 : 11} fontWeight={selected ? 700 : 500}
                 fill="var(--text-on-surface)">
                 {zh ? n.labelZh : n.labelEn}
               </text>
@@ -379,6 +442,7 @@ export function CorrelationNetwork({ network, lang }: {
             {" · "}p = {selEdge.p < 0.001 ? "<0.001" : selEdge.p.toFixed(3)}
             {" · "}{zh ? RELIABILITY_LABEL[selEdge.reliability].zh : RELIABILITY_LABEL[selEdge.reliability].en}
           </p>
+          {selEdge.pairs.length > 0 && (
           <ResponsiveContainer width="100%" height={180}>
             <ScatterChart margin={{ top: 8, right: 8, bottom: 4, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" />
@@ -407,11 +471,14 @@ export function CorrelationNetwork({ network, lang }: {
               <Scatter data={selEdge.pairs} fill={selEdge.r >= 0 ? POS_COLOR : NEG_COLOR} fillOpacity={0.6} />
             </ScatterChart>
           </ResponsiveContainer>
+          )}
+          {selEdge.pairs.length > 0 && (
           <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
             {zh
               ? "每點為一天：X = 前者的當日變化，Y = 後者的當日變化"
               : "Each dot is one day: X = day-over-day change of the first variable, Y = the second"}
           </p>
+          )}
         </div>
       )}
     </div>

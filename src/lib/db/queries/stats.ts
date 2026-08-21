@@ -21,6 +21,38 @@ export async function getActiveDates(userId: number, sources: ActivitySource[]):
   return new Set(rows.map(r => r.log_date));
 }
 
+/**
+ * First and last dates carrying any logged data at all, across every log table.
+ *
+ * Broader than `getActiveDates`, which only covers the four sources the
+ * calendars mark: the timeline needs the true edges of the record so its
+ * default start is the earliest day analysis can reach, not the earliest day
+ * with a meal on it. Each table contributes its own MIN/MAX so the scan stays
+ * on the indexed column instead of unioning every row.
+ */
+export async function getDataDateBounds(userId: number): Promise<{ first: string; last: string } | null> {
+  const db = await getDb();
+  const tables: [string, string][] = [
+    ["meal_log", "log_date"],
+    ["water_log", "log_date"],
+    ["exercise_log", "log_date"],
+    ["strength_session", "log_date"],
+    ["running_session", "log_date"],
+    ["weight_log", "log_date"],
+    ["body_composition_log", "log_date"],
+    ["sleep_log", "sleep_date"],
+  ];
+  const sql = `SELECT MIN(lo) as first, MAX(hi) as last FROM (${
+    tables
+      .map(([t, c]) => `SELECT MIN(${c}) as lo, MAX(${c}) as hi FROM ${t} WHERE user_id = ?`)
+      .join(" UNION ALL ")
+  })`;
+  const [row] = await db.select<{ first: string | null; last: string | null }[]>(
+    sql, tables.map(() => userId));
+  if (!row?.first || !row?.last) return null;
+  return { first: row.first, last: row.last };
+}
+
 /** Builds date range array YYYY-MM-DD from today back N days */
 function dateRange(days: number): string[] {
   const today = new Date();
