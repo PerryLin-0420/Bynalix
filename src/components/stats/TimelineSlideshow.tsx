@@ -3,22 +3,33 @@ import {
   ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
-import { format, parseISO, differenceInCalendarDays, addDays } from "date-fns";
-import { CalendarDays, Film, X, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { format, parseISO, differenceInCalendarDays, subDays } from "date-fns";
+import { Film, X, TrendingUp, TrendingDown, Target } from "lucide-react";
 import { clsx } from "clsx";
-import { MiniCalendar } from "@/components/common/MiniCalendar";
+import { DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { CardHeader } from "@/components/common/CardHeader";
+import { useLangStore } from "@/store/langStore";
 import { NET_VARS, type NetVar } from "@/lib/statistics/network";
 import {
   buildTimeline, persistentGoalLinks, emergedGoalLinks, goalTrendSeries,
   planTimeline, TIMELINE_MIN_WINDOW, TIMELINE_STEP_OPTIONS,
   type GoalFrame, type GoalDirection, type PersistentGoalLink, type EmergedGoalLink,
 } from "@/lib/statistics/timeline";
-import { getDailyStatsRecords, getDataDateBounds } from "@/lib/db/queries/stats";
+import { getDailyStatsRecords, getDataDateBounds, getActiveDates } from "@/lib/db/queries/stats";
 import { logError } from "@/lib/error";
 
 /** The variable every Timeline result is measured against. */
 const GOAL_VAR: NetVar = "weight_kg";
+
+/**
+ * Widest-window presets, same pill-and-custom-range model as the other stats
+ * tabs (see `DateRangePills`/`useDateRange`) — but with Timeline-appropriate
+ * values. The 14/30/90-day presets those tabs use are mostly too short here:
+ * the shrinking-window analysis needs real room to walk the start forward, and
+ * "long-term" only means something against a genuinely long default range.
+ * `null` stands for the full logged history, and is the default.
+ */
+const TIMELINE_RANGE_OPTIONS: readonly (number | null)[] = [null, 365, 180, 90];
 
 /** Rows shown per direction before the rest collapse into a count. */
 const MAX_ROWS = 5;
@@ -69,12 +80,23 @@ interface Props {
  */
 export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
   const zh = lang === "zh";
+  const { t } = useLangStore();
 
   // ── Setup state ───────────────────────────────────────────────────────────
+  // Same preset-pill + custom-range model as the Pearson/Advanced/Patterns
+  // tabs (`useDateRange`, `DateRangePills`, `DateRangePickerCard`): a set of
+  // widest-window presets, or a fully custom [start, end] picked on a
+  // calendar. Kept as Timeline's own state rather than sharing the page-level
+  // one those tabs use — switching between Pearson and Patterns would
+  // otherwise silently rewind an in-progress Timeline analysis, and the
+  // presets themselves need different (much longer) values here anyway.
   const [bounds, setBounds]         = useState<{ first: string; last: string } | null>(null);
   const [metaLoading, setMetaLoading] = useState(true);
-  const [startDate, setStartDate]   = useState<string | null>(null);
-  const [showCal, setShowCal]       = useState(false);
+  const [rangeDays, setRangeDays]   = useState<number | null>(null);
+  const [showCustom, setShowCustom] = useState(false);
+  const [modeCustom, setModeCustom] = useState(false);
+  const [customRange, setCustomRange] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
+  const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
   const [stepDays, setStepDays]     = useState<number>(1);
 
   // ── Build state ───────────────────────────────────────────────────────────
@@ -93,57 +115,81 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
     (async () => {
       try {
         const b = await getDataDateBounds(userId);
-        if (cancelled) return;
-        setBounds(b);
-        if (b) setStartDate(b.first);
+        if (!cancelled) setBounds(b);
       } catch (e) { logError("Timeline.loadBounds", e); }
       if (!cancelled) setMetaLoading(false);
     })();
     return () => { cancelled = true; };
   }, [userId]);
 
-  /**
-   * Days the picker offers as a start: anywhere in the record that still
-   * leaves an analysable window behind it.
-   */
-  const selectableDates = useMemo(() => {
-    const out = new Set<string>();
-    if (!bounds) return out;
-    const last  = parseISO(bounds.last);
-    const limit = differenceInCalendarDays(last, parseISO(bounds.first)) - (TIMELINE_MIN_WINDOW - 1);
-    for (let k = 0; k <= limit; k++) out.add(format(addDays(parseISO(bounds.first), k), "yyyy-MM-dd"));
-    return out;
-  }, [bounds]);
+  // Custom range needs the calendar's "which days actually have data" set,
+  // same lazy-load pattern the other tabs use for their own range picker.
+  useEffect(() => {
+    if (!showCustom) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const dates = await getActiveDates(userId, ["meal", "exercise", "weight", "body"]);
+        if (!cancelled) setActiveDates(dates);
+      } catch (e) { logError("Timeline.loadActiveDates", e); }
+    })();
+    return () => { cancelled = true; };
+  }, [showCustom, userId]);
 
-  const totalDays = bounds && startDate
-    ? differenceInCalendarDays(parseISO(bounds.last), parseISO(startDate)) + 1
+  /**
+   * The widest frame's [start, end]. A preset always ends on the latest
+   * logged day — matching Timeline's own "end pinned to now" design — clamped
+   * so a preset longer than the actual history just falls back to all of it.
+   * A custom range is user-chosen on both ends, generalising past "always
+   * ends at latest" to "analyse any historical stretch", same flexibility the
+   * other tabs' custom range already has.
+   */
+  const { startDate, endDate } = useMemo(() => {
+    if (!bounds) return { startDate: null as string | null, endDate: null as string | null };
+    if (modeCustom && customRange.start && customRange.end) return { startDate: customRange.start, endDate: customRange.end };
+    if (rangeDays == null) return { startDate: bounds.first, endDate: bounds.last };
+    const candidate = format(subDays(parseISO(bounds.last), rangeDays - 1), "yyyy-MM-dd");
+    return { startDate: candidate < bounds.first ? bounds.first : candidate, endDate: bounds.last };
+  }, [bounds, rangeDays, modeCustom, customRange]);
+
+  const selectPreset = (d: number | null) => {
+    setRangeDays(d);
+    setModeCustom(false);
+    setShowCustom(false);
+    setCustomRange({ start: null, end: null });
+  };
+
+  const totalDays = startDate && endDate
+    ? differenceInCalendarDays(parseISO(endDate), parseISO(startDate)) + 1
     : 0;
   const plan = useMemo(() => planTimeline(totalDays, stepDays), [totalDays, stepDays]);
+  /** A custom range picked but too short for even one window. */
+  const rangeTooShort = modeCustom && customRange.start && customRange.end && plan.frameCount <= 0;
 
   /** The result on screen no longer matches what the setup card is configured for. */
   const stale = built != null && (
     built.start !== startDate ||
-    built.end   !== bounds?.last ||
+    built.end   !== endDate ||
     built.step  !== plan.effectiveStep);
 
   // ── Build ─────────────────────────────────────────────────────────────────
   const handleBuild = async () => {
-    if (!bounds || !startDate || plan.frameCount <= 0) return;
+    if (!startDate || !endDate || plan.frameCount <= 0) return;
     abortRef.current = false;
     setBuilding(true);
     setProgress({ done: 0, total: plan.frameCount, phase: "frames" });
     try {
-      const recs = await getDailyStatsRecords(userId, 0, startDate, bounds.last);
+      const recs = await getDailyStatsRecords(userId, 0, startDate, endDate);
       const res  = await buildTimeline(
         recs,
-        { startDate, endDate: bounds.last, stepDays, goalVar: GOAL_VAR },
+        { startDate, endDate, stepDays, goalVar: GOAL_VAR },
         (done, total) => setProgress({ done, total, phase: "frames" }),
         () => abortRef.current,
       );
       if (res.frames.length) {
         setFrames(res.frames);
         setPersistent(persistentGoalLinks(res.frames, goalDir));
-        setBuilt({ start: startDate, end: bounds.last, step: res.effectiveStep, widened: res.stepWidened });
+        setBuilt({ start: startDate, end: endDate, step: res.effectiveStep, widened: res.stepWidened });
 
         setProgress({ done: 0, total: 0, phase: "emerged" });
         setEmerged(abortRef.current ? [] : await emergedGoalLinks(
@@ -178,7 +224,8 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
     );
   }
 
-  if (!bounds || selectableDates.size === 0) {
+  const historyDays = bounds ? differenceInCalendarDays(parseISO(bounds.last), parseISO(bounds.first)) + 1 : 0;
+  if (!bounds || historyDays < TIMELINE_MIN_WINDOW) {
     return (
       <div className="card text-center py-10">
         <p className="text-sm text-[var(--text-on-surface-muted)]">
@@ -258,8 +305,8 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
 
         <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
           {zh
-            ? `終點固定在最新一筆資料，起點逐步往前推：分析區間從長到短，找出哪些因子長期都會影響「${goalLabel}」，哪些是最近才開始出現影響。`
-            : `The window end is pinned to your latest data and the start walks forward, from a long analysis window down to a short one, to find which factors affect "${goalLabel}" long-term and which only started recently.`}
+            ? `選一段分析區間，起點會逐步往前推、區間從長到短：找出哪些因子長期都會影響「${goalLabel}」，哪些是最近才開始出現影響。預設區間的終點固定在最新一筆資料；自訂範圍則可自行選擇終點。`
+            : `Pick an analysis range — the start walks forward and the window shrinks from long to short, to find which factors affect "${goalLabel}" long-term and which only started recently. Preset ranges end on your latest data; a custom range lets you pick the end yourself.`}
         </p>
 
         <div className="flex items-center gap-2 mb-1.5 px-3 py-2 rounded-xl bg-[var(--surface-container-low)]">
@@ -275,46 +322,63 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
           </span>
         </div>
 
-        {/* Range row */}
-        <div className="flex items-center gap-2 mb-3 mt-2">
-          <button onClick={() => setShowCal(v => !v)}
-            className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--surface-container-low)] border border-[var(--surface-border)] text-left">
-            <CalendarDays size={14} className="text-[var(--text-accent)] shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-9 text-[var(--text-on-surface-muted)] leading-none">
-                {zh ? "起點 A" : "Start A"}
-              </span>
-              <span className="block text-sm font-semibold text-[var(--text-on-surface)] leading-tight mt-0.5">
-                {startDate ? format(parseISO(startDate), "yyyy/M/d") : "—"}
-              </span>
+        {/* Range: preset pills (widest window, always ending at latest data)
+            or a fully custom [start, end] — same model as Pearson/Advanced/
+            Patterns' own date-range picker. */}
+        <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          {zh ? "分析區間（起點 A）" : "Analysis range (start A)"}
+        </p>
+        <div className="flex gap-micro.5 flex-wrap mb-2">
+          {TIMELINE_RANGE_OPTIONS.map(d => (
+            <SegButton key={d ?? "all"} active={!modeCustom && rangeDays === d} onClick={() => selectPreset(d)}>
+              {d == null ? (zh ? "全部" : "All") : dayStr(d)}
+            </SegButton>
+          ))}
+          <SegButton active={showCustom || modeCustom} onClick={() => setShowCustom(v => !v)}>
+            {t("history.custom")}
+          </SegButton>
+        </div>
+
+        {showCustom && (
+          <div className="mb-2">
+            <DateRangePickerCard
+              customRange={customRange} activeDates={activeDates}
+              onRangeChange={r => { setCustomRange(r); setModeCustom(!!(r.start && r.end)); }}
+              onApply={() => setShowCustom(false)}
+              titleKey="stats.pickRange"
+              pickStartKey="stats.pickStart"
+              pickEndKey="stats.pickEnd"
+              applyKey="stats.applyRange"
+            />
+            {rangeTooShort && (
+              <p className="text-10 text-rose-500 mt-1.5">
+                {zh
+                  ? `這段區間短於 ${TIMELINE_MIN_WINDOW} 天，統計上無法成立，請選更寬的範圍`
+                  : `That range is under ${TIMELINE_MIN_WINDOW} days, which no statistic can carry — pick a wider one`}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex-1 px-3 py-2.5 rounded-xl bg-[var(--surface-container-low)] border border-[var(--surface-border)]">
+            <span className="block text-9 text-[var(--text-on-surface-muted)] leading-none">
+              {zh ? "起點 A" : "Start A"}
             </span>
-          </button>
+            <span className="block text-sm font-semibold text-[var(--text-on-surface)] leading-tight mt-0.5">
+              {startDate ? format(parseISO(startDate), "yyyy/M/d") : "—"}
+            </span>
+          </div>
           <span className="text-[var(--text-on-surface-muted)] text-sm">→</span>
           <div className="flex-1 px-3 py-2.5 rounded-xl bg-[var(--surface-container-low)] border border-[var(--surface-border)]">
             <span className="block text-9 text-[var(--text-on-surface-muted)] leading-none">
-              {zh ? "終點（最新資料）" : "End (latest data)"}
+              {modeCustom ? (zh ? "終點" : "End") : (zh ? "終點（最新資料）" : "End (latest data)")}
             </span>
             <span className="block text-sm font-semibold text-[var(--text-on-surface)] leading-tight mt-0.5">
-              {format(parseISO(bounds.last), "yyyy/M/d")}
+              {endDate ? format(parseISO(endDate), "yyyy/M/d") : "—"}
             </span>
           </div>
         </div>
-
-        {showCal && (
-          <div className="mb-3">
-            <MiniCalendar
-              activeDates={selectableDates}
-              mode="single"
-              selectedDate={startDate}
-              onSelectDate={d => { setStartDate(d); setShowCal(false); }}
-            />
-            <p className="text-10 text-[var(--text-on-surface-muted)] mt-1.5">
-              {zh
-                ? `可選 ${md(bounds.first)} – ${md([...selectableDates].sort().slice(-1)[0])}：更晚的起點會讓區間短於 ${TIMELINE_MIN_WINDOW} 天，統計上無法成立`
-                : `Selectable ${md(bounds.first)} – ${md([...selectableDates].sort().slice(-1)[0])}: a later start leaves a window under ${TIMELINE_MIN_WINDOW} days, which no statistic can carry`}
-            </p>
-          </div>
-        )}
 
         {/* Step */}
         <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
