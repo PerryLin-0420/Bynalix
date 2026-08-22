@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { format, parseISO, differenceInCalendarDays, subDays } from "date-fns";
-import { Film, X, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { Film, X, TrendingUp, TrendingDown, Minus, Target } from "lucide-react";
 import { clsx } from "clsx";
 import { DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { CardHeader } from "@/components/common/CardHeader";
@@ -12,8 +12,10 @@ import { useLangStore } from "@/store/langStore";
 import { NET_VARS, type NetVar } from "@/lib/statistics/network";
 import {
   buildTimeline, persistentGoalLinks, emergedGoalLinks, goalTrendSeries,
+  linkTrends, regimeGoalLinks, factorTrajectory,
   planTimeline, TIMELINE_MIN_WINDOW, TIMELINE_STEP_OPTIONS,
   type GoalFrame, type GoalDirection, type PersistentGoalLink, type EmergedGoalLink,
+  type LinkTrend, type RegimeSegment,
 } from "@/lib/statistics/timeline";
 import { getDailyStatsRecords, getDataDateBounds, getActiveDates } from "@/lib/db/queries/stats";
 import { logError } from "@/lib/error";
@@ -102,10 +104,12 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
   // ── Build state ───────────────────────────────────────────────────────────
   const [frames, setFrames]       = useState<GoalFrame[]>([]);
   const [persistent, setPersistent] = useState<PersistentGoalLink[]>([]);
+  const [trends, setTrends]       = useState<Map<NetVar, LinkTrend>>(new Map());
   const [emerged, setEmerged]     = useState<EmergedGoalLink[]>([]);
+  const [regimes, setRegimes]     = useState<Map<NetVar, RegimeSegment[]>>(new Map());
   const [built, setBuilt]         = useState<{ start: string; end: string; step: number; widened: boolean } | null>(null);
   const [building, setBuilding]   = useState(false);
-  const [progress, setProgress]   = useState<{ done: number; total: number; phase: "frames" | "emerged" }>(
+  const [progress, setProgress]   = useState<{ done: number; total: number; phase: "frames" | "emerged" | "regimes" }>(
     { done: 0, total: 0, phase: "frames" });
   const abortRef = useRef(false);
 
@@ -188,13 +192,23 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
       );
       if (res.frames.length) {
         setFrames(res.frames);
-        setPersistent(persistentGoalLinks(res.frames, goalDir));
+        const persistentLinks = persistentGoalLinks(res.frames, goalDir);
+        setPersistent(persistentLinks);
+        setTrends(new Map(linkTrends(res.frames, persistentLinks.map(l => l.factor)).map(t => [t.factor, t])));
         setBuilt({ start: startDate, end: endDate, step: res.effectiveStep, widened: res.stepWidened });
 
         setProgress({ done: 0, total: 0, phase: "emerged" });
-        setEmerged(abortRef.current ? [] : await emergedGoalLinks(
+        const emergedLinks = abortRef.current ? [] : await emergedGoalLinks(
           recs, res.frames, GOAL_VAR, goalDir, {},
           (done, total) => setProgress({ done, total, phase: "emerged" }),
+          () => abortRef.current,
+        );
+        setEmerged(emergedLinks);
+
+        setProgress({ done: 0, total: 0, phase: "regimes" });
+        setRegimes(abortRef.current || emergedLinks.length === 0 ? new Map() : await regimeGoalLinks(
+          recs, emergedLinks, GOAL_VAR, startDate, endDate, {},
+          (done, total) => setProgress({ done, total, phase: "regimes" }),
           () => abortRef.current,
         ));
       }
@@ -244,52 +258,13 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
   const negLabel = zh ? "負面" : "Negative";
 
   const renderPersistentRow = (link: PersistentGoalLink, positive: boolean) => (
-    <div key={link.factor}
-      className={clsx("rounded-xl bg-[var(--surface-container-low)] px-3 py-2",
-        "border-l-4", positive ? "border-l-emerald-400" : "border-l-rose-300")}>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold text-[var(--text-on-surface)] truncate">{varLabel(link.factor)}</span>
-        <span className={clsx("text-10 font-mono font-bold shrink-0",
-          positive ? "text-emerald-600" : "text-rose-500")}>
-          {link.r >= 0 ? "+" : ""}{link.r.toFixed(2)}
-        </span>
-      </div>
-      <p className="text-10 text-[var(--text-on-surface-muted)] mt-0.5">
-        {lagLabel(link.lag)} · n={link.n}
-        {" · "}{zh ? "整段持續" : "held"} {Math.round(link.presence * 100)}%
-      </p>
-    </div>
+    <PersistentWaveform key={link.factor} link={link} trend={trends.get(link.factor)} frames={frames}
+      lang={lang} positive={positive} varLabel={varLabel} lagLabel={lagLabel} />
   );
 
   const renderEmergedRow = (link: EmergedGoalLink, positive: boolean) => (
-    <div key={link.factor}
-      className={clsx("rounded-xl bg-[var(--surface-container-low)] px-3 py-2",
-        "border-l-4", positive ? "border-l-emerald-400" : "border-l-rose-300")}>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold text-[var(--text-on-surface)] truncate">{varLabel(link.factor)}</span>
-        <span className={clsx("text-10 font-semibold shrink-0",
-          positive ? "text-emerald-600" : "text-rose-500")}>
-          {zh ? `${md(link.date)} 起` : `since ${md(link.date)}`}
-        </span>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-1.5 mt-1 text-10">
-        <span className="text-[var(--text-on-surface-muted)]">{zh ? "之前" : "before"} {dayStr(link.beforeDays)}</span>
-        <span className="font-mono text-[var(--text-on-surface-muted)]">
-          {link.before.r >= 0 ? "+" : ""}{link.before.r.toFixed(2)}
-        </span>
-        <span className="text-[var(--text-on-surface-muted)]">n={link.before.n}</span>
-        <span className="text-gray-300 mx-0.5">→</span>
-        <span className="text-[var(--text-on-surface-muted)]">{zh ? "之後" : "since"} {dayStr(link.sinceDays)}</span>
-        <span className={clsx("font-mono font-bold", positive ? "text-emerald-600" : "text-rose-500")}>
-          {link.since.r >= 0 ? "+" : ""}{link.since.r.toFixed(2)}
-        </span>
-        <span className="text-[var(--text-on-surface-muted)]">n={link.since.n}</span>
-      </div>
-      <p className="text-9 text-[var(--text-on-surface-muted)] mt-0.5">
-        {lagLabel(link.lag)}
-        {" · p "}{link.pAdjusted < 0.001 ? "< 0.001" : `= ${link.pAdjusted.toFixed(3)}`}
-      </p>
-    </div>
+    <EmergedWaveform key={link.factor} link={link} segments={regimes.get(link.factor)} frames={frames}
+      lang={lang} positive={positive} varLabel={varLabel} lagLabel={lagLabel} md={md} />
   );
 
   return (
@@ -420,7 +395,9 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
             </div>
             <div className="flex items-center justify-between">
               <p className="text-10 text-[var(--text-on-surface-muted)]">
-                {progress.phase === "emerged"
+                {progress.phase === "regimes"
+                  ? (zh ? "尋找更早的轉折" : "Looking for earlier regimes")
+                  : progress.phase === "emerged"
                   ? (zh ? "分析新出現的影響" : "Finding newly emerged effects")
                   : (zh ? "計算中" : "Building")} {progress.done}/{progress.total}
               </p>
@@ -464,37 +441,37 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
                   : "No factor holds up across the whole run"} />;
               }
               return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <p className="flex items-center gap-1 text-10 font-semibold text-emerald-600 mb-1.5">
-                      <TrendingUp size={12} />{posLabel}
-                    </p>
-                    <div className="space-y-1.5">
-                      {pos.length === 0
-                        ? <SectionEmpty text={zh ? "無" : "None"} />
-                        : pos.slice(0, MAX_ROWS).map(l => renderPersistentRow(l, true))}
-                      {pos.length > MAX_ROWS && (
-                        <p className="text-10 text-[var(--text-on-surface-muted)]">
-                          {zh ? `…另有 ${pos.length - MAX_ROWS} 個` : `…and ${pos.length - MAX_ROWS} more`}
-                        </p>
-                      )}
+                <div className="space-y-3">
+                  {pos.length > 0 && (
+                    <div>
+                      <p className="flex items-center gap-1 text-10 font-semibold text-emerald-600 mb-1.5">
+                        <TrendingUp size={12} />{posLabel}
+                      </p>
+                      <div className="space-y-2">
+                        {pos.slice(0, MAX_ROWS).map(l => renderPersistentRow(l, true))}
+                        {pos.length > MAX_ROWS && (
+                          <p className="text-10 text-[var(--text-on-surface-muted)]">
+                            {zh ? `…另有 ${pos.length - MAX_ROWS} 個` : `…and ${pos.length - MAX_ROWS} more`}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <p className="flex items-center gap-1 text-10 font-semibold text-rose-500 mb-1.5">
-                      <TrendingDown size={12} />{negLabel}
-                    </p>
-                    <div className="space-y-1.5">
-                      {neg.length === 0
-                        ? <SectionEmpty text={zh ? "無" : "None"} />
-                        : neg.slice(0, MAX_ROWS).map(l => renderPersistentRow(l, false))}
-                      {neg.length > MAX_ROWS && (
-                        <p className="text-10 text-[var(--text-on-surface-muted)]">
-                          {zh ? `…另有 ${neg.length - MAX_ROWS} 個` : `…and ${neg.length - MAX_ROWS} more`}
-                        </p>
-                      )}
+                  )}
+                  {neg.length > 0 && (
+                    <div>
+                      <p className="flex items-center gap-1 text-10 font-semibold text-rose-500 mb-1.5">
+                        <TrendingDown size={12} />{negLabel}
+                      </p>
+                      <div className="space-y-2">
+                        {neg.slice(0, MAX_ROWS).map(l => renderPersistentRow(l, false))}
+                        {neg.length > MAX_ROWS && (
+                          <p className="text-10 text-[var(--text-on-surface-muted)]">
+                            {zh ? `…另有 ${neg.length - MAX_ROWS} 個` : `…and ${neg.length - MAX_ROWS} more`}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })()}
@@ -520,37 +497,37 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
                   : "No newly emerged effect found"} />;
               }
               return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <p className="flex items-center gap-1 text-10 font-semibold text-emerald-600 mb-1.5">
-                      <TrendingUp size={12} />{posLabel}
-                    </p>
-                    <div className="space-y-1.5">
-                      {pos.length === 0
-                        ? <SectionEmpty text={zh ? "無" : "None"} />
-                        : pos.slice(0, MAX_ROWS).map(l => renderEmergedRow(l, true))}
-                      {pos.length > MAX_ROWS && (
-                        <p className="text-10 text-[var(--text-on-surface-muted)]">
-                          {zh ? `…另有 ${pos.length - MAX_ROWS} 個` : `…and ${pos.length - MAX_ROWS} more`}
-                        </p>
-                      )}
+                <div className="space-y-3">
+                  {pos.length > 0 && (
+                    <div>
+                      <p className="flex items-center gap-1 text-10 font-semibold text-emerald-600 mb-1.5">
+                        <TrendingUp size={12} />{posLabel}
+                      </p>
+                      <div className="space-y-2">
+                        {pos.slice(0, MAX_ROWS).map(l => renderEmergedRow(l, true))}
+                        {pos.length > MAX_ROWS && (
+                          <p className="text-10 text-[var(--text-on-surface-muted)]">
+                            {zh ? `…另有 ${pos.length - MAX_ROWS} 個` : `…and ${pos.length - MAX_ROWS} more`}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <p className="flex items-center gap-1 text-10 font-semibold text-rose-500 mb-1.5">
-                      <TrendingDown size={12} />{negLabel}
-                    </p>
-                    <div className="space-y-1.5">
-                      {neg.length === 0
-                        ? <SectionEmpty text={zh ? "無" : "None"} />
-                        : neg.slice(0, MAX_ROWS).map(l => renderEmergedRow(l, false))}
-                      {neg.length > MAX_ROWS && (
-                        <p className="text-10 text-[var(--text-on-surface-muted)]">
-                          {zh ? `…另有 ${neg.length - MAX_ROWS} 個` : `…and ${neg.length - MAX_ROWS} more`}
-                        </p>
-                      )}
+                  )}
+                  {neg.length > 0 && (
+                    <div>
+                      <p className="flex items-center gap-1 text-10 font-semibold text-rose-500 mb-1.5">
+                        <TrendingDown size={12} />{negLabel}
+                      </p>
+                      <div className="space-y-2">
+                        {neg.slice(0, MAX_ROWS).map(l => renderEmergedRow(l, false))}
+                        {neg.length > MAX_ROWS && (
+                          <p className="text-10 text-[var(--text-on-surface-muted)]">
+                            {zh ? `…另有 ${neg.length - MAX_ROWS} 個` : `…and ${neg.length - MAX_ROWS} more`}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })()}
@@ -621,6 +598,185 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Waveform charts ────────────────────────────────────────────────────────────
+//
+// A link's r value across the frame sequence is read as a signal, not a
+// number: a thin raw trace (one point per window) under a bold smoothed
+// trend line, plotted against the window's *start date* rather than its size
+// in days — so the X axis reads directly as "correlation using data from
+// this date onward", which is what the analysis actually means.
+
+const RAW_COLOR = "var(--text-on-surface-muted)";
+const POS_LINE = "#10b981";
+const NEG_LINE = "#f43f5e";
+
+function PersistentWaveform({ link, trend, frames, lang, positive, varLabel, lagLabel }: {
+  link: PersistentGoalLink;
+  trend: LinkTrend | undefined;
+  frames: GoalFrame[];
+  lang: string;
+  positive: boolean;
+  varLabel: (v: NetVar) => string;
+  lagLabel: (lag: number) => string;
+}) {
+  const zh = lang === "zh";
+  const lineColor = positive ? POS_LINE : NEG_LINE;
+  const data = useMemo(() => frames.map((f, i) => ({
+    date: f.from,
+    raw: trend?.raw[i] ?? null,
+    smoothed: trend?.smoothed[i] ?? null,
+  })), [frames, trend]);
+
+  const direction = trend?.direction ?? "stable";
+  const TrendIcon = direction === "strengthening" ? TrendingUp : direction === "weakening" ? TrendingDown : Minus;
+  const trendLabel = direction === "strengthening" ? (zh ? "增強中" : "strengthening")
+    : direction === "weakening" ? (zh ? "減弱中" : "weakening")
+    : (zh ? "持平" : "steady");
+
+  return (
+    <div className="rounded-xl bg-[var(--surface-container-low)] px-3 py-2.5">
+      <div className="flex items-baseline justify-between gap-2 mb-0.5">
+        <span className="text-xs font-semibold text-[var(--text-on-surface)] truncate">{varLabel(link.factor)}</span>
+        <span className={clsx("flex items-center gap-1 text-10 font-semibold shrink-0",
+          direction === "strengthening" ? "text-emerald-600" : direction === "weakening" ? "text-rose-500" : "text-[var(--text-on-surface-muted)]")}>
+          <TrendIcon size={11} />{trendLabel}
+        </span>
+      </div>
+      <p className="text-10 text-[var(--text-on-surface-muted)] mb-1.5">
+        {lagLabel(link.lag)} · {zh ? "目前" : "now"}{" "}
+        <span className={clsx("font-mono font-bold", positive ? "text-emerald-600" : "text-rose-500")}>
+          {link.r >= 0 ? "+" : ""}{link.r.toFixed(2)}
+        </span>
+        {" · "}{zh ? "整段持續" : "held"} {Math.round(link.presence * 100)}%
+      </p>
+
+      <ResponsiveContainer width="100%" height={110}>
+        <ComposedChart data={data} margin={{ top: 2, right: 4, bottom: 0, left: -30 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
+          <XAxis dataKey="date" tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+            axisLine={false} tickLine={false} minTickGap={28}
+            tickFormatter={(v: string) => format(parseISO(v), "M/d")} />
+          <YAxis domain={[-1, 1]} tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+            axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} width={26} />
+          <ReferenceLine y={0} stroke="var(--surface-border)" />
+          <Tooltip content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const raw = payload.find(p => p.dataKey === "raw")?.value as number | undefined;
+            return (
+              <div className="bg-[var(--surface)] border border-[var(--surface-border)] rounded-xl px-2.5 py-1.5 text-10 shadow-lg">
+                <p className="font-semibold text-[var(--text-on-surface)]">{format(parseISO(label as string), "M/d")}</p>
+                {raw != null && <p className="text-[var(--text-on-surface-muted)]">r = {raw >= 0 ? "+" : ""}{raw.toFixed(2)}</p>}
+              </div>
+            );
+          }} />
+          <Line dataKey="raw" stroke={RAW_COLOR} strokeWidth={1} strokeOpacity={0.35} dot={false} connectNulls={false} isAnimationActive={false} />
+          <Line dataKey="smoothed" stroke={lineColor} strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+      {trend && trend.direction !== "stable" && (
+        <p className="text-9 text-[var(--text-on-surface-muted)] mt-1">
+          {zh
+            ? `趨勢 r=${trend.trendR.toFixed(2)}，p ${trend.trendP < 0.001 ? "< 0.001" : `= ${trend.trendP.toFixed(3)}`}`
+            : `trend r=${trend.trendR.toFixed(2)}, p ${trend.trendP < 0.001 ? "< 0.001" : `= ${trend.trendP.toFixed(3)}`}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function EmergedWaveform({ link, segments, frames, lang, positive, varLabel, lagLabel, md }: {
+  link: EmergedGoalLink;
+  segments: RegimeSegment[] | undefined;
+  frames: GoalFrame[];
+  lang: string;
+  positive: boolean;
+  varLabel: (v: NetVar) => string;
+  lagLabel: (lag: number) => string;
+  md: (d: string) => string;
+}) {
+  const zh = lang === "zh";
+  const lineColor = positive ? POS_LINE : NEG_LINE;
+
+  const rangeEndFallback = frames[0]?.to ?? link.date;
+  const segs = segments ?? [
+    { from: frames[0]?.from ?? link.date, to: link.date, r: link.before.r, n: link.before.n, reliability: link.before.reliability },
+    { from: link.date, to: rangeEndFallback, r: link.since.r, n: link.since.n, reliability: link.since.reliability },
+  ];
+
+  // Raw per-window trace (thin), same date-keyed X axis as the persistent chart.
+  const raw = useMemo(() => factorTrajectory(frames, link.factor).raw, [frames, link.factor]);
+  const rawData = useMemo(() => frames.map((f, i) => ({ date: f.from, raw: raw[i] })), [frames, raw]);
+
+  // A step function through the regime segments: one point per segment start
+  // plus a closing point at the range end, so `stepAfter` interpolation draws
+  // a flat line for each segment and a vertical jump at each transition —
+  // the "decoded discrete levels" read against the raw trace above.
+  const rangeEnd = frames[0]?.to ?? link.date;
+  const stepData = useMemo(() => [
+    ...segs.map(s => ({ date: s.from, level: s.r })),
+    { date: rangeEnd, level: segs[segs.length - 1].r },
+  ], [segs, rangeEnd]);
+
+  return (
+    <div className="rounded-xl bg-[var(--surface-container-low)] px-3 py-2.5">
+      <div className="flex items-baseline justify-between gap-2 mb-0.5">
+        <span className="text-xs font-semibold text-[var(--text-on-surface)] truncate">{varLabel(link.factor)}</span>
+        <span className={clsx("text-10 font-semibold shrink-0", positive ? "text-emerald-600" : "text-rose-500")}>
+          {zh ? `${md(link.date)} 起` : `since ${md(link.date)}`}
+        </span>
+      </div>
+      <p className="text-10 text-[var(--text-on-surface-muted)] mb-1.5">
+        {lagLabel(link.lag)}
+        {" · p "}{link.pAdjusted < 0.001 ? "< 0.001" : `= ${link.pAdjusted.toFixed(3)}`}
+        {segs.length > 2 && (zh ? ` · 偵測到 ${segs.length} 段` : ` · ${segs.length} segments found`)}
+      </p>
+
+      <ResponsiveContainer width="100%" height={110}>
+        <ComposedChart margin={{ top: 2, right: 4, bottom: 0, left: -30 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
+          <XAxis dataKey="date" type="category" allowDuplicatedCategory={false}
+            tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+            axisLine={false} tickLine={false} minTickGap={28}
+            tickFormatter={(v: string) => format(parseISO(v), "M/d")} />
+          <YAxis domain={[-1, 1]} tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+            axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} width={26} />
+          <ReferenceLine y={0} stroke="var(--surface-border)" />
+          {segs.slice(1).map((s, i) => (
+            <ReferenceLine key={i} x={s.from} stroke="var(--text-accent)" strokeDasharray="4 3" strokeWidth={1} />
+          ))}
+          <Tooltip content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const rawV = payload.find(p => p.dataKey === "raw")?.value as number | undefined;
+            const lvl  = payload.find(p => p.dataKey === "level")?.value as number | undefined;
+            return (
+              <div className="bg-[var(--surface)] border border-[var(--surface-border)] rounded-xl px-2.5 py-1.5 text-10 shadow-lg">
+                <p className="font-semibold text-[var(--text-on-surface)]">{format(parseISO(label as string), "M/d")}</p>
+                {rawV != null && <p className="text-[var(--text-on-surface-muted)]">r = {rawV >= 0 ? "+" : ""}{rawV.toFixed(2)}</p>}
+                {lvl  != null && <p style={{ color: lineColor }}>{zh ? "區段" : "segment"}: {lvl >= 0 ? "+" : ""}{lvl.toFixed(2)}</p>}
+              </div>
+            );
+          }} />
+          <Line data={rawData} dataKey="raw" stroke={RAW_COLOR} strokeWidth={1} strokeOpacity={0.35}
+            dot={false} connectNulls={false} isAnimationActive={false} />
+          <Line data={stepData} dataKey="level" type="stepAfter" stroke={lineColor} strokeWidth={2.2}
+            dot={false} isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+        {segs.map((s, i) => (
+          <span key={i} className="text-9 text-[var(--text-on-surface-muted)]">
+            {md(s.from)}–{s.to === rangeEnd ? (zh ? "現在" : "now") : md(s.to)}:{" "}
+            <span className={clsx("font-mono font-bold", s.r >= 0 ? "text-emerald-600" : "text-rose-500")}>
+              {s.r >= 0 ? "+" : ""}{s.r.toFixed(2)}
+            </span>{" "}n={s.n}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

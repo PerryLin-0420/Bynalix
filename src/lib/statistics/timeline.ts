@@ -18,12 +18,13 @@
  * (the entire available history) and the last frame is the tightest.
  */
 
-import { format, parseISO, subDays } from "date-fns";
+import { format, parseISO, subDays, addDays, differenceInCalendarDays } from "date-fns";
 import {
   computeGoalLinks, correlationDifferenceP, pairCorrelationIn, prepareSeries,
-  NET_VARS, type GoalEdge, type NetVar, type PairCorrelation,
+  spearman, pValueForR, NET_VARS,
+  type GoalEdge, type NetVar, type PairCorrelation, type PreparedSeries,
 } from "./network";
-import { RELIABILITY_THRESHOLDS, type Reliability } from "./pearson";
+import { RELIABILITY_THRESHOLDS, getReliability, type Reliability } from "./pearson";
 import type { DailyStatsRecord } from "@/types";
 
 /** Which side of the goal variable a link is good news for. */
@@ -403,10 +404,12 @@ export async function emergedGoalLinks(
       const pAdjusted = Math.min(1,
         correlationDifferenceP(since.r, since.n, before.r, before.n) * tests);
       if (pAdjusted > o.maxP) continue;
-      // Candidates run earliest-first; keeping the first adequate one (rather
-      // than whichever later split happens to disagree most) reports the
-      // actual onset instead of drifting later onto a lucky split.
-      if (best) continue;
+      // Sharpest split wins, not the earliest adequate one: a strong effect
+      // still clears the bar on a candidate diluted by pre-onset noise, so
+      // "first adequate" under-reports how recent the true onset is — measured
+      // 60 days off on a seeded r≈1 effect. Scoring by the corrected p (which
+      // already prices in both sample sizes) finds the true date instead.
+      if (best && pAdjusted >= best.pAdjusted) continue;
 
       const positive = goalDir === "up" ? since.r > 0 : since.r < 0;
       best = {
@@ -453,4 +456,222 @@ export function goalTrendSeries(frames: GoalFrame[], goalDir: GoalDirection): Go
     }
     return { index: f.index, from: f.from, days: f.days, positive, negative };
   });
+}
+
+// ── Trend: is a persistent link getting stronger or weaker? ──────────────────
+
+/**
+ * Simple centred moving average, skipping missing frames rather than treating
+ * them as zero. This is the "low-pass filter" half of reading the r(t) series
+ * as a signal: the raw trace is dominated by frame-to-frame sampling noise
+ * (each frame is its own independent correlation, computed from a different-
+ * sized slice of the record), and the smoothed trace is what a trend or a
+ * regime boundary should be read against, not the raw wiggle.
+ */
+function smoothSeries(raw: (number | null)[], windowFrac = 0.08, minWindow = 3): (number | null)[] {
+  const win = Math.max(minWindow, Math.round(raw.length * windowFrac));
+  const half = Math.floor(win / 2);
+  return raw.map((_, i) => {
+    const lo = Math.max(0, i - half), hi = Math.min(raw.length - 1, i + half);
+    let sum = 0, count = 0;
+    for (let k = lo; k <= hi; k++) {
+      const v = raw[k];
+      if (v != null) { sum += v; count++; }
+    }
+    return count > 0 ? sum / count : null;
+  });
+}
+
+export interface LinkTrend {
+  factor: NetVar;
+  direction: "strengthening" | "weakening" | "stable";
+  /** Spearman correlation of r against frame position — the trend itself, not the link's own r. */
+  trendR: number;
+  trendP: number;
+  n: number;
+  /** r per frame, for the raw trace of the waveform chart. */
+  raw: (number | null)[];
+  /** Low-pass-filtered r per frame, for the waveform chart's trend trace. */
+  smoothed: (number | null)[];
+}
+
+const TREND_MAX_P = 0.05;
+
+/**
+ * Whether each already-persistent link is getting stronger, weaker, or
+ * holding steady — the question "is this link real" (`persistentGoalLinks`)
+ * answered, but not "is it changing", which needs the whole frame sequence
+ * read as a trajectory rather than compared at two endpoints.
+ *
+ * The trend itself is a Spearman correlation between frame position (0 =
+ * widest/oldest-reaching window, last = narrowest/most-recent-only) and the
+ * link's r in that frame — reusing the same rank-correlation machinery the
+ * network itself is built on, just run one level up, on a correlation's own
+ * trajectory instead of two raw variables. A positive trend means the link
+ * reads stronger as the window narrows to recent-only data: the relationship
+ * is trending toward the present, i.e. strengthening.
+ */
+/** A factor's raw and smoothed r trajectory across all frames, with no significance test — used to draw a waveform even for factors `linkTrends` isn't run on (e.g. emerged factors, tested separately by `emergedGoalLinks`). */
+export function factorTrajectory(frames: GoalFrame[], factor: NetVar): { raw: (number | null)[]; smoothed: (number | null)[] } {
+  const raw = frames.map(f => f.edges.find(e => e.factor === factor)?.r ?? null);
+  return { raw, smoothed: smoothSeries(raw) };
+}
+
+export function linkTrends(frames: GoalFrame[], factors: NetVar[]): LinkTrend[] {
+  if (frames.length < 8 || factors.length === 0) return [];
+  const tests = factors.length;
+
+  return factors.map(factor => {
+    const raw = frames.map(f => f.edges.find(e => e.factor === factor)?.r ?? null);
+    const xs: number[] = [], ys: number[] = [];
+    raw.forEach((r, i) => { if (r != null) { xs.push(i); ys.push(r); } });
+    const smoothed = smoothSeries(raw);
+
+    if (xs.length < 8) return { factor, direction: "stable" as const, trendR: 0, trendP: 1, n: xs.length, raw, smoothed };
+
+    const trendR = spearman(xs, ys);
+    const trendP = Math.min(1, pValueForR(trendR, xs.length) * tests);
+    const direction = trendP < TREND_MAX_P
+      ? (trendR > 0 ? "strengthening" as const : "weakening" as const)
+      : "stable" as const;
+    return { factor, direction, trendR, trendP, n: xs.length, raw, smoothed };
+  });
+}
+
+// ── Regimes: did an emerged link's "before" period itself have a turning point? ──
+
+export interface RegimeSegment {
+  from: string;
+  to:   string;
+  r:    number;
+  n:    number;
+  reliability: Reliability;
+}
+
+export interface RegimeOptions {
+  minAbsR?: number;
+  maxP?: number;
+  minSide?: number;
+  minPeriodDays?: number;
+  minContrast?: number;
+  maxCandidates?: number;
+}
+
+const REGIME_DEFAULTS = {
+  // Looser than the primary emerged search: this only ever runs on factors
+  // that already cleared that harder bar once, against a much smaller family.
+  minAbsR:       0.25,
+  maxP:          0.05,
+  minSide:       RELIABILITY_THRESHOLDS.HIGH_PAIRS,
+  minPeriodDays: 30,
+  minContrast:   0.25,
+  maxCandidates: 12,
+} as const;
+
+/** Candidate split dates spread evenly across [start,end], each leaving minPeriodDays on both sides. */
+function dateCandidates(start: string, end: string, minPeriodDays: number, maxCandidates: number): string[] {
+  const totalDays = differenceInCalendarDays(parseISO(end), parseISO(start)) + 1;
+  const usable = totalDays - 2 * minPeriodDays;
+  if (usable < 0) return [];
+  const count = Math.min(maxCandidates, usable + 1);
+  if (count <= 0) return [];
+  const stride = count > 1 ? usable / (count - 1) : 0;
+  const seen = new Set<string>();
+  const dates: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = format(addDays(parseISO(start), minPeriodDays + Math.round(i * stride)), "yyyy-MM-dd");
+    if (!seen.has(d)) { seen.add(d); dates.push(d); }
+  }
+  return dates;
+}
+
+/**
+ * Best two-sided split of [rangeStart, rangeEnd] — unlike the primary emerged
+ * search, which side is stronger is not constrained, since this looks for any
+ * regime change (including a fade, or a fade-then-return), not specifically
+ * an onset.
+ */
+function findSplit(
+  prep: PreparedSeries, factor: NetVar, goalVar: NetVar, lag: number,
+  rangeStart: string, rangeEnd: string, tests: number,
+  o: Required<RegimeOptions>,
+): { date: string; left: PairCorrelation; right: PairCorrelation; pAdjusted: number } | null {
+  const candidates = dateCandidates(rangeStart, rangeEnd, o.minPeriodDays, o.maxCandidates);
+  let best: { date: string; left: PairCorrelation; right: PairCorrelation; pAdjusted: number } | null = null;
+  for (const date of candidates) {
+    const right = pairCorrelationIn(prep, factor, goalVar, lag, date, rangeEnd);
+    const left  = pairCorrelationIn(prep, factor, goalVar, lag, rangeStart, format(subDays(parseISO(date), 1), "yyyy-MM-dd"));
+    if (!left || !right) continue;
+    if (left.n < o.minSide || right.n < o.minSide) continue;
+    if (Math.abs(left.r) < o.minAbsR && Math.abs(right.r) < o.minAbsR) continue;
+    if (Math.abs(Math.abs(right.r) - Math.abs(left.r)) < o.minContrast) continue;
+
+    const pAdjusted = Math.min(1, correlationDifferenceP(right.r, right.n, left.r, left.n) * tests);
+    if (pAdjusted > o.maxP) continue;
+    if (best && pAdjusted >= best.pAdjusted) continue;
+    best = { date, left, right, pAdjusted };
+  }
+  return best;
+}
+
+/**
+ * Enriches each `emergedGoalLinks` result with a possible earlier regime: a
+ * second, direction-agnostic split search within its "before" period. Most
+ * factors stay two segments — a single onset, which is already what
+ * `emergedGoalLinks` reports. Occasionally the older data itself contains a
+ * detectable transition: a link that was moderate, went quiet, then
+ * re-emerged, rather than a clean "on since one date" — that shows up as a
+ * third segment instead.
+ *
+ * Runs only on the (typically small) set of factors `emergedGoalLinks` already
+ * found, so its own Bonferroni correction answers for that much smaller
+ * family rather than every network variable; the primary search and its own
+ * correction are untouched.
+ */
+export async function regimeGoalLinks(
+  recs: DailyStatsRecord[],
+  emerged: EmergedGoalLink[],
+  goalVar: NetVar,
+  rangeStart: string,
+  rangeEnd: string,
+  opts: RegimeOptions = {},
+  onProgress?: (done: number, total: number) => void,
+  shouldAbort?: () => boolean,
+): Promise<Map<NetVar, RegimeSegment[]>> {
+  const o = { ...REGIME_DEFAULTS, ...opts };
+  const out = new Map<NetVar, RegimeSegment[]>();
+  if (emerged.length === 0) return out;
+
+  const prep = prepareSeries(recs);
+  if (!prep) return out;
+
+  const tests = emerged.length * o.maxCandidates;
+  let chunkStart = Date.now();
+
+  for (let i = 0; i < emerged.length; i++) {
+    if (shouldAbort?.()) break;
+    const link = emerged[i];
+    const beforeEnd = format(subDays(parseISO(link.date), 1), "yyyy-MM-dd");
+    const sinceSeg: RegimeSegment = { from: link.date, to: rangeEnd, r: link.since.r, n: link.since.n, reliability: getReliability(link.since.n) };
+
+    const split = findSplit(prep, link.factor, goalVar, link.lag, rangeStart, beforeEnd, tests, o);
+    out.set(link.factor, split
+      ? [
+        { from: rangeStart, to: format(subDays(parseISO(split.date), 1), "yyyy-MM-dd"), r: split.left.r, n: split.left.n, reliability: getReliability(split.left.n) },
+        { from: split.date, to: beforeEnd, r: split.right.r, n: split.right.n, reliability: getReliability(split.right.n) },
+        sinceSeg,
+      ]
+      : [
+        { from: rangeStart, to: beforeEnd, r: link.before.r, n: link.before.n, reliability: getReliability(link.before.n) },
+        sinceSeg,
+      ]);
+
+    onProgress?.(i + 1, emerged.length);
+    if (Date.now() - chunkStart > 40) {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      chunkStart = Date.now();
+    }
+  }
+
+  return out;
 }
