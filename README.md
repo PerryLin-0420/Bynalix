@@ -34,7 +34,7 @@ but deeper personal understanding through self-owned data.
 - Historical visualization, with optional trend-line fitting
 - Correlation analysis — variable relationship network with lagged effects
 - Pattern discovery — weekend-vs-weekday effects, significance gated
-- Timeline slideshow — replay the correlation network as the analysis window shrinks day by day
+- Timeline — which factors affect your goal long-term, and which only started recently, found by shrinking the analysis window day by day
 - Automatic sleep detection from screen activity (Android)
 - Custom exercises & foods
 - App lock — PIN and biometric unlock (Android)
@@ -46,6 +46,12 @@ but deeper personal understanding through self-owned data.
 ---
 
 ## Changelog
+
+### v1.6.0
+- **Timeline redesigned around your goal** — the correlation-network diagram is gone from the Timeline tab; the shrinking-window analysis is now backend computation only, scored against your goal variable (weight, in the direction your mode already targets) instead of drawn as a graph. Two results replace it: **Long-term effects** — factors that hold up no matter how the window is sized, including the tightest, most recent one, so the effect isn't an artefact of old data and hasn't gone away since; and **Newly emerged effects** — factors whose link to your goal only started partway through the record and still holds as of your latest data, with the onset date, both periods' r and n, and a search-corrected p-value. Both are split into positive (helps your goal) and negative (hurts it)
+- **Catches what a diagram can't** — a relationship strong enough to survive being diluted by old data never visibly "appears" on a frame-by-frame view; only splitting the record into before/since reveals when it actually started. Verified against synthetic records with a seeded change in behavior: the reported onset lands within a day of the true date, while pure-noise records produce a false "newly emerged" finding on only a handful of runs out of dozens
+- **Across-the-run chart replaced** — now plots how many positive/negative goal-linked factors each analysis window found, instead of the old generic edge-count/mean-|r| reading that no longer matched what the tab does; hover a bar to see which factors
+- **~7x cheaper to build** — scoring every window against one fixed goal variable, instead of the full pairwise network, cuts the correlations computed per frame from ~90 pairs to ~13
 
 ### v1.5.0
 - **Timeline tab** — a new tab beside Patterns that plays the correlation network back as a slideshow. Pick a start date A; the window end stays pinned to your latest logged day, and each frame moves the start forward one step — A→now, A+1→now, A+2→now — down to the shortest window a correlation can stand on (15 days). Playing it back shows which relationships survive as the old data drops away and which only ever lived in it. Step defaults to one day (1/2/3/7/14 available) and the whole run can be set to play in 5, 10, 20 or 40 seconds, with play/pause, frame stepping, looping and a scrubber

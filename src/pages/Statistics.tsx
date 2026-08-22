@@ -1265,9 +1265,12 @@ export function Statistics() {
       {activeTab === "advanced" && renderAdvancedStats(modeSettings?.mode === "custom" ? 2 : 1)}
 
       {/* ══════════════════════════════════════════
-          TAB: 時間線 (Timeline) — window-shrinking slideshow
+          TAB: 時間線 (Timeline) — goal-linked long-term / newly-emerged effects
       ══════════════════════════════════════════ */}
-      {activeTab === "timeline" && <TimelineSlideshow userId={profile.user_id} lang={lang} />}
+      {activeTab === "timeline" && (
+        <TimelineSlideshow userId={profile.user_id} lang={lang}
+          goalDir={goalMode === "cut" ? "down" : "up"} />
+      )}
     </div>
 
     {/* ── MetricPicker bottom sheet modal (variable picker) — both slots ── */}

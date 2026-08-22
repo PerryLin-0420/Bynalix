@@ -631,6 +631,91 @@ export function computeCorrelationNetwork(
   return { nodes, edges: keptEdges };
 }
 
+// ── Goal-star network (Timeline) ─────────────────────────────────────────────
+
+export interface GoalEdge {
+  factor: NetVar;
+  r: number;
+  n: number;
+  p: number;
+  /** 0 = same-day (undirected); >0 = `factor` leads the goal by this many days. */
+  lag: number;
+  reliability: Reliability;
+}
+
+export interface GoalLinksOptions {
+  minAbsR?: number;   // default 0.3 — same bar as a network edge
+  maxP?: number;      // default 0.05
+  minN?: number;      // default LOW_PAIRS (14)
+  maxLag?: number;    // default 3
+}
+
+/**
+ * Every other network variable's differenced correlation against one fixed
+ * "goal" variable — a star topology centred on the goal, rather than the full
+ * pairwise network.
+ *
+ * Deliberately narrower than `computeCorrelationNetwork` in two ways:
+ *
+ * 1. Only `factor` vs `goalVar` pairs are evaluated (≤14 instead of ~90), so a
+ *    caller that only cares about one variable's influences — like the
+ *    timeline, which reruns this once per analysis window — does a fraction
+ *    of the work for the answer it actually needs.
+ * 2. The lag search only tries `factor` leading `goalVar`, never the reverse.
+ *    "Does this affect my goal" and "does my goal predict this" are different
+ *    questions, and conflating them (as the full network does, keeping
+ *    whichever direction is stronger) would let a factor that only *follows*
+ *    weight changes read as something that drives them.
+ *
+ * Same edge bar as the network (|r|, p, n) and the same "a lag has to clearly
+ * beat same-day to replace it" rule, so a factor here means what an edge means
+ * in the Patterns tab's network — just filtered to one target and one causal
+ * direction.
+ */
+export function computeGoalLinks(
+  recs: DailyStatsRecord[],
+  goalVar: NetVar,
+  opts: GoalLinksOptions = {},
+): GoalEdge[] {
+  const minAbsR = opts.minAbsR ?? 0.3;
+  const maxP    = opts.maxP    ?? 0.05;
+  const minN    = opts.minN    ?? RELIABILITY_THRESHOLDS.LOW_PAIRS;
+  const maxLag  = opts.maxLag  ?? 3;
+  if (recs.length === 0) return [];
+
+  const grid = buildDayGrid(recs);
+  const goalDiff = diffSeries(recs, goalVar, grid);
+  const factors  = (Object.keys(NET_VARS) as NetVar[]).filter(v => v !== goalVar);
+
+  const xBuf = new Float64Array(grid.span);
+  const yBuf = new Float64Array(grid.span);
+  const dayBuf = new Int32Array(grid.span);
+  const scratch = makeRankScratch(grid.span);
+
+  const edges: GoalEdge[] = [];
+  for (const factor of factors) {
+    const factorDiff = diffSeries(recs, factor, grid);
+
+    let best: { r: number; n: number; lag: number } | null = null;
+    const sameN = alignDiff(factorDiff, goalDiff, 0, xBuf, yBuf, dayBuf);
+    if (sameN >= minN) best = { r: spearmanBuf(xBuf, yBuf, sameN, scratch), n: sameN, lag: 0 };
+
+    for (let lag = 1; lag <= maxLag; lag++) {
+      const n = alignDiff(factorDiff, goalDiff, lag, xBuf, yBuf, dayBuf);
+      if (n < minN) continue;
+      const r = spearmanBuf(xBuf, yBuf, n, scratch);
+      if (!best || Math.abs(r) > Math.abs(best.r) + 0.05) best = { r, n, lag };
+    }
+    if (!best || Math.abs(best.r) < minAbsR) continue;
+
+    const p = pValueForR(best.r, best.n);
+    if (p > maxP) continue;
+    edges.push({ factor, r: best.r, n: best.n, p, lag: best.lag, reliability: getReliability(best.n) });
+  }
+
+  return edges.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+}
+
 // ── Weekday-effect patterns (Phase 3) ────────────────────────────────────────
 
 export interface WeekdayPattern {
