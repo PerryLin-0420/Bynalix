@@ -332,12 +332,12 @@ export function FoodLog() {
         if (cats?.length) {
           rows = await db.select<FoodItem[]>(
             `SELECT * FROM food_database WHERE category IN (${cats.map(() => "?").join(",")})
-             AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT 30`,
+             AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT 200`,
             [...cats, q, likeQ, likeQ]);
         } else {
           rows = await db.select<FoodItem[]>(
             `SELECT * FROM food_database WHERE category = ?
-             AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT 30`,
+             AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT 200`,
             [filter, q, likeQ, likeQ]);
         }
       } else if (q.trim()) {
