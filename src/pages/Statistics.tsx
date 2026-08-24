@@ -7,6 +7,7 @@ import { format, subDays } from "date-fns";
 import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
 import { MetricPicker, metricKey, metricLabel, ALL_BODY_PARTS, type MetricCfg } from "@/components/stats/MetricPicker";
 import { CorrelationNetwork } from "@/components/stats/CorrelationNetwork";
+import { EmergenceCards } from "@/components/stats/EmergenceCards";
 import { TimelineSlideshow } from "@/components/stats/TimelineSlideshow";
 import { WeekdayPatternCards } from "@/components/stats/WeekdayPatternCards";
 import { computeCorrelationNetwork, computeWeekdayPatterns, type CorrelationNetwork as NetworkData, type WeekdayPattern } from "@/lib/statistics/network";
@@ -1198,6 +1199,9 @@ export function Statistics() {
             {/* ── Correlation network graph ────────────────────────────── */}
             {network && <CorrelationNetwork network={network} lang={lang} />}
 
+            {/* ── Newly-emerged relationships, grouped by hub factor ───── */}
+            <EmergenceCards userId={profile.user_id} lang={lang} />
+
             {/* ── Lag sections ─────────────────────────────────────────── */}
             {lagSections.map((section) => (
               <div key={section.targetLabel} className="card space-y-0 divide-y divide-[var(--surface-border)]">
@@ -1265,9 +1269,12 @@ export function Statistics() {
       {activeTab === "advanced" && renderAdvancedStats(modeSettings?.mode === "custom" ? 2 : 1)}
 
       {/* ══════════════════════════════════════════
-          TAB: 時間線 (Timeline) — window-shrinking slideshow
+          TAB: 時間線 (Timeline) — goal-linked long-term / newly-emerged effects
       ══════════════════════════════════════════ */}
-      {activeTab === "timeline" && <TimelineSlideshow userId={profile.user_id} lang={lang} />}
+      {activeTab === "timeline" && (
+        <TimelineSlideshow userId={profile.user_id} lang={lang}
+          goalDir={goalMode === "cut" ? "down" : "up"} />
+      )}
     </div>
 
     {/* ── MetricPicker bottom sheet modal (variable picker) — both slots ── */}

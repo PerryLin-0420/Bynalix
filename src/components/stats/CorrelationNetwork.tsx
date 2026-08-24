@@ -121,49 +121,10 @@ function orderRing(
   return best;
 }
 
-/**
- * A single ring ordering shared by a whole sequence of networks.
- *
- * Laying each frame out on its own would move every node whenever an edge
- * appears or disappears, and a slideshow of shifting rings shows motion rather
- * than change. Ordering the union of all frames once pins each variable to one
- * slot for the entire run, so the only thing that moves between frames is the
- * edges — which is the thing being compared.
- */
-export function unionRingOrder(networks: NetworkData[]): NetVar[] {
-  const domainOf = new Map<NetVar, VarDomain>();
-  const linked   = new Set<NetVar>();
-  const edges: NetEdge[] = [];
-  const seen     = new Set<string>();
-  for (const net of networks) {
-    for (const n of net.nodes) domainOf.set(n.id, n.domain);
-    for (const e of net.edges) {
-      linked.add(e.source); linked.add(e.target);
-      // One representative per variable pair: crossing counts depend on which
-      // slots an edge joins, not on how many frames repeated it.
-      const key = e.source < e.target ? `${e.source}|${e.target}` : `${e.target}|${e.source}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      edges.push(e);
-    }
-  }
-  return orderRing([...linked], domainOf, edges);
-}
-
-interface CorrelationNetworkProps {
+export function CorrelationNetwork({ network, lang }: {
   network: NetworkData;
   lang: string;
-  /**
-   * Fixed ring slots (from `unionRingOrder`). Every listed variable keeps its
-   * position whatever this frame contains, and one with no edge here is drawn
-   * faded in place instead of being moved to the unlinked list below.
-   */
-  ringOrder?: NetVar[];
-  title?: string;
-  subtitle?: string;
-}
-
-export function CorrelationNetwork({ network, lang, ringOrder, title, subtitle }: CorrelationNetworkProps) {
+}) {
   const [selNode, setSelNode] = useState<NetVar | null>(null);
   const [selEdge, setSelEdge] = useState<NetEdge | null>(null);
 
@@ -177,7 +138,7 @@ export function CorrelationNetwork({ network, lang, ringOrder, title, subtitle }
    * slots are allocated from the connected set (so spacing adapts to how many
    * results there are) and ordered to minimise crossings.
    */
-  const { positions, ringNodes, isolatedNodes, unlinked } = useMemo(() => {
+  const { positions, ringNodes, isolatedNodes } = useMemo(() => {
     const degree = new Map<NetVar, number>();
     for (const e of edges) {
       degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
@@ -186,11 +147,9 @@ export function CorrelationNetwork({ network, lang, ringOrder, title, subtitle }
     const domainOf = new Map(nodes.map(n => [n.id, n.domain] as const));
     const connected = nodes.filter(n => (degree.get(n.id) ?? 0) > 0);
     const isolated  = nodes.filter(n => (degree.get(n.id) ?? 0) === 0);
-    const byId = new Map(nodes.map(n => [n.id, n] as const));
 
-    // Fixed layout: slots come from the caller and never depend on this frame,
-    // so a variable stays put as edges come and go around it.
-    const order = ringOrder ?? orderRing(connected.map(n => n.id), domainOf, edges);
+    const order = orderRing(connected.map(n => n.id), domainOf, edges);
+    const byId = new Map(nodes.map(n => [n.id, n] as const));
     const map = new Map<NetVar, { x: number; y: number; angle: number }>();
     order.forEach((id, i) => {
       const angle = -Math.PI / 2 + (i * 2 * Math.PI) / order.length;
@@ -202,17 +161,10 @@ export function CorrelationNetwork({ network, lang, ringOrder, title, subtitle }
     });
     return {
       positions: map,
-      // With a fixed layout the ring also carries variables that produced no
-      // edge in this frame (drawn faded), so a link going missing reads as the
-      // link disappearing rather than as a node leaving.
-      ringNodes: order.flatMap(id => {
-        const n = byId.get(id);
-        return n ? [n] : [];
-      }),
-      isolatedNodes: ringOrder ? [] : isolated,
-      unlinked: new Set(order.filter(id => (degree.get(id) ?? 0) === 0)),
+      ringNodes: order.map(id => byId.get(id)!),
+      isolatedNodes: isolated,
     };
-  }, [nodes, edges, ringOrder]);
+  }, [nodes, edges]);
 
   const nodeLabel = (id: NetVar) => {
     const n = nodes.find(x => x.id === id);
@@ -274,10 +226,7 @@ export function CorrelationNetwork({ network, lang, ringOrder, title, subtitle }
     return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
   };
 
-  // A slideshow frame with no qualifying edge still draws its (empty) ring:
-  // collapsing to a text card mid-playback would hide the very thing the
-  // timeline is showing — that the relationships are gone at this window.
-  if (edges.length === 0 && !ringOrder) {
+  if (edges.length === 0) {
     return (
       <div className="card text-center py-8">
         <p className="text-sm text-[var(--text-on-surface-muted)]">
@@ -296,16 +245,16 @@ export function CorrelationNetwork({ network, lang, ringOrder, title, subtitle }
     <div className="card">
       <div className="flex items-center justify-between mb-1">
         <p className="text-sm font-semibold text-[var(--text-on-surface)]">
-          {title ?? (zh ? "變因關係網絡" : "Variable Network")}
+          {zh ? "變因關係網絡" : "Variable Network"}
         </p>
         <span className="text-10 text-[var(--text-on-surface-muted)]">
           {zh ? "相關 ≠ 因果" : "Correlation ≠ causation"}
         </span>
       </div>
       <p className="text-10 text-[var(--text-on-surface-muted)] mb-2">
-        {subtitle ?? (zh
+        {zh
           ? "以每日「變化量」計算 Spearman 相關 · 點節點聚焦、點連線看散點"
-          : "Spearman on day-over-day changes · tap a node to focus, tap an edge for the scatter")}
+          : "Spearman on day-over-day changes · tap a node to focus, tap an edge for the scatter"}
       </p>
 
       <svg viewBox={`${-PAD_X} 0 ${SIZE + PAD_X * 2} ${SIZE}`}
@@ -348,7 +297,7 @@ export function CorrelationNetwork({ network, lang, ringOrder, title, subtitle }
           // On a fixed ring, a variable with nothing attached in this frame is
           // held at low opacity rather than removed, so the slot stays readable
           // as its links come back in a later frame.
-          const dimmed = isNodeDimmed(n.id) || unlinked.has(n.id);
+          const dimmed = isNodeDimmed(n.id);
           const selected = selNode === n.id;
           const rNode = 8 + Math.min(n.density, 100) / 100 * 6; // 8–14 by density
           const anchor = Math.abs(Math.cos(pos.angle)) < 0.35

@@ -1,36 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
-import { format, parseISO, differenceInCalendarDays, addDays } from "date-fns";
-import {
-  Play, Pause, SkipBack, SkipForward, Repeat, CalendarDays, Film, X,
-} from "lucide-react";
+import { format, parseISO, differenceInCalendarDays, subDays } from "date-fns";
+import { Film, X, TrendingUp, TrendingDown, Minus, Target, RefreshCw } from "lucide-react";
 import { clsx } from "clsx";
-import { CorrelationNetwork, unionRingOrder } from "./CorrelationNetwork";
-import { MiniCalendar } from "@/components/common/MiniCalendar";
+import { DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { CardHeader } from "@/components/common/CardHeader";
-import { NET_VARS, type NetEdge, type NetVar } from "@/lib/statistics/network";
+import { useLangStore } from "@/store/langStore";
+import { NET_VARS, type NetVar } from "@/lib/statistics/network";
 import {
-  buildTimeline, diffNetworks, findLinkShifts, planTimeline, timelineSeries, edgeTracks,
-  TIMELINE_MIN_WINDOW, TIMELINE_STEP_OPTIONS, TIMELINE_DURATION_OPTIONS,
-  type TimelineFrame, type EdgeTrack, type LinkShift,
+  buildTimeline, persistentGoalLinks, emergedGoalLinks, goalTrendSeries,
+  linkTrends, regimeGoalLinks, factorTrajectory,
+  planTimeline, TIMELINE_MIN_WINDOW,
+  type GoalFrame, type GoalDirection, type PersistentGoalLink, type EmergedGoalLink,
+  type LinkTrend, type RegimeSegment,
 } from "@/lib/statistics/timeline";
-import { getDailyStatsRecords, getDataDateBounds } from "@/lib/db/queries/stats";
+import { getDailyStatsRecords, getDataDateBounds, getActiveDates } from "@/lib/db/queries/stats";
 import { logError } from "@/lib/error";
 
-const POS_COLOR = "#10b981";
-const NEG_COLOR = "#f43f5e";
+/** The variable every Timeline result is measured against. */
+const GOAL_VAR: NetVar = "weight_kg";
 
-/** Slowest sensible frame interval, so a long timeline never crawls. */
-const MIN_FRAME_MS = 50;
+/**
+ * Widest-window presets, same pill-and-custom-range model as the other stats
+ * tabs (see `DateRangePills`/`useDateRange`) — but with Timeline-appropriate
+ * values. The 14/30/90-day presets those tabs use are mostly too short here:
+ * the shrinking-window analysis needs real room to walk the start forward, and
+ * "long-term" only means something against a genuinely long default range.
+ * `null` stands for the full logged history, and is the default.
+ */
+const TIMELINE_RANGE_OPTIONS: readonly (number | null)[] = [null, 365, 180, 90];
 
-/** Gained/lost links listed per frame before the rest are summarised as a count. */
-const MAX_CHANGE_ROWS = 4;
-
-/** Turning points listed before the rest are summarised as a count. */
-const MAX_SHIFT_ROWS = 6;
+/** Rows shown per direction before the rest collapse into a count. */
+const MAX_ROWS = 5;
 
 // ── Small shared bits ────────────────────────────────────────────────────────
 
@@ -46,34 +50,8 @@ function SegButton({ active, onClick, children }: {
   );
 }
 
-/** A signed number with the sign always shown, coloured by direction. */
-function Delta({ value, digits = 0, goodUp = true }: {
-  value: number; digits?: number; goodUp?: boolean;
-}) {
-  if (Math.abs(value) < (digits ? 10 ** -digits / 2 : 0.5)) {
-    return <span className="text-10 text-gray-400">±0</span>;
-  }
-  const up = value > 0;
-  return (
-    <span className={clsx("text-10 font-mono font-bold",
-      up === goodUp ? "text-emerald-600" : "text-rose-500")}>
-      {up ? "+" : "−"}{Math.abs(value).toFixed(digits)}
-    </span>
-  );
-}
-
-function StatTile({ label, value, delta }: {
-  label: string; value: string; delta?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl bg-[var(--surface-container-low)] px-2.5 py-2">
-      <p className="text-9 text-[var(--text-on-surface-muted)] leading-none">{label}</p>
-      <div className="flex items-baseline gap-1 mt-1">
-        <span className="text-sm font-bold text-[var(--text-on-surface)] leading-none">{value}</span>
-        {delta}
-      </div>
-    </div>
-  );
+function SectionEmpty({ text }: { text: string }) {
+  return <p className="text-xs text-[var(--text-on-surface-muted)]">{text}</p>;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -81,43 +59,68 @@ function StatTile({ label, value, delta }: {
 interface Props {
   userId: number;
   lang: string;
+  /** "up" if the goal wants weight to rise, "down" if it wants it to fall. */
+  goalDir: GoalDirection;
 }
 
 /**
- * The correlation network as a slideshow over window length.
+ * Timeline: which factors affect your goal, and since when.
  *
- * The window end is pinned to the last day that carries data; the start walks
- * forward one step per frame, so playing the frames back shows the graph the
- * data supports at every window from "everything ever logged" down to the most
- * recent couple of weeks. What survives to the end of the run is a relationship
- * that holds in current behaviour; what fades out early only ever lived in the
- * old data.
+ * The window end is pinned to your latest data; the start walks forward one
+ * step per frame, from the entire history down to the shortest window a
+ * correlation can stand on. That shrinking sequence is used purely as
+ * computation — every frame is scored against the goal variable only (see
+ * `computeGoalLinks`) — and never drawn as a network. Two results come out:
+ *
+ * - Long-term effects: hold up no matter how tight the window gets, including
+ *   right now.
+ * - Newly emerged effects: only started holding partway through the record,
+ *   and still do as of your latest data.
+ *
+ * Both are split into positive (helps your goal) and negative (hurts it),
+ * using the direction your mode already targets weight in.
  */
-export function TimelineSlideshow({ userId, lang }: Props) {
+export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
   const zh = lang === "zh";
+  const { t } = useLangStore();
 
   // ── Setup state ───────────────────────────────────────────────────────────
+  // Same preset-pill + custom-range model as the Pearson/Advanced/Patterns
+  // tabs (`useDateRange`, `DateRangePills`, `DateRangePickerCard`): a set of
+  // widest-window presets, or a fully custom [start, end] picked on a
+  // calendar. Kept as Timeline's own state rather than sharing the page-level
+  // one those tabs use — switching between Pearson and Patterns would
+  // otherwise silently rewind an in-progress Timeline analysis, and the
+  // presets themselves need different (much longer) values here anyway.
   const [bounds, setBounds]         = useState<{ first: string; last: string } | null>(null);
   const [metaLoading, setMetaLoading] = useState(true);
-  const [startDate, setStartDate]   = useState<string | null>(null);
-  const [showCal, setShowCal]       = useState(false);
-  const [stepDays, setStepDays]     = useState<number>(1);
-  const [durationSec, setDuration]  = useState<number>(10);
+  const [rangeDays, setRangeDays]   = useState<number | null>(null);
+  const [showCustom, setShowCustom] = useState(false);
+  const [modeCustom, setModeCustom] = useState(false);
+  const [customRange, setCustomRange] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
+  const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
+  // Analysis step is always the finest (1 day) the picked range affords;
+  // `planTimeline` auto-widens it under the hood on a long range (see
+  // TIMELINE_WORK_BUDGET) so build cost stays bounded either way. A manual
+  // "granularity" control used to sit here, but with that safety net doing
+  // the real work, all it ever let a user do was deliberately pick a coarser
+  // step than necessary — not a choice this tab needs to expose.
+  const STEP_DAYS = 1;
 
   // ── Build state ───────────────────────────────────────────────────────────
-  const [frames, setFrames]       = useState<TimelineFrame[]>([]);
-  const [shifts, setShifts]       = useState<LinkShift[]>([]);
-  const [ringOrder, setRingOrder] = useState<NetVar[]>([]);
+  const [frames, setFrames]       = useState<GoalFrame[]>([]);
+  const [persistent, setPersistent] = useState<PersistentGoalLink[]>([]);
+  const [trends, setTrends]       = useState<Map<NetVar, LinkTrend>>(new Map());
+  const [emerged, setEmerged]     = useState<EmergedGoalLink[]>([]);
+  const [regimes, setRegimes]     = useState<Map<NetVar, RegimeSegment[]>>(new Map());
   const [built, setBuilt]         = useState<{ start: string; end: string; step: number; widened: boolean } | null>(null);
   const [building, setBuilding]   = useState(false);
-  const [progress, setProgress]   = useState<{ done: number; total: number; phase: "frames" | "shifts" }>(
+  const [progress, setProgress]   = useState<{ done: number; total: number; phase: "frames" | "emerged" | "regimes" }>(
     { done: 0, total: 0, phase: "frames" });
-  const abortRef = useRef(false);
-
-  // ── Playback state ────────────────────────────────────────────────────────
-  const [idx, setIdx]         = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [loop, setLoop]       = useState(true);
+  // Bumped on every build start; a build only ever writes its results back
+  // while it still holds the latest token, so a range change that starts a
+  // new build automatically supersedes — rather than races — the one before it.
+  const buildGenRef = useRef(0);
 
   // ── Load the data bounds once ─────────────────────────────────────────────
   useEffect(() => {
@@ -125,145 +128,127 @@ export function TimelineSlideshow({ userId, lang }: Props) {
     (async () => {
       try {
         const b = await getDataDateBounds(userId);
-        if (cancelled) return;
-        setBounds(b);
-        if (b) setStartDate(b.first);
+        if (!cancelled) setBounds(b);
       } catch (e) { logError("Timeline.loadBounds", e); }
       if (!cancelled) setMetaLoading(false);
     })();
     return () => { cancelled = true; };
   }, [userId]);
 
+  // Custom range needs the calendar's "which days actually have data" set,
+  // same lazy-load pattern the other tabs use for their own range picker.
+  useEffect(() => {
+    if (!showCustom) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const dates = await getActiveDates(userId, ["meal", "exercise", "weight", "body"]);
+        if (!cancelled) setActiveDates(dates);
+      } catch (e) { logError("Timeline.loadActiveDates", e); }
+    })();
+    return () => { cancelled = true; };
+  }, [showCustom, userId]);
+
   /**
-   * Days the picker offers as a start: anywhere in the record that still leaves
-   * a analysable window behind it. Beyond that a frame could never produce an
-   * edge, so those days are simply not selectable.
+   * The widest frame's [start, end]. A preset always ends on the latest
+   * logged day — matching Timeline's own "end pinned to now" design — clamped
+   * so a preset longer than the actual history just falls back to all of it.
+   * A custom range is user-chosen on both ends, generalising past "always
+   * ends at latest" to "analyse any historical stretch", same flexibility the
+   * other tabs' custom range already has.
    */
-  const selectableDates = useMemo(() => {
-    const out = new Set<string>();
-    if (!bounds) return out;
-    const last  = parseISO(bounds.last);
-    const limit = differenceInCalendarDays(last, parseISO(bounds.first)) - (TIMELINE_MIN_WINDOW - 1);
-    for (let k = 0; k <= limit; k++) out.add(format(addDays(parseISO(bounds.first), k), "yyyy-MM-dd"));
-    return out;
-  }, [bounds]);
+  const { startDate, endDate } = useMemo(() => {
+    if (!bounds) return { startDate: null as string | null, endDate: null as string | null };
+    if (modeCustom && customRange.start && customRange.end) return { startDate: customRange.start, endDate: customRange.end };
+    if (rangeDays == null) return { startDate: bounds.first, endDate: bounds.last };
+    const candidate = format(subDays(parseISO(bounds.last), rangeDays - 1), "yyyy-MM-dd");
+    return { startDate: candidate < bounds.first ? bounds.first : candidate, endDate: bounds.last };
+  }, [bounds, rangeDays, modeCustom, customRange]);
 
-  const totalDays = bounds && startDate
-    ? differenceInCalendarDays(parseISO(bounds.last), parseISO(startDate)) + 1
+  const selectPreset = (d: number | null) => {
+    setRangeDays(d);
+    setModeCustom(false);
+    setShowCustom(false);
+    setCustomRange({ start: null, end: null });
+  };
+
+  const totalDays = startDate && endDate
+    ? differenceInCalendarDays(parseISO(endDate), parseISO(startDate)) + 1
     : 0;
-  const plan = useMemo(
-    () => planTimeline(totalDays, stepDays),
-    [totalDays, stepDays]);
-
-  /** The displayed run no longer matches what the setup card is configured for. */
-  const stale = built != null && (
-    built.start !== startDate ||
-    built.end   !== bounds?.last ||
-    built.step  !== plan.effectiveStep);
-
-  const frameMs = frames.length
-    ? Math.max(MIN_FRAME_MS, Math.round((durationSec * 1000) / frames.length))
-    : 0;
+  const plan = useMemo(() => planTimeline(totalDays, STEP_DAYS), [totalDays]);
+  /** A custom range picked but too short for even one window. */
+  const rangeTooShort = modeCustom && customRange.start && customRange.end && plan.frameCount <= 0;
 
   // ── Build ─────────────────────────────────────────────────────────────────
-  const handleBuild = async () => {
-    if (!bounds || !startDate || plan.frameCount <= 0) return;
-    abortRef.current = false;
+  // Runs automatically whenever the range settles (see the effect below) —
+  // same "pick a range, see a default result immediately" model the other
+  // stats tabs use — rather than gating the first (or every subsequent)
+  // result behind a manual "Analyse" click.
+  const runBuild = async (start: string, end: string, step: number) => {
+    const gen = ++buildGenRef.current;
+    const stale = () => buildGenRef.current !== gen;
     setBuilding(true);
-    setPlaying(false);
     setProgress({ done: 0, total: plan.frameCount, phase: "frames" });
     try {
-      const recs = await getDailyStatsRecords(userId, 0, startDate, bounds.last);
-      const res  = await buildTimeline(
+      const recs = await getDailyStatsRecords(userId, 0, start, end);
+      if (stale()) return;
+      const res = await buildTimeline(
         recs,
-        { startDate, endDate: bounds.last, stepDays },
-        (done, total) => setProgress({ done, total, phase: "frames" }),
-        () => abortRef.current,
+        { startDate: start, endDate: end, stepDays: step, goalVar: GOAL_VAR },
+        (done, total) => { if (!stale()) setProgress({ done, total, phase: "frames" }); },
+        stale,
       );
+      if (stale()) return;
       if (res.frames.length) {
         setFrames(res.frames);
-        // One layout for the whole run: see `unionRingOrder`.
-        setRingOrder(unionRingOrder(res.frames.map(f => f.network)));
-        setBuilt({ start: startDate, end: bounds.last, step: res.effectiveStep, widened: res.stepWidened });
-        setIdx(0);
-        // Second pass over the same records: where does each link turn on?
-        setProgress({ done: 0, total: 0, phase: "shifts" });
-        setShifts(abortRef.current ? [] : await findLinkShifts(
-          recs, res.frames, {},
-          (done, total) => setProgress({ done, total, phase: "shifts" }),
-          () => abortRef.current,
-        ));
+        const persistentLinks = persistentGoalLinks(res.frames, goalDir);
+        setPersistent(persistentLinks);
+        setTrends(new Map(linkTrends(res.frames, persistentLinks.map(l => l.factor)).map(t => [t.factor, t])));
+        setBuilt({ start, end, step: res.effectiveStep, widened: res.stepWidened });
+
+        setProgress({ done: 0, total: 0, phase: "emerged" });
+        const emergedLinks = await emergedGoalLinks(
+          recs, res.frames, GOAL_VAR, goalDir, {},
+          (done, total) => { if (!stale()) setProgress({ done, total, phase: "emerged" }); },
+          stale,
+        );
+        if (stale()) return;
+        setEmerged(emergedLinks);
+
+        setProgress({ done: 0, total: 0, phase: "regimes" });
+        const regimeMap = emergedLinks.length === 0 ? new Map() : await regimeGoalLinks(
+          recs, emergedLinks, GOAL_VAR, start, end, {},
+          (done, total) => { if (!stale()) setProgress({ done, total, phase: "regimes" }); },
+          stale,
+        );
+        if (stale()) return;
+        setRegimes(regimeMap);
       }
     } catch (e) { logError("Timeline.build", e); }
-    setBuilding(false);
+    if (!stale()) setBuilding(false);
   };
 
-  const cancelBuild = () => { abortRef.current = true; };
+  const cancelBuild = () => { buildGenRef.current++; setBuilding(false); };
 
-  // ── Playback ──────────────────────────────────────────────────────────────
+  // Debounced so clicking through presets doesn't kick off a build per click;
+  // a range change (including the initial one, once bounds load) always
+  // supersedes rather than queues behind whatever build was already running.
   useEffect(() => {
-    if (!playing || frames.length < 2) return;
-    const id = setInterval(() => {
-      setIdx(prev => {
-        if (prev + 1 < frames.length) return prev + 1;
-        return loop ? 0 : prev;
-      });
-    }, frameMs);
-    return () => clearInterval(id);
-  }, [playing, frames.length, frameMs, loop]);
-
-  // Stop at the end when not looping. Kept out of the interval's state updater,
-  // which React may run more than once per tick.
-  useEffect(() => {
-    if (playing && !loop && frames.length > 0 && idx >= frames.length - 1) setPlaying(false);
-  }, [playing, loop, idx, frames.length]);
-
-  const togglePlay = () => {
-    if (!playing && !loop && idx >= frames.length - 1) setIdx(0);
-    setPlaying(p => !p);
-  };
+    if (!startDate || !endDate || plan.frameCount <= 0) return;
+    const t = setTimeout(() => runBuild(startDate, endDate, plan.effectiveStep), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate, goalDir, plan.frameCount, plan.effectiveStep]);
 
   // ── Derived views ─────────────────────────────────────────────────────────
-  const frame  = frames[idx] ?? null;
-  const series = useMemo(() => timelineSeries(frames), [frames]);
-  const tracks = useMemo(() => edgeTracks(frames), [frames]);
+  const trend = useMemo(() => goalTrendSeries(frames, goalDir), [frames, goalDir]);
 
-  /** Cumulative change: current frame measured against the widest one. */
-  const vsFirst = useMemo(() => {
-    if (frames.length < 2 || idx === 0) return null;
-    const a = frames[0], b = frames[idx];
-    return diffNetworks(a.network, a.stats, b.network, b.stats);
-  }, [frames, idx]);
-
-  /**
-   * A high-churn frame can gain a dozen links at once. Listing them all would
-   * change the card's height frame by frame, and a card that resizes under the
-   * playhead makes the whole page jump mid-playback.
-   */
-  const hiddenChanges = frame?.delta
-    ? Math.max(0, frame.delta.appeared.length - MAX_CHANGE_ROWS)
-      + Math.max(0, frame.delta.vanished.length - MAX_CHANGE_ROWS)
-    : 0;
-
-  const varLabel  = (v: NetVar) => zh ? NET_VARS[v].labelZh : NET_VARS[v].labelEn;
-  const edgeLabel = (e: NetEdge) => e.lag > 0
-    ? `${varLabel(e.source)} →${e.lag}d ${varLabel(e.target)}`
-    : `${varLabel(e.source)} ↔ ${varLabel(e.target)}`;
+  const varLabel = (v: NetVar) => zh ? NET_VARS[v].labelZh : NET_VARS[v].labelEn;
+  const goalLabel = varLabel(GOAL_VAR);
   const dayStr = (n: number) => zh ? `${n} 天` : `${n}d`;
-  const md     = (d: string) => format(parseISO(d), "M/d");
-
-  /**
-   * Presence strips. Rebuilt only when the frames change — the playhead is an
-   * overlay so scrubbing never re-renders a few thousand <rect>s.
-   */
-  const trackRows = useMemo(() => tracks.slice(0, 8).map((track: EdgeTrack) => ({
-    track,
-    rects: track.rs.map((r, i) => r == null ? null : (
-      <rect key={i} x={i} y={0} width={1} height={10}
-        fill={r >= 0 ? POS_COLOR : NEG_COLOR}
-        opacity={0.35 + Math.min(Math.abs(r), 1) * 0.65} />
-    )),
-  })), [tracks]);
+  const md = (d: string) => format(parseISO(d), "M/d");
+  const lagLabel = (lag: number) =>
+    lag === 0 ? (zh ? "當天" : "same day") : (zh ? `領先 ${lag} 天` : `leads by ${lag}d`);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -275,7 +260,8 @@ export function TimelineSlideshow({ userId, lang }: Props) {
     );
   }
 
-  if (!bounds || selectableDates.size === 0) {
+  const historyDays = bounds ? differenceInCalendarDays(parseISO(bounds.last), parseISO(bounds.first)) + 1 : 0;
+  if (!bounds || historyDays < TIMELINE_MIN_WINDOW) {
     return (
       <div className="card text-center py-10">
         <p className="text-sm text-[var(--text-on-surface-muted)]">
@@ -290,6 +276,19 @@ export function TimelineSlideshow({ userId, lang }: Props) {
     );
   }
 
+  const posLabel = zh ? "正面" : "Positive";
+  const negLabel = zh ? "負面" : "Negative";
+
+  const renderPersistentRow = (link: PersistentGoalLink, positive: boolean) => (
+    <PersistentWaveform key={link.factor} link={link} trend={trends.get(link.factor)} frames={frames}
+      lang={lang} positive={positive} varLabel={varLabel} lagLabel={lagLabel} />
+  );
+
+  const renderEmergedRow = (link: EmergedGoalLink, positive: boolean) => (
+    <EmergedWaveform key={link.factor} link={link} segments={regimes.get(link.factor)} frames={frames}
+      lang={lang} positive={positive} varLabel={varLabel} lagLabel={lagLabel} md={md} />
+  );
+
   return (
     <div className="space-y-form">
 
@@ -299,84 +298,99 @@ export function TimelineSlideshow({ userId, lang }: Props) {
           title={<span className="flex items-center gap-micro.5">
             <Film size={14} className="text-[var(--text-accent)]" />
             {zh ? "時間線設定" : "Timeline setup"}
-          </span>} />
+          </span>}
+          action={
+            <button onClick={() => startDate && endDate && runBuild(startDate, endDate, plan.effectiveStep)}
+              disabled={building || !startDate || !endDate}
+              className={clsx("p-1.5 rounded-lg transition-colors",
+                building ? "text-[var(--text-on-surface-muted)] animate-spin cursor-wait"
+                         : "text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]")}>
+              <RefreshCw size={14} />
+            </button>
+          } />
 
         <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
           {zh
-            ? "終點固定在最新一筆資料，起點逐步往前推：先看長區間的關係圖，再一張張縮短，看看哪些關聯撐得住。"
-            : "The window end is pinned to your latest data and the start walks forward: the widest range first, then one shorter window per frame, so you can see which links hold up."}
+            ? `選一段分析區間，起點會逐步往前推、區間從長到短：找出哪些因子長期都會影響「${goalLabel}」，哪些是最近才開始出現影響。預設區間的終點固定在最新一筆資料；自訂範圍則可自行選擇終點。`
+            : `Pick an analysis range — the start walks forward and the window shrinks from long to short, to find which factors affect "${goalLabel}" long-term and which only started recently. Preset ranges end on your latest data; a custom range lets you pick the end yourself.`}
         </p>
 
-        {/* Range row */}
-        <div className="flex items-center gap-2 mb-3">
-          <button onClick={() => setShowCal(v => !v)}
-            className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--surface-container-low)] border border-[var(--surface-border)] text-left">
-            <CalendarDays size={14} className="text-[var(--text-accent)] shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-9 text-[var(--text-on-surface-muted)] leading-none">
-                {zh ? "起點 A" : "Start A"}
-              </span>
-              <span className="block text-sm font-semibold text-[var(--text-on-surface)] leading-tight mt-0.5">
-                {startDate ? format(parseISO(startDate), "yyyy/M/d") : "—"}
-              </span>
+        <div className="flex items-center gap-2 mb-1.5 px-3 py-2 rounded-xl bg-[var(--surface-container-low)]">
+          <Target size={13} className="text-[var(--text-accent)] shrink-0" />
+          <span className="text-10 text-[var(--text-on-surface-muted)]">
+            {zh ? "分析目標" : "Goal"}
+            <span className="mx-1 text-[var(--text-on-surface)] font-semibold">{goalLabel}</span>
+            <span className={clsx("font-semibold", goalDir === "down" ? "text-rose-500" : "text-emerald-600")}>
+              {goalDir === "down"
+                ? (zh ? "（越低越好）" : "(lower is better)")
+                : (zh ? "（越高越好）" : "(higher is better)")}
             </span>
-          </button>
-          <span className="text-[var(--text-on-surface-muted)] text-sm">→</span>
-          <div className="flex-1 px-3 py-2.5 rounded-xl bg-[var(--surface-container-low)] border border-[var(--surface-border)]">
-            <span className="block text-9 text-[var(--text-on-surface-muted)] leading-none">
-              {zh ? "終點（最新資料）" : "End (latest data)"}
-            </span>
-            <span className="block text-sm font-semibold text-[var(--text-on-surface)] leading-tight mt-0.5">
-              {format(parseISO(bounds.last), "yyyy/M/d")}
-            </span>
-          </div>
+          </span>
         </div>
 
-        {showCal && (
-          <div className="mb-3">
-            <MiniCalendar
-              activeDates={selectableDates}
-              mode="single"
-              selectedDate={startDate}
-              onSelectDate={d => { setStartDate(d); setShowCal(false); }}
+        {/* Range: preset pills (widest window, always ending at latest data)
+            or a fully custom [start, end] — same model as Pearson/Advanced/
+            Patterns' own date-range picker. */}
+        <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+          {zh ? "分析區間（起點 A）" : "Analysis range (start A)"}
+        </p>
+        <div className="flex gap-micro.5 flex-wrap mb-2">
+          {TIMELINE_RANGE_OPTIONS.map(d => (
+            <SegButton key={d ?? "all"} active={!modeCustom && rangeDays === d} onClick={() => selectPreset(d)}>
+              {d == null ? (zh ? "全部" : "All") : dayStr(d)}
+            </SegButton>
+          ))}
+          <SegButton active={showCustom || modeCustom} onClick={() => setShowCustom(v => !v)}>
+            {t("history.custom")}
+          </SegButton>
+        </div>
+
+        {showCustom && (
+          <div className="mb-2">
+            <DateRangePickerCard
+              customRange={customRange} activeDates={activeDates}
+              onRangeChange={r => { setCustomRange(r); setModeCustom(!!(r.start && r.end)); }}
+              onApply={() => setShowCustom(false)}
+              titleKey="stats.pickRange"
+              pickStartKey="stats.pickStart"
+              pickEndKey="stats.pickEnd"
+              applyKey="stats.applyRange"
             />
-            <p className="text-10 text-[var(--text-on-surface-muted)] mt-1.5">
-              {zh
-                ? `可選 ${md(bounds.first)} – ${md([...selectableDates].sort().slice(-1)[0])}：更晚的起點會讓區間短於 ${TIMELINE_MIN_WINDOW} 天，統計上無法成立`
-                : `Selectable ${md(bounds.first)} – ${md([...selectableDates].sort().slice(-1)[0])}: a later start leaves a window under ${TIMELINE_MIN_WINDOW} days, which no statistic can carry`}
-            </p>
+            {rangeTooShort && (
+              <p className="text-10 text-rose-500 mt-1.5">
+                {zh
+                  ? `這段區間短於 ${TIMELINE_MIN_WINDOW} 天，統計上無法成立，請選更寬的範圍`
+                  : `That range is under ${TIMELINE_MIN_WINDOW} days, which no statistic can carry — pick a wider one`}
+              </p>
+            )}
           </div>
         )}
 
-        {/* Step */}
-        <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-          {zh ? "每張間隔" : "Step per frame"}
-        </p>
-        <div className="flex gap-micro.5 flex-wrap mb-3">
-          {TIMELINE_STEP_OPTIONS.map(s => (
-            <SegButton key={s} active={stepDays === s} onClick={() => setStepDays(s)}>
-              {zh ? `${s} 天` : `${s}d`}
-            </SegButton>
-          ))}
-        </div>
-
-        {/* Duration */}
-        <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-          {zh ? "播放長度" : "Playback length"}
-        </p>
-        <div className="flex gap-micro.5 flex-wrap mb-3">
-          {TIMELINE_DURATION_OPTIONS.map(d => (
-            <SegButton key={d} active={durationSec === d} onClick={() => setDuration(d)}>
-              {zh ? `${d} 秒` : `${d}s`}
-            </SegButton>
-          ))}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="flex-1 px-3 py-2.5 rounded-xl bg-[var(--surface-container-low)] border border-[var(--surface-border)]">
+            <span className="block text-9 text-[var(--text-on-surface-muted)] leading-none">
+              {zh ? "起點 A" : "Start A"}
+            </span>
+            <span className="block text-sm font-semibold text-[var(--text-on-surface)] leading-tight mt-0.5">
+              {startDate ? format(parseISO(startDate), "yyyy/M/d") : "—"}
+            </span>
+          </div>
+          <span className="text-[var(--text-on-surface-muted)] text-sm">→</span>
+          <div className="flex-1 px-3 py-2.5 rounded-xl bg-[var(--surface-container-low)] border border-[var(--surface-border)]">
+            <span className="block text-9 text-[var(--text-on-surface-muted)] leading-none">
+              {modeCustom ? (zh ? "終點" : "End") : (zh ? "終點（最新資料）" : "End (latest data)")}
+            </span>
+            <span className="block text-sm font-semibold text-[var(--text-on-surface)] leading-tight mt-0.5">
+              {endDate ? format(parseISO(endDate), "yyyy/M/d") : "—"}
+            </span>
+          </div>
         </div>
 
         {/* Plan summary */}
         <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
           {zh
-            ? `區間 ${dayStr(totalDays)} · 共 ${plan.frameCount} 張 · 每張約 ${Math.max(MIN_FRAME_MS, Math.round(durationSec * 1000 / Math.max(1, plan.frameCount)))} ms`
-            : `${dayStr(totalDays)} range · ${plan.frameCount} frames · ~${Math.max(MIN_FRAME_MS, Math.round(durationSec * 1000 / Math.max(1, plan.frameCount)))} ms each`}
+            ? `區間 ${dayStr(totalDays)} · 共分析 ${plan.frameCount} 個窗口`
+            : `${dayStr(totalDays)} range · ${plan.frameCount} windows analysed`}
           {plan.stepWidened && (
             <span className="text-amber-600">
               {zh
@@ -386,17 +400,7 @@ export function TimelineSlideshow({ userId, lang }: Props) {
           )}
         </p>
 
-        {/* The player keeps showing the previous run until a rebuild, so say so
-            rather than letting the controls and the graph disagree silently. */}
-        {stale && !building && (
-          <p className="text-10 text-amber-600 mb-3">
-            {zh
-              ? "設定已變更，按下方按鈕重新產生時間線"
-              : "Settings changed — rebuild to apply them"}
-          </p>
-        )}
-
-        {building ? (
+        {building && (
           <div className="space-y-2">
             <div className="h-1.5 rounded-full bg-[var(--surface-container)] overflow-hidden">
               <div className="h-full bg-[var(--color-secondary)] transition-all duration-150"
@@ -404,8 +408,10 @@ export function TimelineSlideshow({ userId, lang }: Props) {
             </div>
             <div className="flex items-center justify-between">
               <p className="text-10 text-[var(--text-on-surface-muted)]">
-                {progress.phase === "shifts"
-                  ? (zh ? "分析變化起點" : "Finding turning points")
+                {progress.phase === "regimes"
+                  ? (zh ? "尋找更早的轉折" : "Looking for earlier regimes")
+                  : progress.phase === "emerged"
+                  ? (zh ? "分析新出現的影響" : "Finding newly emerged effects")
                   : (zh ? "計算中" : "Building")} {progress.done}/{progress.total}
               </p>
               <button onClick={cancelBuild}
@@ -414,373 +420,368 @@ export function TimelineSlideshow({ userId, lang }: Props) {
               </button>
             </div>
           </div>
-        ) : (
-          <button onClick={handleBuild} disabled={plan.frameCount <= 0}
-            className={clsx("w-full py-2.5 rounded-xl text-xs font-semibold transition-colors",
-              plan.frameCount > 0
-                ? "bg-gray-900 text-white hover:bg-gray-700"
-                : "bg-gray-100 text-gray-300 cursor-not-allowed")}>
-            {frames.length
-              ? (zh ? "重新產生時間線" : "Rebuild timeline")
-              : (zh ? "產生時間線" : "Build timeline")}
-          </button>
         )}
       </div>
 
-      {/* ── Player ─────────────────────────────────────────────────────── */}
-      {frame && built && (
+      {/* ── Results ────────────────────────────────────────────────────── */}
+      {built && (
         <>
-          <div className="card">
-            <div className="flex items-center justify-between mb-2">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[var(--text-on-surface)]">
-                  {md(frame.from)} — {md(frame.to)}
-                </p>
-                <p className="text-10 text-[var(--text-on-surface-muted)]">
-                  {zh
-                    ? `區間 ${dayStr(frame.days)} · 起點已前進 ${frame.index * built.step} 天`
-                    : `${dayStr(frame.days)} window · start advanced ${frame.index * built.step}d`}
-                </p>
-              </div>
-              <span className="text-xs font-mono font-bold text-[var(--text-accent)] shrink-0">
-                {frame.index + 1}/{frames.length}
-              </span>
-            </div>
-
-            {/* Scrubber */}
-            <input type="range" min={0} max={frames.length - 1} value={idx}
-              onChange={e => { setPlaying(false); setIdx(Number(e.target.value)); }}
-              className="w-full accent-[var(--color-secondary)]" />
-
-            {/* Transport */}
-            <div className="flex items-center justify-center gap-2 mt-1">
-              <button onClick={() => { setPlaying(false); setIdx(i => Math.max(0, i - 1)); }}
-                className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                <SkipBack size={16} />
-              </button>
-              <button onClick={togglePlay}
-                className="icon-btn-lg bg-gray-900 text-white hover:bg-gray-700">
-                {playing ? <Pause size={18} /> : <Play size={18} />}
-              </button>
-              <button onClick={() => { setPlaying(false); setIdx(i => Math.min(frames.length - 1, i + 1)); }}
-                className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
-                <SkipForward size={16} />
-              </button>
-              <button onClick={() => setLoop(v => !v)}
-                className={clsx("icon-btn", loop ? "text-[var(--text-accent)]" : "text-gray-300 hover:text-gray-400")}>
-                <Repeat size={16} />
-              </button>
-            </div>
-
-            {/* Frame stats + change against the previous frame */}
-            <div className="grid grid-cols-4 gap-1.5 mt-3">
-              <StatTile label={zh ? "連線" : "Links"} value={String(frame.stats.edgeCount)}
-                delta={frame.delta && <Delta value={frame.delta.edgeCountDelta} />} />
-              <StatTile label={zh ? "平均 |r|" : "Mean |r|"} value={frame.stats.meanAbsR.toFixed(2)}
-                delta={frame.delta && <Delta value={frame.delta.meanAbsRDelta} digits={2} />} />
-              <StatTile label={zh ? "強關聯" : "Strong"} value={String(frame.stats.strongCount)} />
-              <StatTile label={zh ? "延遲" : "Lagged"} value={String(frame.stats.laggedCount)} />
-            </div>
-          </div>
-
-          {/* Graph for this frame — fixed ring so only the edges move */}
-          <CorrelationNetwork
-            network={frame.network}
-            lang={lang}
-            ringOrder={ringOrder}
-            title={zh ? `關係圖 · ${md(frame.from)}—${md(frame.to)}` : `Network · ${md(frame.from)}—${md(frame.to)}`}
-            subtitle={zh
-              ? "節點位置固定於整段時間線，因此畫面上移動的只有連線本身"
-              : "Node slots are fixed for the whole run, so the only thing that moves is the links"}
-          />
-
-          {/* ── Change against the previous frame ────────────────────── */}
-          <div className="card">
-            <CardHeader mb="mb-3"
-              title={zh ? "區間變化" : "What changed"}
-              action={<span className="text-10 text-[var(--text-on-surface-muted)]">
-                {frame.delta
-                  ? (zh ? `較前一張（起點 +${built.step} 天）` : `vs previous (+${built.step}d start)`)
-                  : (zh ? "最寬的區間" : "widest window")}
-              </span>} />
-
-            {!frame.delta ? (
-              <p className="text-xs text-[var(--text-on-surface-muted)]">
-                {zh
-                  ? "這是第一張圖，之後每一張都會跟前一張比較。"
-                  : "This is the first frame; every later one is compared against the one before it."}
-              </p>
-            ) : (
-              <div className="space-y-2.5">
-                {frame.delta.appeared.length === 0 && frame.delta.vanished.length === 0 && (
-                  <p className="text-xs text-[var(--text-on-surface-muted)]">
-                    {zh ? "沒有連線增減，只有強度變化" : "No links gained or lost — only strengths moved"}
-                  </p>
-                )}
-                {frame.delta.appeared.slice(0, MAX_CHANGE_ROWS).map((e, i) => (
-                  <div key={`a${i}`} className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-emerald-600 w-4 shrink-0">+</span>
-                    <span className="text-xs text-[var(--text-on-surface)] flex-1 truncate">{edgeLabel(e)}</span>
-                    <span className="text-10 font-mono font-bold text-emerald-600 shrink-0">
-                      {e.r >= 0 ? "+" : ""}{e.r.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-                {frame.delta.vanished.slice(0, MAX_CHANGE_ROWS).map((e, i) => (
-                  <div key={`v${i}`} className="flex items-center gap-2 opacity-70">
-                    <span className="text-xs font-bold text-rose-500 w-4 shrink-0">−</span>
-                    <span className="text-xs text-[var(--text-on-surface)] flex-1 truncate line-through">{edgeLabel(e)}</span>
-                    <span className="text-10 font-mono font-bold text-rose-500 shrink-0">
-                      {e.r >= 0 ? "+" : ""}{e.r.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-                {hiddenChanges > 0 && (
-                  <p className="text-10 text-[var(--text-on-surface-muted)] pl-6">
-                    {zh ? `…另有 ${hiddenChanges} 條增減` : `…and ${hiddenChanges} more gained/lost`}
-                  </p>
-                )}
-                {frame.delta.moved.slice(0, 3).filter(m => Math.abs(m.deltaR) >= 0.02).map(m => (
-                  <div key={m.key} className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-gray-300 w-4 shrink-0">~</span>
-                    <span className="text-xs text-[var(--text-on-surface-muted)] flex-1 truncate">
-                      {edgeLabel(m.edge)}
-                      {m.flipped && (
-                        <span className="ml-1 text-amber-600 font-semibold">
-                          {zh ? "轉向" : "flipped"}
-                        </span>
-                      )}
-                      {m.lagShift && !m.flipped && (
-                        <span className="ml-1 text-amber-600 font-semibold">
-                          {zh ? "延遲改變" : "lag shift"}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-10 font-mono text-gray-400 shrink-0">
-                      {m.prevR.toFixed(2)} → {m.edge.r.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Cumulative change against the widest window */}
-            {vsFirst && (
-              <div className="mt-3 pt-3 border-t border-[var(--surface-border)]">
-                <p className="text-10 text-[var(--text-on-surface-muted)] mb-1.5">
-                  {zh
-                    ? `相對第 1 張（${dayStr(frames[0].days)} → ${dayStr(frame.days)}）`
-                    : `vs frame 1 (${dayStr(frames[0].days)} → ${dayStr(frame.days)})`}
-                </p>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span className="text-10 text-[var(--text-on-surface-muted)]">
-                    {zh ? "連線" : "Links"} <Delta value={vsFirst.edgeCountDelta} />
-                  </span>
-                  <span className="text-10 text-[var(--text-on-surface-muted)]">
-                    {zh ? "平均 |r|" : "Mean |r|"} <Delta value={vsFirst.meanAbsRDelta} digits={2} />
-                  </span>
-                  <span className="text-10 text-[var(--text-on-surface-muted)]">
-                    {zh ? "新增" : "Gained"} <span className="font-mono font-bold text-emerald-600">{vsFirst.appeared.length}</span>
-                  </span>
-                  <span className="text-10 text-[var(--text-on-surface-muted)]">
-                    {zh ? "消失" : "Lost"} <span className="font-mono font-bold text-rose-500">{vsFirst.vanished.length}</span>
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── Turning points ───────────────────────────────────────── */}
+          {/* Long-term effects */}
           <div className="card">
             <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-1">
-              {zh ? "變化起點" : "Turning points"}
+              {zh ? "長期存在的影響" : "Long-term effects"}
             </p>
-            <p className="text-10 text-[var(--text-on-surface-muted)] mb-2.5">
+            <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
               {zh
-                ? "把記錄從某一天切成前後兩段，找出兩段相關性差最多的那一天。綠色＝從該日起到最新資料才成立，紅色＝只在該日之前的資料成立"
-                : "Each date splits the record in two; the one where the halves disagree most is the turning point. Green = holds from that date through to your latest data; red = holds only in the data before it"}
+                ? `不論分析窗口拉長或縮短都成立，包含最近的資料在內 — 不是舊資料造成的錯覺，現在也還在發生`
+                : `Holds no matter how the analysis window is sized, including the most recent data — not an artefact of old data, and still true now`}
             </p>
 
-            {shifts.length === 0 ? (
-              <p className="text-xs text-[var(--text-on-surface-muted)]">
-                {zh
-                  ? "這段記錄裡沒有找到明顯的轉折點 — 關聯的強弱並沒有隨著起點改變而明顯不同。"
-                  : "No clear turning point in this range — the links do not behave differently before and after any single date."}
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {shifts.slice(0, MAX_SHIFT_ROWS).map(sh => {
-                  const emerged = sh.direction === "emerged";
-                  // Always read chronologically — before, then since — so which
-                  // period each number belongs to never has to be inferred from
-                  // the direction of the change.
-                  const periods = [
-                    { label: zh ? "之前" : "before", days: sh.beforeDays, c: sh.before, strong: !emerged },
-                    { label: zh ? "之後" : "since",  days: sh.sinceDays,  c: sh.since,  strong: emerged },
-                  ];
-                  return (
-                    <button key={sh.key}
-                      onClick={() => { setPlaying(false); setIdx(sh.frameIndex); }}
-                      className={clsx(
-                        "w-full text-left rounded-xl border-l-4 bg-[var(--surface-container-low)] px-3 py-2",
-                        emerged ? "border-l-emerald-400" : "border-l-rose-300")}>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-xs font-semibold text-[var(--text-on-surface)] truncate">
-                          {sh.lag > 0
-                            ? `${varLabel(sh.source)} →${sh.lag}d ${varLabel(sh.target)}`
-                            : `${varLabel(sh.source)} ↔ ${varLabel(sh.target)}`}
-                        </span>
-                        <span className={clsx("text-10 font-semibold shrink-0",
-                          emerged ? "text-emerald-600" : "text-rose-500")}>
-                          {emerged
-                            ? (zh ? `${md(sh.date)} 起` : `since ${md(sh.date)}`)
-                            : (zh ? `${md(sh.date)} 前` : `until ${md(sh.date)}`)}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-1.5 mt-1 text-10">
-                        {periods.map(({ label, days, c, strong }, i) => (
-                          <span key={label} className="flex items-center gap-1">
-                            {i > 0 && <span className="text-gray-300 mr-0.5">→</span>}
-                            <span className="text-[var(--text-on-surface-muted)]">{label} {dayStr(days)}</span>
-                            <span className={clsx("font-mono",
-                              !strong ? "text-[var(--text-on-surface-muted)]"
-                                : c.r >= 0 ? "font-bold text-emerald-600" : "font-bold text-rose-500")}>
-                              {c.r >= 0 ? "+" : ""}{c.r.toFixed(2)}
-                            </span>
-                            <span className="text-[var(--text-on-surface-muted)]">n={c.n}</span>
-                          </span>
-                        ))}
-                      </div>
-                      <p className="text-9 text-[var(--text-on-surface-muted)] mt-0.5">
-                        {emerged
-                          ? (zh ? "此關聯只在較新的資料中成立" : "holds only in the newer data")
-                          : (zh ? "此關聯只在較早的資料中成立" : "holds only in the older data")}
-                        {" · p "}
-                        {sh.pAdjusted < 0.001 ? "< 0.001" : `= ${sh.pAdjusted.toFixed(3)}`}
+            {(() => {
+              const pos = persistent.filter(l => l.direction === "positive");
+              const neg = persistent.filter(l => l.direction === "negative");
+              if (pos.length === 0 && neg.length === 0) {
+                return <SectionEmpty text={zh
+                  ? "沒有找到長期都成立的關聯"
+                  : "No factor holds up across the whole run"} />;
+              }
+              return (
+                <div className="space-y-3">
+                  {pos.length > 0 && (
+                    <div>
+                      <p className="flex items-center gap-1 text-10 font-semibold text-emerald-600 mb-1.5">
+                        <TrendingUp size={12} />{posLabel}
                       </p>
-                    </button>
-                  );
-                })}
-                {shifts.length > MAX_SHIFT_ROWS && (
-                  <p className="text-10 text-[var(--text-on-surface-muted)]">
-                    {zh ? `…另有 ${shifts.length - MAX_SHIFT_ROWS} 組` : `…and ${shifts.length - MAX_SHIFT_ROWS} more`}
-                  </p>
-                )}
-              </div>
-            )}
-
-            <p className="text-9 text-[var(--text-on-surface-muted)] mt-2 pt-2 border-t border-[var(--surface-border)]">
-              {zh
-                ? `p 值為「前後兩段相關性不同」的檢定（Fisher z），並已對整趟搜尋的 ${shifts[0]?.tests ?? 0} 次切點比較做校正。點一下任一列可跳到該日的關係圖。`
-                : `p tests whether the two periods differ (Fisher z), corrected for all ${shifts[0]?.tests ?? 0} splits tried in the search. Tap a row to jump to that date's graph.`}
-            </p>
+                      <div className="space-y-2">
+                        {pos.slice(0, MAX_ROWS).map(l => renderPersistentRow(l, true))}
+                        {pos.length > MAX_ROWS && (
+                          <p className="text-10 text-[var(--text-on-surface-muted)]">
+                            {zh ? `…另有 ${pos.length - MAX_ROWS} 個` : `…and ${pos.length - MAX_ROWS} more`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {neg.length > 0 && (
+                    <div>
+                      <p className="flex items-center gap-1 text-10 font-semibold text-rose-500 mb-1.5">
+                        <TrendingDown size={12} />{negLabel}
+                      </p>
+                      <div className="space-y-2">
+                        {neg.slice(0, MAX_ROWS).map(l => renderPersistentRow(l, false))}
+                        {neg.length > MAX_ROWS && (
+                          <p className="text-10 text-[var(--text-on-surface-muted)]">
+                            {zh ? `…另有 ${neg.length - MAX_ROWS} 個` : `…and ${neg.length - MAX_ROWS} more`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
-          {/* ── Cross-frame trend ────────────────────────────────────── */}
+          {/* Newly emerged effects */}
+          <div className="card">
+            <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-1">
+              {zh ? "新出現的影響" : "Newly emerged effects"}
+            </p>
+            <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
+              {zh
+                ? "把記錄從每個候選日期切成前後兩段，找出前後相關性差最多的日期。列出的都是「從該日起、直到最新資料」才成立的關聯，p 值已對整趟搜尋校正"
+                : "Each candidate date splits the record in two; the date where the halves disagree most is the onset. Everything here holds only from that date through to your latest data — p corrected for the whole search"}
+            </p>
+
+            {(() => {
+              const pos = emerged.filter(l => l.direction === "positive");
+              const neg = emerged.filter(l => l.direction === "negative");
+              if (pos.length === 0 && neg.length === 0) {
+                return <SectionEmpty text={zh
+                  ? "沒有找到新出現的關聯"
+                  : "No newly emerged effect found"} />;
+              }
+              return (
+                <div className="space-y-3">
+                  {pos.length > 0 && (
+                    <div>
+                      <p className="flex items-center gap-1 text-10 font-semibold text-emerald-600 mb-1.5">
+                        <TrendingUp size={12} />{posLabel}
+                      </p>
+                      <div className="space-y-2">
+                        {pos.slice(0, MAX_ROWS).map(l => renderEmergedRow(l, true))}
+                        {pos.length > MAX_ROWS && (
+                          <p className="text-10 text-[var(--text-on-surface-muted)]">
+                            {zh ? `…另有 ${pos.length - MAX_ROWS} 個` : `…and ${pos.length - MAX_ROWS} more`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {neg.length > 0 && (
+                    <div>
+                      <p className="flex items-center gap-1 text-10 font-semibold text-rose-500 mb-1.5">
+                        <TrendingDown size={12} />{negLabel}
+                      </p>
+                      <div className="space-y-2">
+                        {neg.slice(0, MAX_ROWS).map(l => renderEmergedRow(l, false))}
+                        {neg.length > MAX_ROWS && (
+                          <p className="text-10 text-[var(--text-on-surface-muted)]">
+                            {zh ? `…另有 ${neg.length - MAX_ROWS} 個` : `…and ${neg.length - MAX_ROWS} more`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* ── Across-the-run chart ─────────────────────────────────── */}
           <div className="card">
             <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-1">
               {zh ? "整段走勢" : "Across the run"}
             </p>
             <p className="text-10 text-[var(--text-on-surface-muted)] mb-2">
               {zh
-                ? "X 軸為該張圖的區間長度（天），由長到短；點一下可跳到該張"
-                : "X is each frame's window length in days, longest to shortest; tap to jump to a frame"}
+                ? "每個分析窗口有幾個正面／負面因子。X 軸為窗口長度（天），由長到短；把游標移到柱狀上可看是哪些因子"
+                : "How many positive/negative factors each analysis window found. X is window length in days, longest to shortest; hover a bar to see which factors"}
             </p>
-            <ResponsiveContainer width="100%" height={150}>
-              <LineChart data={series} margin={{ top: 8, right: 4, bottom: 4, left: -26 }}
-                onClick={(st: any) => {
-                  if (st && typeof st.activeTooltipIndex === "number") {
-                    setPlaying(false);
-                    setIdx(st.activeTooltipIndex);
-                  }
-                }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
-                <XAxis dataKey="index" tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
-                  axisLine={false} tickLine={false} minTickGap={24}
-                  tickFormatter={(v: number) => String(series[v]?.days ?? "")} />
-                <YAxis yAxisId="left" allowDecimals={false}
-                  tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
-                  axisLine={false} tickLine={false} />
-                <YAxis yAxisId="right" orientation="right" domain={[0, 1]} width={28}
-                  tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
-                  axisLine={false} tickLine={false}
-                  tickFormatter={(v: number) => v.toFixed(1)} />
-                <Tooltip content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const d = payload[0].payload as typeof series[number];
-                  return (
-                    <div className="bg-[var(--surface)] border border-[var(--surface-border)] rounded-xl px-2.5 py-1.5 text-10 shadow-lg">
-                      <p className="font-semibold text-[var(--text-on-surface)]">
-                        {md(d.from)} — {md(built.end)} · {dayStr(d.days)}
-                      </p>
-                      <p className="text-[var(--text-on-surface-muted)]">
-                        {zh ? "連線" : "Links"}: {d.edgeCount} · {zh ? "平均 |r|" : "mean |r|"}: {d.meanAbsR.toFixed(2)}
-                      </p>
-                      <p className="text-[var(--text-on-surface-muted)]">
-                        {zh ? "增減" : "Churn"}: {d.churn}
-                      </p>
-                    </div>
-                  );
-                }} />
-                <ReferenceLine yAxisId="left" x={idx} stroke="var(--text-accent)" strokeWidth={1.5} />
-                <Line yAxisId="left" type="monotone" dataKey="edgeCount" stroke="#0d5c63"
-                  strokeWidth={2} dot={false} isAnimationActive={false} />
-                <Line yAxisId="right" type="monotone" dataKey="meanAbsR" stroke="#fb923c"
-                  strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
-              </LineChart>
-            </ResponsiveContainer>
+            {(() => {
+              const data = trend.map(t => ({
+                index: t.index, days: t.days,
+                pos: t.positive.length, neg: -t.negative.length,
+                point: t,
+              }));
+              const maxCount = Math.max(1, ...trend.map(t => Math.max(t.positive.length, t.negative.length)));
+              return (
+                <ResponsiveContainer width="100%" height={150}>
+                  <ComposedChart data={data} margin={{ top: 8, right: 4, bottom: 4, left: -26 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
+                    <XAxis dataKey="index" tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+                      axisLine={false} tickLine={false} minTickGap={24}
+                      tickFormatter={(v: number) => String(data[v]?.days ?? "")} />
+                    <YAxis allowDecimals={false} domain={[-maxCount, maxCount]}
+                      tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+                      axisLine={false} tickLine={false}
+                      tickFormatter={(v: number) => String(Math.abs(v))} />
+                    <ReferenceLine y={0} stroke="var(--surface-border)" />
+                    <Tooltip content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = (payload[0].payload as typeof data[number]).point;
+                      const list = (arr: { factor: NetVar; r: number }[]) => arr.length
+                        ? arr.slice(0, 6).map(f => varLabel(f.factor)).join("、")
+                          + (arr.length > 6 ? ` +${arr.length - 6}` : "")
+                        : (zh ? "無" : "none");
+                      return (
+                        <div className="bg-[var(--surface)] border border-[var(--surface-border)] rounded-xl px-2.5 py-1.5 text-10 shadow-lg max-w-[220px]">
+                          <p className="font-semibold text-[var(--text-on-surface)]">
+                            {md(d.from)} — {md(built.end)} · {dayStr(d.days)}
+                          </p>
+                          <p className="text-emerald-600 mt-1">{posLabel}: {list(d.positive)}</p>
+                          <p className="text-rose-500 mt-0.5">{negLabel}: {list(d.negative)}</p>
+                        </div>
+                      );
+                    }} />
+                    <Bar dataKey="pos" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={10} />
+                    <Bar dataKey="neg" fill="#f43f5e" radius={[0, 0, 3, 3]} maxBarSize={10} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              );
+            })()}
             <div className="flex items-center gap-4 mt-1">
               <span className="flex items-center gap-1 text-10 text-[var(--text-on-surface-muted)]">
-                <span className="inline-block w-4 h-0.5 rounded" style={{ background: "#0d5c63" }} />
-                {zh ? "連線數" : "Link count"}
+                <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: "#10b981" }} />
+                {zh ? "正面因子數" : "Positive factors"}
               </span>
               <span className="flex items-center gap-1 text-10 text-[var(--text-on-surface-muted)]">
-                <svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="#fb923c" strokeWidth="1.5" strokeDasharray="4 3" /></svg>
-                {zh ? "平均 |r|" : "Mean |r|"}
+                <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: "#f43f5e" }} />
+                {zh ? "負面因子數" : "Negative factors"}
               </span>
             </div>
           </div>
-
-          {/* ── Edge persistence ─────────────────────────────────────── */}
-          {trackRows.length > 0 && (
-            <div className="card">
-              <p className="text-sm font-semibold text-[var(--text-on-surface)] mb-1">
-                {zh ? "連線持續度" : "Link persistence"}
-              </p>
-              <p className="text-10 text-[var(--text-on-surface-muted)] mb-2.5">
-                {zh
-                  ? "每一條的色帶是它在整段時間線上的存在情形（左=長區間，右=短區間），深淺代表 |r|"
-                  : "Each strip shows where a link existed across the run (left = widest window, right = tightest); shade is |r|"}
-              </p>
-              <div className="space-y-1.5">
-                {trackRows.map(({ track, rects }) => (
-                  <div key={track.key} className="flex items-center gap-2">
-                    <span className="text-10 text-[var(--text-on-surface)] w-24 shrink-0 truncate">
-                      {varLabel(track.source)}–{varLabel(track.target)}
-                    </span>
-                    <div className="relative flex-1 h-2.5 rounded-sm bg-[var(--surface-container-low)] overflow-hidden">
-                      <svg viewBox={`0 0 ${frames.length} 10`} preserveAspectRatio="none"
-                        className="w-full h-full block">
-                        {rects}
-                      </svg>
-                      <div className="absolute top-0 bottom-0 w-px bg-[var(--text-on-surface)]"
-                        style={{ left: `${((idx + 0.5) / frames.length) * 100}%` }} />
-                    </div>
-                    <span className="text-10 font-mono font-bold text-[var(--text-on-surface-muted)] w-8 text-right shrink-0">
-                      {Math.round(track.presence * 100)}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p className="text-10 text-[var(--text-on-surface-muted)] mt-2">
-                {zh
-                  ? "100% 代表無論區間怎麼縮短都成立；只出現在左側代表那段關聯來自較早的資料"
-                  : "100% means it holds at every window; left-only means the link lives in the older data"}
-              </p>
-            </div>
-          )}
         </>
       )}
+    </div>
+  );
+}
+
+// ── Waveform charts ────────────────────────────────────────────────────────────
+//
+// A link's r value across the frame sequence is read as a signal, not a
+// number: a thin raw trace (one point per window) under a bold smoothed
+// trend line, plotted against the window's *start date* rather than its size
+// in days — so the X axis reads directly as "correlation using data from
+// this date onward", which is what the analysis actually means.
+
+const RAW_COLOR = "var(--text-on-surface-muted)";
+const POS_LINE = "#10b981";
+const NEG_LINE = "#f43f5e";
+
+function PersistentWaveform({ link, trend, frames, lang, positive, varLabel, lagLabel }: {
+  link: PersistentGoalLink;
+  trend: LinkTrend | undefined;
+  frames: GoalFrame[];
+  lang: string;
+  positive: boolean;
+  varLabel: (v: NetVar) => string;
+  lagLabel: (lag: number) => string;
+}) {
+  const zh = lang === "zh";
+  const lineColor = positive ? POS_LINE : NEG_LINE;
+  const data = useMemo(() => frames.map((f, i) => ({
+    date: f.from,
+    raw: trend?.raw[i] ?? null,
+    smoothed: trend?.smoothed[i] ?? null,
+  })), [frames, trend]);
+
+  const direction = trend?.direction ?? "stable";
+  const TrendIcon = direction === "strengthening" ? TrendingUp : direction === "weakening" ? TrendingDown : Minus;
+  const trendLabel = direction === "strengthening" ? (zh ? "增強中" : "strengthening")
+    : direction === "weakening" ? (zh ? "減弱中" : "weakening")
+    : (zh ? "持平" : "steady");
+
+  return (
+    <div className="rounded-xl bg-[var(--surface-container-low)] px-3 py-2.5">
+      <div className="flex items-baseline justify-between gap-2 mb-0.5">
+        <span className="text-xs font-semibold text-[var(--text-on-surface)] truncate">{varLabel(link.factor)}</span>
+        <span className={clsx("flex items-center gap-1 text-10 font-semibold shrink-0",
+          direction === "strengthening" ? "text-emerald-600" : direction === "weakening" ? "text-rose-500" : "text-[var(--text-on-surface-muted)]")}>
+          <TrendIcon size={11} />{trendLabel}
+        </span>
+      </div>
+      <p className="text-10 text-[var(--text-on-surface-muted)] mb-1.5">
+        {lagLabel(link.lag)} · {zh ? "目前" : "now"}{" "}
+        <span className={clsx("font-mono font-bold", positive ? "text-emerald-600" : "text-rose-500")}>
+          {link.r >= 0 ? "+" : ""}{link.r.toFixed(2)}
+        </span>
+        {" · "}{zh ? "整段持續" : "held"} {Math.round(link.presence * 100)}%
+      </p>
+
+      <ResponsiveContainer width="100%" height={110}>
+        <ComposedChart data={data} margin={{ top: 2, right: 4, bottom: 0, left: -30 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
+          <XAxis dataKey="date" tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+            axisLine={false} tickLine={false} minTickGap={28}
+            tickFormatter={(v: string) => format(parseISO(v), "M/d")} />
+          <YAxis domain={[-1, 1]} tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+            axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} width={26} />
+          <ReferenceLine y={0} stroke="var(--surface-border)" />
+          <Tooltip content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const raw = payload.find(p => p.dataKey === "raw")?.value as number | undefined;
+            return (
+              <div className="bg-[var(--surface)] border border-[var(--surface-border)] rounded-xl px-2.5 py-1.5 text-10 shadow-lg">
+                <p className="font-semibold text-[var(--text-on-surface)]">{format(parseISO(label as string), "M/d")}</p>
+                {raw != null && <p className="text-[var(--text-on-surface-muted)]">r = {raw >= 0 ? "+" : ""}{raw.toFixed(2)}</p>}
+              </div>
+            );
+          }} />
+          <Line dataKey="raw" stroke={RAW_COLOR} strokeWidth={1} strokeOpacity={0.35} dot={false} connectNulls={false} isAnimationActive={false} />
+          <Line dataKey="smoothed" stroke={lineColor} strokeWidth={2} dot={false} connectNulls={false} isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+      {trend && trend.direction !== "stable" && (
+        <p className="text-9 text-[var(--text-on-surface-muted)] mt-1">
+          {zh
+            ? `趨勢 r=${trend.trendR.toFixed(2)}，p ${trend.trendP < 0.001 ? "< 0.001" : `= ${trend.trendP.toFixed(3)}`}`
+            : `trend r=${trend.trendR.toFixed(2)}, p ${trend.trendP < 0.001 ? "< 0.001" : `= ${trend.trendP.toFixed(3)}`}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function EmergedWaveform({ link, segments, frames, lang, positive, varLabel, lagLabel, md }: {
+  link: EmergedGoalLink;
+  segments: RegimeSegment[] | undefined;
+  frames: GoalFrame[];
+  lang: string;
+  positive: boolean;
+  varLabel: (v: NetVar) => string;
+  lagLabel: (lag: number) => string;
+  md: (d: string) => string;
+}) {
+  const zh = lang === "zh";
+  const lineColor = positive ? POS_LINE : NEG_LINE;
+
+  const rangeEndFallback = frames[0]?.to ?? link.date;
+  const segs = segments ?? [
+    { from: frames[0]?.from ?? link.date, to: link.date, r: link.before.r, n: link.before.n, reliability: link.before.reliability },
+    { from: link.date, to: rangeEndFallback, r: link.since.r, n: link.since.n, reliability: link.since.reliability },
+  ];
+
+  // Raw per-window trace (thin), same date-keyed X axis as the persistent chart.
+  const raw = useMemo(() => factorTrajectory(frames, link.factor).raw, [frames, link.factor]);
+  const rawData = useMemo(() => frames.map((f, i) => ({ date: f.from, raw: raw[i] })), [frames, raw]);
+
+  // A step function through the regime segments: one point per segment start
+  // plus a closing point at the range end, so `stepAfter` interpolation draws
+  // a flat line for each segment and a vertical jump at each transition —
+  // the "decoded discrete levels" read against the raw trace above.
+  const rangeEnd = frames[0]?.to ?? link.date;
+  const stepData = useMemo(() => [
+    ...segs.map(s => ({ date: s.from, level: s.r })),
+    { date: rangeEnd, level: segs[segs.length - 1].r },
+  ], [segs, rangeEnd]);
+
+  return (
+    <div className="rounded-xl bg-[var(--surface-container-low)] px-3 py-2.5">
+      <div className="flex items-baseline justify-between gap-2 mb-0.5">
+        <span className="text-xs font-semibold text-[var(--text-on-surface)] truncate">{varLabel(link.factor)}</span>
+        <span className={clsx("text-10 font-semibold shrink-0", positive ? "text-emerald-600" : "text-rose-500")}>
+          {zh ? `${md(link.date)} 起` : `since ${md(link.date)}`}
+        </span>
+      </div>
+      <p className="text-10 text-[var(--text-on-surface-muted)] mb-1.5">
+        {lagLabel(link.lag)}
+        {" · p "}{link.pAdjusted < 0.001 ? "< 0.001" : `= ${link.pAdjusted.toFixed(3)}`}
+        {segs.length > 2 && (zh ? ` · 偵測到 ${segs.length} 段` : ` · ${segs.length} segments found`)}
+      </p>
+
+      <ResponsiveContainer width="100%" height={110}>
+        <ComposedChart margin={{ top: 2, right: 4, bottom: 0, left: -30 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
+          <XAxis dataKey="date" type="category" allowDuplicatedCategory={false}
+            tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+            axisLine={false} tickLine={false} minTickGap={28}
+            tickFormatter={(v: string) => format(parseISO(v), "M/d")} />
+          <YAxis domain={[-1, 1]} tick={{ fontSize: 9, fill: "var(--text-on-surface-muted)" }}
+            axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} width={26} />
+          <ReferenceLine y={0} stroke="var(--surface-border)" />
+          {segs.slice(1).map((s, i) => (
+            <ReferenceLine key={i} x={s.from} stroke="var(--text-accent)" strokeDasharray="4 3" strokeWidth={1} />
+          ))}
+          <Tooltip content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const rawV = payload.find(p => p.dataKey === "raw")?.value as number | undefined;
+            const lvl  = payload.find(p => p.dataKey === "level")?.value as number | undefined;
+            return (
+              <div className="bg-[var(--surface)] border border-[var(--surface-border)] rounded-xl px-2.5 py-1.5 text-10 shadow-lg">
+                <p className="font-semibold text-[var(--text-on-surface)]">{format(parseISO(label as string), "M/d")}</p>
+                {rawV != null && <p className="text-[var(--text-on-surface-muted)]">r = {rawV >= 0 ? "+" : ""}{rawV.toFixed(2)}</p>}
+                {lvl  != null && <p style={{ color: lineColor }}>{zh ? "區段" : "segment"}: {lvl >= 0 ? "+" : ""}{lvl.toFixed(2)}</p>}
+              </div>
+            );
+          }} />
+          <Line data={rawData} dataKey="raw" stroke={RAW_COLOR} strokeWidth={1} strokeOpacity={0.35}
+            dot={false} connectNulls={false} isAnimationActive={false} />
+          <Line data={stepData} dataKey="level" type="stepAfter" stroke={lineColor} strokeWidth={2.2}
+            dot={false} isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+        {segs.map((s, i) => (
+          <span key={i} className="text-9 text-[var(--text-on-surface-muted)]">
+            {md(s.from)}–{s.to === rangeEnd ? (zh ? "現在" : "now") : md(s.to)}:{" "}
+            <span className={clsx("font-mono font-bold", s.r >= 0 ? "text-emerald-600" : "text-rose-500")}>
+              {s.r >= 0 ? "+" : ""}{s.r.toFixed(2)}
+            </span>{" "}n={s.n}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

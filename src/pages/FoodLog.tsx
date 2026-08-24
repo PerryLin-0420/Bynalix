@@ -3,7 +3,7 @@ import { BottomSheet, Dialog } from "@/components/common/Modal";
 import { format } from "date-fns";
 import {
   Search, Plus, X, Star, Trash2, UtensilsCrossed,
-  Bookmark, ChevronDown, ChevronUp, Pencil, Check, AlertCircle,
+  Bookmark, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Pencil, Check, AlertCircle,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
@@ -67,6 +67,9 @@ const toZhLabel = (mt: string): string => KEY_TO_LABEL[mt] ?? mt;
 
 const CATEGORY_FILTERS = ["全部", "澱粉", "蛋白質", "油質", "我的最愛"] as const;
 type CatFilter = string;
+
+/** Results per page for category/aggregated-tag browsing and text search. */
+const PAGE_SIZE = 20;
 
 const CAT_TAG_MAP: Record<string, string[]> = {
   澱粉:  ["主食", "水果", "飲料"],
@@ -181,6 +184,8 @@ export function FoodLog() {
   const [query, setQuery]               = useState("");
   const [catFilter, setCatFilter]       = useState<CatFilter>("全部");
   const [results, setResults]           = useState<FoodItem[]>([]);
+  const [page, setPage]                 = useState(0);
+  const [hasMore, setHasMore]           = useState(false);
   const [pickedFood, setPickedFood]     = useState<FoodItem | null>(null);
   const [pickedQty, setPickedQty]       = useState("100");
 
@@ -314,12 +319,17 @@ export function FoodLog() {
 
   // ── Food search ──────────────────────────────────────────────────────────────
 
-  const doSearch = useCallback(async (q: string, filter: CatFilter) => {
+  const doSearch = useCallback(async (q: string, filter: CatFilter, pg: number) => {
     if (!profile) return;
     try {
       const db = await getDb();
       let rows: FoodItem[] = [];
       const likeQ = `%${q}%`;
+      // Fetch one extra row past the page so its presence alone tells us
+      // whether a next page exists, without a separate COUNT(*) query.
+      const limit  = PAGE_SIZE + 1;
+      const offset = pg * PAGE_SIZE;
+      let paged = false;
       if (filter === "我的最愛") {
         rows = await db.select<FoodItem[]>(`
           SELECT fd.* FROM user_favorites uf
@@ -328,29 +338,31 @@ export function FoodLog() {
             AND (? = '' OR fd.food_name LIKE ? OR fd.name_en LIKE ?)
           ORDER BY uf.display_order`, [profile.user_id, q, likeQ, likeQ]);
       } else if (filter !== "全部") {
+        paged = true;
         const cats = CAT_TAG_MAP[filter];
         if (cats?.length) {
           rows = await db.select<FoodItem[]>(
             `SELECT * FROM food_database WHERE category IN (${cats.map(() => "?").join(",")})
-             AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT 30`,
-            [...cats, q, likeQ, likeQ]);
+             AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT ? OFFSET ?`,
+            [...cats, q, likeQ, likeQ, limit, offset]);
         } else {
           rows = await db.select<FoodItem[]>(
             `SELECT * FROM food_database WHERE category = ?
-             AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT 30`,
-            [filter, q, likeQ, likeQ]);
+             AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT ? OFFSET ?`,
+            [filter, q, likeQ, likeQ, limit, offset]);
         }
       } else if (q.trim()) {
         // Prefix match outranks "contains anywhere" so searching「雞胸」surfaces
         // 「雞胸肉」above「去皮雞胸肉」. Custom foods still win the first tier.
+        paged = true;
         const prefixQ = `${q}%`;
         rows = await db.select<FoodItem[]>(
           `SELECT *,
              CASE WHEN food_name LIKE ? OR name_en LIKE ? THEN 0 ELSE 1 END AS _rank
            FROM food_database
            WHERE food_name LIKE ? OR name_en LIKE ?
-           ORDER BY source_type DESC, _rank, food_name LIMIT 30`,
-          [prefixQ, prefixQ, likeQ, likeQ]);
+           ORDER BY source_type DESC, _rank, food_name LIMIT ? OFFSET ?`,
+          [prefixQ, prefixQ, likeQ, likeQ, limit, offset]);
       } else {
         // default: show favorites
         rows = await db.select<FoodItem[]>(`
@@ -359,15 +371,20 @@ export function FoodLog() {
           WHERE uf.user_id=? AND uf.item_type='food'
           ORDER BY uf.display_order LIMIT 20`, [profile.user_id]);
       }
-      setResults(rows);
+      setHasMore(paged && rows.length > PAGE_SIZE);
+      setResults(paged ? rows.slice(0, PAGE_SIZE) : rows);
     } catch (e) { logError("FoodLog", e); }
   }, [profile]);
 
+  // A new query or filter always starts back at page 1 — otherwise switching
+  // categories could land on a page past the new list's end.
+  useEffect(() => { setPage(0); }, [query, catFilter]);
+
   useEffect(() => {
     if (!sheetOpen) return;
-    const t = setTimeout(() => doSearch(query, catFilter), 250);
+    const t = setTimeout(() => doSearch(query, catFilter, page), 250);
     return () => clearTimeout(t);
-  }, [query, catFilter, sheetOpen, doSearch]);
+  }, [query, catFilter, page, sheetOpen, doSearch]);
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
@@ -537,7 +554,8 @@ export function FoodLog() {
       await db.execute("DELETE FROM food_database WHERE food_id=? AND source_type='custom'", [food.food_id]);
       setFavIds(s => { const n = new Set(s); n.delete(food.food_id); return n; });
       if (pickedFood?.food_id === food.food_id) setPickedFood(null);
-      doSearch(query, catFilter);
+      setPage(0);
+      doSearch(query, catFilter, 0);
     } catch (e) {
       logError("FoodLog.deleteCustomFood", e);
       showToast(lang === "zh" ? "刪除失敗" : "Delete failed", "error");
@@ -621,7 +639,8 @@ export function FoodLog() {
         }
       }
       closeCustomFoodModal();
-      doSearch(query, catFilter);
+      setPage(0);
+      doSearch(query, catFilter, 0);
     } catch (e) {
       logError("FoodLog.saveCustomFood", e);
       showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
@@ -637,7 +656,8 @@ export function FoodLog() {
     setMealType(type);
     setMealTime(format(new Date(), "HH:mm"));
     setSheetOpen(true);
-    doSearch("", "全部");
+    setPage(0);
+    doSearch("", "全部", 0);
   };
 
   const openEditSheet = async (group: MealGroup) => {
@@ -663,7 +683,8 @@ export function FoodLog() {
       setCustomTypeName("");
       setShowTplPicker(false);
       setSheetOpen(true);
-      doSearch("", "全部");
+      setPage(0);
+      doSearch("", "全部", 0);
     } catch (e) { logError("FoodLog", e); }
   };
 
@@ -1070,6 +1091,27 @@ export function FoodLog() {
                     );
                   })}
                 </div>
+
+                {/* Pagination — only category/tag browsing and text search can
+                    run past one page; a next page's existence is read off the
+                    one extra row `doSearch` over-fetched, no COUNT(*) needed. */}
+                {(page > 0 || hasMore) && (
+                  <div className="flex items-center justify-center gap-3 mt-2">
+                    <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+                      className={clsx("icon-btn transition-colors",
+                        page === 0 ? "text-[var(--text-on-surface-muted)] opacity-30 cursor-not-allowed" : "text-[var(--text-on-surface)] hover:text-[var(--text-accent)]")}>
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="text-xs font-medium text-[var(--text-on-surface-muted)] tabular-nums">
+                      {lang === "zh" ? `第 ${page + 1} 頁` : `Page ${page + 1}`}
+                    </span>
+                    <button onClick={() => setPage(p => p + 1)} disabled={!hasMore}
+                      className={clsx("icon-btn transition-colors",
+                        !hasMore ? "text-[var(--text-on-surface-muted)] opacity-30 cursor-not-allowed" : "text-[var(--text-on-surface)] hover:text-[var(--text-accent)]")}>
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                )}
 
                 {/* Custom food link */}
                 <button onClick={() => setShowCustomFood(true)}
