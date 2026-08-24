@@ -52,8 +52,6 @@ export const TIMELINE_MAX_FRAMES = 365;
  */
 export const TIMELINE_WORK_BUDGET = 60_000;
 
-export const TIMELINE_STEP_OPTIONS = [1, 2, 3, 7, 14] as const;
-
 // ── Frames ───────────────────────────────────────────────────────────────────
 
 export interface GoalFrame {

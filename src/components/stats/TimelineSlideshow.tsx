@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { format, parseISO, differenceInCalendarDays, subDays } from "date-fns";
-import { Film, X, TrendingUp, TrendingDown, Minus, Target } from "lucide-react";
+import { Film, X, TrendingUp, TrendingDown, Minus, Target, RefreshCw } from "lucide-react";
 import { clsx } from "clsx";
 import { DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { CardHeader } from "@/components/common/CardHeader";
@@ -13,7 +13,7 @@ import { NET_VARS, type NetVar } from "@/lib/statistics/network";
 import {
   buildTimeline, persistentGoalLinks, emergedGoalLinks, goalTrendSeries,
   linkTrends, regimeGoalLinks, factorTrajectory,
-  planTimeline, TIMELINE_MIN_WINDOW, TIMELINE_STEP_OPTIONS,
+  planTimeline, TIMELINE_MIN_WINDOW,
   type GoalFrame, type GoalDirection, type PersistentGoalLink, type EmergedGoalLink,
   type LinkTrend, type RegimeSegment,
 } from "@/lib/statistics/timeline";
@@ -99,7 +99,13 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
   const [modeCustom, setModeCustom] = useState(false);
   const [customRange, setCustomRange] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
   const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
-  const [stepDays, setStepDays]     = useState<number>(1);
+  // Analysis step is always the finest (1 day) the picked range affords;
+  // `planTimeline` auto-widens it under the hood on a long range (see
+  // TIMELINE_WORK_BUDGET) so build cost stays bounded either way. A manual
+  // "granularity" control used to sit here, but with that safety net doing
+  // the real work, all it ever let a user do was deliberately pick a coarser
+  // step than necessary — not a choice this tab needs to expose.
+  const STEP_DAYS = 1;
 
   // ── Build state ───────────────────────────────────────────────────────────
   const [frames, setFrames]       = useState<GoalFrame[]>([]);
@@ -111,7 +117,10 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
   const [building, setBuilding]   = useState(false);
   const [progress, setProgress]   = useState<{ done: number; total: number; phase: "frames" | "emerged" | "regimes" }>(
     { done: 0, total: 0, phase: "frames" });
-  const abortRef = useRef(false);
+  // Bumped on every build start; a build only ever writes its results back
+  // while it still holds the latest token, so a range change that starts a
+  // new build automatically supersedes — rather than races — the one before it.
+  const buildGenRef = useRef(0);
 
   // ── Load the data bounds once ─────────────────────────────────────────────
   useEffect(() => {
@@ -166,57 +175,70 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
   const totalDays = startDate && endDate
     ? differenceInCalendarDays(parseISO(endDate), parseISO(startDate)) + 1
     : 0;
-  const plan = useMemo(() => planTimeline(totalDays, stepDays), [totalDays, stepDays]);
+  const plan = useMemo(() => planTimeline(totalDays, STEP_DAYS), [totalDays]);
   /** A custom range picked but too short for even one window. */
   const rangeTooShort = modeCustom && customRange.start && customRange.end && plan.frameCount <= 0;
 
-  /** The result on screen no longer matches what the setup card is configured for. */
-  const stale = built != null && (
-    built.start !== startDate ||
-    built.end   !== endDate ||
-    built.step  !== plan.effectiveStep);
-
   // ── Build ─────────────────────────────────────────────────────────────────
-  const handleBuild = async () => {
-    if (!startDate || !endDate || plan.frameCount <= 0) return;
-    abortRef.current = false;
+  // Runs automatically whenever the range settles (see the effect below) —
+  // same "pick a range, see a default result immediately" model the other
+  // stats tabs use — rather than gating the first (or every subsequent)
+  // result behind a manual "Analyse" click.
+  const runBuild = async (start: string, end: string, step: number) => {
+    const gen = ++buildGenRef.current;
+    const stale = () => buildGenRef.current !== gen;
     setBuilding(true);
     setProgress({ done: 0, total: plan.frameCount, phase: "frames" });
     try {
-      const recs = await getDailyStatsRecords(userId, 0, startDate, endDate);
-      const res  = await buildTimeline(
+      const recs = await getDailyStatsRecords(userId, 0, start, end);
+      if (stale()) return;
+      const res = await buildTimeline(
         recs,
-        { startDate, endDate, stepDays, goalVar: GOAL_VAR },
-        (done, total) => setProgress({ done, total, phase: "frames" }),
-        () => abortRef.current,
+        { startDate: start, endDate: end, stepDays: step, goalVar: GOAL_VAR },
+        (done, total) => { if (!stale()) setProgress({ done, total, phase: "frames" }); },
+        stale,
       );
+      if (stale()) return;
       if (res.frames.length) {
         setFrames(res.frames);
         const persistentLinks = persistentGoalLinks(res.frames, goalDir);
         setPersistent(persistentLinks);
         setTrends(new Map(linkTrends(res.frames, persistentLinks.map(l => l.factor)).map(t => [t.factor, t])));
-        setBuilt({ start: startDate, end: endDate, step: res.effectiveStep, widened: res.stepWidened });
+        setBuilt({ start, end, step: res.effectiveStep, widened: res.stepWidened });
 
         setProgress({ done: 0, total: 0, phase: "emerged" });
-        const emergedLinks = abortRef.current ? [] : await emergedGoalLinks(
+        const emergedLinks = await emergedGoalLinks(
           recs, res.frames, GOAL_VAR, goalDir, {},
-          (done, total) => setProgress({ done, total, phase: "emerged" }),
-          () => abortRef.current,
+          (done, total) => { if (!stale()) setProgress({ done, total, phase: "emerged" }); },
+          stale,
         );
+        if (stale()) return;
         setEmerged(emergedLinks);
 
         setProgress({ done: 0, total: 0, phase: "regimes" });
-        setRegimes(abortRef.current || emergedLinks.length === 0 ? new Map() : await regimeGoalLinks(
-          recs, emergedLinks, GOAL_VAR, startDate, endDate, {},
-          (done, total) => setProgress({ done, total, phase: "regimes" }),
-          () => abortRef.current,
-        ));
+        const regimeMap = emergedLinks.length === 0 ? new Map() : await regimeGoalLinks(
+          recs, emergedLinks, GOAL_VAR, start, end, {},
+          (done, total) => { if (!stale()) setProgress({ done, total, phase: "regimes" }); },
+          stale,
+        );
+        if (stale()) return;
+        setRegimes(regimeMap);
       }
     } catch (e) { logError("Timeline.build", e); }
-    setBuilding(false);
+    if (!stale()) setBuilding(false);
   };
 
-  const cancelBuild = () => { abortRef.current = true; };
+  const cancelBuild = () => { buildGenRef.current++; setBuilding(false); };
+
+  // Debounced so clicking through presets doesn't kick off a build per click;
+  // a range change (including the initial one, once bounds load) always
+  // supersedes rather than queues behind whatever build was already running.
+  useEffect(() => {
+    if (!startDate || !endDate || plan.frameCount <= 0) return;
+    const t = setTimeout(() => runBuild(startDate, endDate, plan.effectiveStep), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate, goalDir, plan.frameCount, plan.effectiveStep]);
 
   // ── Derived views ─────────────────────────────────────────────────────────
   const trend = useMemo(() => goalTrendSeries(frames, goalDir), [frames, goalDir]);
@@ -276,7 +298,16 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
           title={<span className="flex items-center gap-micro.5">
             <Film size={14} className="text-[var(--text-accent)]" />
             {zh ? "時間線設定" : "Timeline setup"}
-          </span>} />
+          </span>}
+          action={
+            <button onClick={() => startDate && endDate && runBuild(startDate, endDate, plan.effectiveStep)}
+              disabled={building || !startDate || !endDate}
+              className={clsx("p-1.5 rounded-lg transition-colors",
+                building ? "text-[var(--text-on-surface-muted)] animate-spin cursor-wait"
+                         : "text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]")}>
+              <RefreshCw size={14} />
+            </button>
+          } />
 
         <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
           {zh
@@ -355,18 +386,6 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
           </div>
         </div>
 
-        {/* Step */}
-        <p className="text-10 font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-          {zh ? "分析精細度（每張間隔）" : "Analysis granularity (step per frame)"}
-        </p>
-        <div className="flex gap-micro.5 flex-wrap mb-3">
-          {TIMELINE_STEP_OPTIONS.map(s => (
-            <SegButton key={s} active={stepDays === s} onClick={() => setStepDays(s)}>
-              {zh ? `${s} 天` : `${s}d`}
-            </SegButton>
-          ))}
-        </div>
-
         {/* Plan summary */}
         <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
           {zh
@@ -381,13 +400,7 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
           )}
         </p>
 
-        {stale && !building && (
-          <p className="text-10 text-amber-600 mb-3">
-            {zh ? "設定已變更，按下方按鈕重新產生時間線" : "Settings changed — rebuild to apply them"}
-          </p>
-        )}
-
-        {building ? (
+        {building && (
           <div className="space-y-2">
             <div className="h-1.5 rounded-full bg-[var(--surface-container)] overflow-hidden">
               <div className="h-full bg-[var(--color-secondary)] transition-all duration-150"
@@ -407,14 +420,6 @@ export function TimelineSlideshow({ userId, lang, goalDir }: Props) {
               </button>
             </div>
           </div>
-        ) : (
-          <button onClick={handleBuild} disabled={plan.frameCount <= 0}
-            className={clsx("w-full py-2.5 rounded-xl text-xs font-semibold transition-colors",
-              plan.frameCount > 0
-                ? "bg-gray-900 text-white hover:bg-gray-700"
-                : "bg-gray-100 text-gray-300 cursor-not-allowed")}>
-            {built ? (zh ? "重新分析" : "Rebuild") : (zh ? "開始分析" : "Analyse")}
-          </button>
         )}
       </div>
 
