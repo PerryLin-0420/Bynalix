@@ -8,9 +8,10 @@ import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, 
 import { MetricPicker, metricKey, metricLabel, ALL_BODY_PARTS, type MetricCfg } from "@/components/stats/MetricPicker";
 import { CorrelationNetwork } from "@/components/stats/CorrelationNetwork";
 import { EmergenceCards } from "@/components/stats/EmergenceCards";
-import { TimelineSlideshow } from "@/components/stats/TimelineSlideshow";
+import { StabilityRadar } from "@/components/stats/StabilityRadar";
 import { WeekdayPatternCards } from "@/components/stats/WeekdayPatternCards";
 import { computeCorrelationNetwork, computeWeekdayPatterns, type CorrelationNetwork as NetworkData, type WeekdayPattern } from "@/lib/statistics/network";
+import { computeStabilityChart, type StabilityResult } from "@/lib/statistics/stability";
 import { CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE } from "@/constants";
 import { clsx } from "clsx";
 import { useUserStore } from "@/store/userStore";
@@ -32,7 +33,7 @@ import type { DailyStatsRecord } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StatTab = "pearson" | "advanced" | "patterns" | "timeline";
+type StatTab = "pearson" | "advanced" | "patterns" | "stability";
 
 interface LagRow {
   factor: string;
@@ -255,7 +256,7 @@ export function Statistics() {
   const dStr = (n: number) => lang === "zh" ? `${n}天` : `${n} days`;
 
   const [activeTab, setActiveTab] = useState<StatTab>("pearson");
-  const STAT_TABS = ["pearson", "advanced", "patterns", "timeline"] as const;
+  const STAT_TABS = ["pearson", "advanced", "patterns", "stability"] as const;
   const statSwipe = useSwipeTabs(STAT_TABS, activeTab, setActiveTab as (t: string) => void);
 
   const { days, showCustom, setShowCustom, customRange, setCustomRange, modeCustom, setModeCustom, getFromTo, rangeTotal, selectPreset } = useDateRange(90);
@@ -272,6 +273,9 @@ export function Statistics() {
   const [patternsLoading, setPatternsLoading] = useState(false);
   const [network, setNetwork] = useState<NetworkData | null>(null);
   const [weekdayPatterns, setWeekdayPatterns] = useState<WeekdayPattern[]>([]);
+
+  // Stability tab
+  const [stabilityResults, setStabilityResults] = useState<StabilityResult[]>([]);
 
   // Advanced tab — new config UI
   interface VarCard { id: string; cfg: MetricCfg | null; confirmed: boolean; open: boolean }
@@ -436,6 +440,7 @@ export function Statistics() {
       // ── Correlation network + weekday patterns ────────────────────────────
       setNetwork(computeCorrelationNetwork(recs, rangeLen));
       setWeekdayPatterns(computeWeekdayPatterns(recs));
+      setStabilityResults(computeStabilityChart(recs, from, to));
 
       // ── Raw maps ──────────────────────────────────────────────────────────
       const weightRaw = new Map(recs.filter(r => r.weight_kg  != null).map(r => [r.date, r.weight_kg!]));
@@ -958,11 +963,7 @@ export function Statistics() {
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-on-bg)]">{t("stats.title")}</h1>
             <p className="text-[var(--text-on-bg-muted)] font-bold text-sm mt-0.5">
-              {/* The timeline tab spans every window at once, so the page-level
-                  range does not apply to it. */}
-              {activeTab === "timeline"
-                ? (lang === "zh" ? "時間線幻燈片" : "Timeline slideshow")
-                : modeCustom && customRange.start && customRange.end
+              {modeCustom && customRange.start && customRange.end
                 ? `${format(new Date(customRange.start), "M/d")} — ${format(new Date(customRange.end), "M/d")}`
                 : (lang === "zh" ? `近 ${dStr(days)}` : `Last ${dStr(days)}`)}
             </p>
@@ -975,17 +976,15 @@ export function Statistics() {
             </button>
           </div>
         </div>
-        {activeTab !== "timeline" && (
-          <DateRangePills
-            days={days} modeCustom={modeCustom} showCustom={showCustom}
-            onSelectPreset={selectPreset}
-            onToggleCustom={() => setShowCustom(v => !v)}
-            pillPx="px-2.5"
-          />
-        )}
+        <DateRangePills
+          days={days} modeCustom={modeCustom} showCustom={showCustom}
+          onSelectPreset={selectPreset}
+          onToggleCustom={() => setShowCustom(v => !v)}
+          pillPx="px-2.5"
+        />
       </StickyHeader>
 
-      {showCustom && activeTab !== "timeline" && (
+      {showCustom && (
         <DateRangePickerCard
           customRange={customRange} activeDates={activeDates}
           onRangeChange={r => { setCustomRange(r); setModeCustom(!!(r.start && r.end)); }}
@@ -1015,9 +1014,9 @@ export function Statistics() {
           className="flex-1 py-2 text-sm">
           {lang === "zh" ? "規律" : "Patterns"}
         </PillButton>
-        <PillButton onClick={() => setActiveTab("timeline")} isActive={activeTab === "timeline"}
+        <PillButton onClick={() => setActiveTab("stability")} isActive={activeTab === "stability"}
           className="flex-1 py-2 text-sm">
-          {lang === "zh" ? "時間線" : "Timeline"}
+          {lang === "zh" ? "穩定度" : "Stability"}
         </PillButton>
       </div>
 
@@ -1269,12 +1268,9 @@ export function Statistics() {
       {activeTab === "advanced" && renderAdvancedStats(modeSettings?.mode === "custom" ? 2 : 1)}
 
       {/* ══════════════════════════════════════════
-          TAB: 時間線 (Timeline) — goal-linked long-term / newly-emerged effects
+          TAB: 穩定度 (Stability) — day-to-day volatility of the core metrics
       ══════════════════════════════════════════ */}
-      {activeTab === "timeline" && (
-        <TimelineSlideshow userId={profile.user_id} lang={lang}
-          goalDir={goalMode === "cut" ? "down" : "up"} />
-      )}
+      {activeTab === "stability" && <StabilityRadar results={stabilityResults} lang={lang} />}
     </div>
 
     {/* ── MetricPicker bottom sheet modal (variable picker) — both slots ── */}
