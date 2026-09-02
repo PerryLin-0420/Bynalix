@@ -112,6 +112,17 @@ export function Profile() {
     return Math.round(p * 4 + c * 4 + f * 9);
   })();
 
+  /** Is the form's BF% a genuinely new measurement, or just the persisted
+   *  value echoed back unedited? Distinguishes "the user is entering a new
+   *  reading right now" from "nothing changed" for the LBM preview below. */
+  const bfChanged = (() => {
+    const formBf   = form.body_fat_pct ? parseFloat(form.body_fat_pct) : null;
+    const storedBf = profile?.body_fat_pct ?? null;
+    if (formBf == null && storedBf == null) return false;
+    if (formBf == null || storedBf == null) return true;
+    return Math.abs(formBf - storedBf) > 1e-9;
+  })();
+
   const previewTargets = (() => {
     try {
       const w  = parseFloat(form.weight_kg);
@@ -119,14 +130,20 @@ export function Profile() {
       const a  = parseInt(form.age);
       const bf = form.body_fat_pct ? parseFloat(form.body_fat_pct) : null;
       if (!w || !h || !a) return null;
-      // Preview LBM: computed from current form values (not yet persisted)
-      const previewLbm = bf != null && bf > 0 ? w * (1 - bf / 100) : null;
+      // LBM stays anchored to the stored value (Rule 3: fixed at first
+      // measurement, weight drift alone never moves it) unless the user is
+      // actively entering a new BF% right now — same condition saveProfile
+      // itself checks, so this preview never disagrees with what
+      // Dashboard/History actually apply once saved.
+      const previewLbm = bfChanged
+        ? (bf != null && bf > 0 ? w * (1 - bf / 100) : null)
+        : lbmKg;
       const wRounded = Math.round(w);
       const bmrVal  = previewLbm != null
         ? bmrKM(previewLbm)
         : bmr(wRounded, h, a, form.sex);
       const neatVal = neat(bmrVal, form.activity_level as any);
-      const tdee    = tdeeBasic(bmrVal, neatVal);
+      const tdee    = Math.round(tdeeBasic(bmrVal, neatVal));
       const targetCal = goalCategory === "custom"
         ? (customCalFromMacros ?? undefined)
         : undefined;
