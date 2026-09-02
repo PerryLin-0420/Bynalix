@@ -12,13 +12,17 @@ import { useLangStore } from "@/store/langStore";
 import { NET_VARS, type NetVar } from "@/lib/statistics/network";
 import {
   buildNetworkTimeline, emergedNetworkLinks, groupEmergedByHub,
-  planTimeline, TIMELINE_MIN_WINDOW, EMERGENCE_STEP_OPTIONS, EMERGENCE_WORK_BUDGET,
+  planWindows, WINDOW_MIN_DAYS, EMERGENCE_STEP_OPTIONS, EMERGENCE_WORK_BUDGET,
   type NetworkFrame, type EmergedPairLink, type EmergenceCard as HubCard,
 } from "@/lib/statistics/emergence";
 import { getDailyStatsRecords, getDataDateBounds, getActiveDates } from "@/lib/db/queries/stats";
 import { logError } from "@/lib/error";
 
-/** Widest-window presets — same values and rationale as the Timeline tab's. */
+/**
+ * Widest-window presets: a shrinking-window scan needs real room to walk the
+ * start forward, so these run much longer than the 14/30/90-day presets the
+ * other stats tabs use. `null` stands for the full logged history.
+ */
 const RANGE_OPTIONS: readonly (number | null)[] = [null, 365, 180, 90];
 
 /** A variable only linked to one other one doesn't earn its own multi-line card. */
@@ -51,8 +55,9 @@ interface Props {
  * but a snapshot can't tell "weight and calories, always linked" apart from
  * "sleep and water, only linked for the last two months" — both just look
  * like an edge. This re-runs the network across a shrinking-window sequence
- * (the same idea the Timeline tab uses) to tell them apart: a relationship
- * that holds using the entire history, old data included, is excluded as
+ * — the window end pinned to the latest logged day, the start walking
+ * forward one step per frame — to tell them apart: a relationship that
+ * holds using the entire history, old data included, is excluded as
  * long-term stable; what's left are relationships that measurably turned on
  * partway through the record and still hold now.
  *
@@ -121,9 +126,9 @@ export function EmergenceCards({ userId, lang }: Props) {
     : 0;
   // Must match buildNetworkTimeline's own budget default exactly, or the plan
   // shown here (and the `stale` check below) disagrees with what the build
-  // actually does — planTimeline's own default is the Timeline tab's much
-  // larger goal-only budget, not this full-network scan's tighter one.
-  const plan = useMemo(() => planTimeline(totalDays, stepDays, TIMELINE_MIN_WINDOW, undefined, EMERGENCE_WORK_BUDGET), [totalDays, stepDays]);
+  // actually does — planWindows' own default budget is sized for a much
+  // cheaper single-variable scan, not this full-network one.
+  const plan = useMemo(() => planWindows(totalDays, stepDays, WINDOW_MIN_DAYS, undefined, EMERGENCE_WORK_BUDGET), [totalDays, stepDays]);
   const rangeTooShort = modeCustom && customRange.start && customRange.end && plan.frameCount <= 0;
 
   const handleOpen = async () => {
@@ -226,8 +231,8 @@ export function EmergenceCards({ userId, lang }: Props) {
                   {rangeTooShort && (
                     <p className="text-10 text-rose-500 mt-1.5">
                       {zh
-                        ? `這段區間短於 ${TIMELINE_MIN_WINDOW} 天，統計上無法成立，請選更寬的範圍`
-                        : `That range is under ${TIMELINE_MIN_WINDOW} days, which no statistic can carry — pick a wider one`}
+                        ? `這段區間短於 ${WINDOW_MIN_DAYS} 天，統計上無法成立，請選更寬的範圍`
+                        : `That range is under ${WINDOW_MIN_DAYS} days, which no statistic can carry — pick a wider one`}
                     </p>
                   )}
                 </div>

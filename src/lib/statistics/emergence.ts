@@ -8,9 +8,9 @@
  * which move together for as long as anyone has logged both — or one that
  * only started holding partway through the record. Both look identical as
  * a single snapshot; only watching the same pair across a widening-to-
- * narrowing sequence of windows (the same "shrinking window" idea the
- * Timeline tab uses, but scored against every pair here, not one goal
- * variable) tells them apart.
+ * narrowing sequence of windows — the window end pinned to the latest
+ * logged day, the start walking forward one step per frame — tells them
+ * apart.
  *
  * This module builds that sequence for the *whole* network, then reports
  * only the pairs that are both:
@@ -34,14 +34,80 @@ import {
   NET_VARS, type NetEdge, type NetVar, type PairCorrelation,
 } from "./network";
 import { RELIABILITY_THRESHOLDS, type Reliability } from "./pearson";
-import { planTimeline, TIMELINE_MIN_WINDOW, TIMELINE_MAX_FRAMES } from "./timeline";
 import type { DailyStatsRecord } from "@/types";
 
-export { TIMELINE_MIN_WINDOW, TIMELINE_MAX_FRAMES, planTimeline };
 export const EMERGENCE_STEP_OPTIONS = [1, 2, 3, 7, 14] as const;
 
 /**
- * Lower than the Timeline tab's budget: a frame here re-runs the full
+ * Shortest window worth analysing. Below the network's own sample-size gate
+ * no edge can qualify, so a shorter window is guaranteed to add nothing.
+ * One extra day on top because differencing costs the first day of the window.
+ */
+export const WINDOW_MIN_DAYS = RELIABILITY_THRESHOLDS.LOW_PAIRS + 1; // 15
+
+/**
+ * Upper bound on frames a window sequence produces; the step widens
+ * automatically rather than exceeding it (see `planWindows`).
+ */
+export const WINDOW_MAX_FRAMES = 365;
+
+/**
+ * Default ceiling on the total days analysed across a whole run when a
+ * caller doesn't supply its own (see `planWindows`'s `workBudget` and
+ * `workFor` below for what "total days analysed" means).
+ */
+const WINDOW_WORK_BUDGET = 60_000;
+
+/** Frames a step produces over a given span. */
+function frameCountFor(span: number, step: number): number {
+  return Math.floor(span / step) + 1;
+}
+
+/**
+ * Total days analysed across every frame — the honest cost measure.
+ *
+ * A frame's cost is roughly linear in its window length, and the windows here
+ * run from the whole history down to two weeks, so frame count alone badly
+ * under-states the work: doubling the range doubles the frames *and* the size
+ * of each one. Summing the windows is what keeps a multi-year history from
+ * quietly turning into a build an order of magnitude longer than a one-year one.
+ */
+function workFor(totalDays: number, span: number, step: number): number {
+  const frames = frameCountFor(span, step);
+  return frames * totalDays - step * (frames * (frames - 1)) / 2;
+}
+
+/**
+ * How many frames a shrinking-window configuration produces, and the step
+ * needed to keep the build within budget. Pure, so a setup UI can show the
+ * count — and any widening — before committing to a build. Shared by every
+ * feature that scores a "widest history down to the tightest recent window"
+ * sequence (currently just Patterns' relationship-emergence scan).
+ */
+export function planWindows(
+  totalDays: number,
+  stepDays: number,
+  minWindow = WINDOW_MIN_DAYS,
+  maxFrames = WINDOW_MAX_FRAMES,
+  workBudget = WINDOW_WORK_BUDGET,
+): { frameCount: number; effectiveStep: number; stepWidened: boolean } {
+  const span = totalDays - minWindow;                 // days the start can advance
+  const step = Math.max(1, Math.floor(stepDays));
+  if (span < 0) return { frameCount: 0, effectiveStep: step, stepWidened: false };
+
+  let eff = step;
+  if (frameCountFor(span, eff) > maxFrames) eff = step * Math.ceil(frameCountFor(span, step) / maxFrames);
+  while (eff < span && workFor(totalDays, span, eff) > workBudget) eff++;
+
+  return {
+    frameCount:    frameCountFor(span, eff),
+    effectiveStep: eff,
+    stepWidened:   eff !== step,
+  };
+}
+
+/**
+ * Lower than a goal-scored scan would need: a frame here re-runs the full
  * pairwise network (~90 pairs) instead of one variable against a fixed goal
  * (~13), so it costs roughly 7x as much per frame. This keeps a build's
  * wall-clock time in the same ballpark.
@@ -75,10 +141,9 @@ export interface NetworkTimelineResult {
 }
 
 /**
- * Build every frame of the full-network shrinking-window sequence. Mirrors
- * `buildTimeline` in timeline.ts — same chunked, cancellable, oldest-window-
- * first loop — but scores the whole pairwise network per frame instead of one
- * goal variable.
+ * Build every frame of the full-network shrinking-window sequence: a chunked,
+ * cancellable, oldest-window-first loop (see `planWindows`) that scores the
+ * whole pairwise network per frame instead of one goal variable.
  */
 export async function buildNetworkTimeline(
   recs: DailyStatsRecord[],
@@ -86,8 +151,8 @@ export async function buildNetworkTimeline(
   onProgress?: (done: number, total: number) => void,
   shouldAbort?: () => boolean,
 ): Promise<NetworkTimelineResult> {
-  const minWindow = opts.minWindow ?? TIMELINE_MIN_WINDOW;
-  const maxFrames = opts.maxFrames ?? TIMELINE_MAX_FRAMES;
+  const minWindow = opts.minWindow ?? WINDOW_MIN_DAYS;
+  const maxFrames = opts.maxFrames ?? WINDOW_MAX_FRAMES;
   const workBudget = opts.workBudget ?? EMERGENCE_WORK_BUDGET;
 
   const inRange = recs
@@ -95,7 +160,7 @@ export async function buildNetworkTimeline(
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const { frameCount, effectiveStep, stepWidened } =
-    planTimeline(inRange.length, opts.stepDays ?? 1, minWindow, maxFrames, workBudget);
+    planWindows(inRange.length, opts.stepDays ?? 1, minWindow, maxFrames, workBudget);
   if (frameCount <= 0) return { frames: [], effectiveStep, stepWidened };
 
   const frames: NetworkFrame[] = [];
@@ -194,13 +259,11 @@ export interface PersistentPairLink {
 
 /**
  * Pairs whose correlation holds up no matter how the window is sized —
- * including the tightest, most recent slice. Same method as the Timeline
- * tab's `persistentGoalLinks`, generalised from "vs one goal variable" to
- * "every pair in the network": present using the entire history (frame 0),
- * present in most frames overall, and present in most of the *recent* frames
- * specifically (a floor separate from the overall one, since the narrowest
- * frames sit right at the sample-size minimum and one noisy frame there
- * should not flip the answer).
+ * including the tightest, most recent slice: present using the entire
+ * history (frame 0), present in most frames overall, and present in most of
+ * the *recent* frames specifically (a floor separate from the overall one,
+ * since the narrowest frames sit right at the sample-size minimum and one
+ * noisy frame there should not flip the answer).
  */
 export function persistentNetworkLinks(
   frames: NetworkFrame[],
@@ -268,21 +331,20 @@ export interface EmergenceOptions {
 
 const EMERGENCE_DEFAULTS = {
   minAbsR:       0.3,
-  // Stricter than the Timeline goal-only scan's 0.03: this searches ~7x as
-  // many pairs (~90 vs ~13), and empirically the nominal Bonferroni bound
-  // under-covers here — real daily health data is not perfectly i.i.d.
-  // (residual autocorrelation, derived rolling-window variables), which
-  // biases the underlying Fisher z test slightly anti-conservative in the
-  // tail. Tightened until repeated runs on pure-noise records kept a false
-  // "emerged" finding to roughly one run in twenty, down from one in three.
+  // A search this wide (~90 candidate pairs) needs a strict bar: the nominal
+  // Bonferroni bound under-covers here — real daily health data is not
+  // perfectly i.i.d. (residual autocorrelation, derived rolling-window
+  // variables), which biases the underlying Fisher z test slightly
+  // anti-conservative in the tail. Tightened until repeated runs on
+  // pure-noise records kept a false "emerged" finding to roughly one run in
+  // twenty, down from one in three at the network's usual 0.03 edge bar.
   maxP:          0.0001,
   minSide:       RELIABILITY_THRESHOLDS.HIGH_PAIRS,
   minPeriodDays: 45,
   minContrast:   0.25,
-  // A full-network search has ~90 candidate pairs instead of the Timeline
-  // goal-only scan's ~13, so candidates per pair are trimmed further to keep
-  // the correction from erasing every moderate-strength effect — same
-  // trade-off `emergedGoalLinks` makes, just tuned for a bigger family.
+  // ~90 candidate pairs means candidates per pair are trimmed to keep the
+  // correction from erasing every moderate-strength effect, rather than
+  // trying every frame the way a single-variable scan could afford to.
   maxCandidates: 12,
 } as const;
 
@@ -301,13 +363,11 @@ function splitCandidates(frames: NetworkFrame[], minPeriodDays: number, maxCandi
  * reported as long-term (`persistentNetworkLinks`), since those do not need a
  * turning point.
  *
- * Same before/since split-test method as the Timeline tab's
- * `emergedGoalLinks`, generalised to run over every pair instead of one goal
- * variable: for each pair, the correlation on everything since a candidate
- * date is tested against everything before it (Fisher's r-to-z on the
- * difference), and the date where they disagree most sharply — with "since"
- * the stronger side — is kept. p is Bonferroni-corrected against every
- * pair/date combination tried.
+ * For each pair, the correlation on everything since a candidate date is
+ * tested against everything before it (Fisher's r-to-z on the difference),
+ * and the date where they disagree most sharply — with "since" the stronger
+ * side — is kept. p is Bonferroni-corrected against every pair/date
+ * combination tried.
  */
 export async function emergedNetworkLinks(
   recs: DailyStatsRecord[],

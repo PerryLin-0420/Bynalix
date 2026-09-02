@@ -25,10 +25,10 @@ export async function getActiveDates(userId: number, sources: ActivitySource[]):
  * First and last dates carrying any logged data at all, across every log table.
  *
  * Broader than `getActiveDates`, which only covers the four sources the
- * calendars mark: the timeline needs the true edges of the record so its
- * default start is the earliest day analysis can reach, not the earliest day
- * with a meal on it. Each table contributes its own MIN/MAX so the scan stays
- * on the indexed column instead of unioning every row.
+ * calendars mark: a shrinking-window scan needs the true edges of the record
+ * so its default start is the earliest day analysis can reach, not the
+ * earliest day with a meal on it. Each table contributes its own MIN/MAX so
+ * the scan stays on the indexed column instead of unioning every row.
  */
 export async function getDataDateBounds(userId: number): Promise<{ first: string; last: string } | null> {
   const db = await getDb();
