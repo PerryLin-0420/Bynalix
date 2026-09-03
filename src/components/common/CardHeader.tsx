@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 interface CardHeaderProps {
   title: ReactNode;
   action?: ReactNode;
-  mb?: "mb-3" | "mb-4";
+  mb?: "mb-1" | "mb-3" | "mb-4";
 }
 
 export function CardHeader({ title, action, mb = "mb-4" }: CardHeaderProps) {

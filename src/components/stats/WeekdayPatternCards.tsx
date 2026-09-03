@@ -9,9 +9,14 @@ const VAR_UNIT: Record<NetVar, string> = {
   // Rolling weekly counts — excluded from weekday patterns, listed for completeness
   strength_freq_wk: "x/wk", cardio_freq_wk: "x/wk",
   last_meal_hour: "hr", exercise_hour: "hr", wake_hour: "hr",
+  eating_window_h: "hr", max_meal_gap_h: "hr",
 };
 
-/** Clock-style variables read as later/earlier, not higher/lower. */
+/**
+ * Clock-style variables read as later/earlier, not higher/lower. Meal spacing
+ * is measured in hours too but is a duration, so it stays out: a longer eating
+ * window is longer, not "later".
+ */
 const TIME_VARS = new Set<NetVar>(["last_meal_hour", "exercise_hour", "wake_hour"]);
 
 function fmtDiff(v: number, unit: string): string {

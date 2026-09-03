@@ -9,6 +9,7 @@ import { MetricPicker, metricKey, metricLabel, ALL_BODY_PARTS, type MetricCfg } 
 import { CorrelationNetwork } from "@/components/stats/CorrelationNetwork";
 import { EmergenceCards } from "@/components/stats/EmergenceCards";
 import { StabilityRadar } from "@/components/stats/StabilityRadar";
+import { ChartExportButton } from "@/components/common/ChartExportButton";
 import { WeekdayPatternCards } from "@/components/stats/WeekdayPatternCards";
 import { computeCorrelationNetwork, computeWeekdayPatterns, type CorrelationNetwork as NetworkData, type WeekdayPattern } from "@/lib/statistics/network";
 import { computeStabilityChart, type StabilityResult } from "@/lib/statistics/stability";
@@ -62,10 +63,11 @@ const densityDotCls = (d: number): string =>
 
 // ─── Shared sub-components ────────────────────────────────────────────────────
 
-function PearsonBarChart({ data, colorFor, lang }: {
+function PearsonBarChart({ data, colorFor, lang, slug }: {
   data: { label: string; r: number | null }[];
   colorFor: (d: { label: string; r: number | null }) => boolean;
   lang: string;
+  slug: string;
 }) {
   return (
     <div className="card">
@@ -89,6 +91,7 @@ function PearsonBarChart({ data, colorFor, lang }: {
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      <ChartExportButton slug={slug} />
     </div>
   );
 }
@@ -865,7 +868,7 @@ export function Statistics() {
             .filter(d => d.r !== null)
             .sort((a, b) => Math.abs(b.r!) - Math.abs(a.r!));
           if (chartData.length === 0) return null;
-          return <PearsonBarChart data={chartData} lang={lang}
+          return <PearsonBarChart data={chartData} lang={lang} slug="advanced-correlation"
             colorFor={d => (d as any).dir === "up" ? (d.r ?? 0) > 0 : (d.r ?? 0) < 0} />;
         })()}
 
@@ -1108,7 +1111,7 @@ export function Statistics() {
               .filter(f => f.r !== null)
               .sort((a, b) => Math.abs(b.r!) - Math.abs(a.r!));
             if (chartData.length === 0) return null;
-            return <PearsonBarChart data={chartData} lang={lang}
+            return <PearsonBarChart data={chartData} lang={lang} slug="correlation-ranking"
               colorFor={d => goalMode === "cut" ? (d.r ?? 0) < 0
                 : goalMode === "bulk" ? (d.r ?? 0) > 0
                 : (d.r ?? 0) > 0} />;

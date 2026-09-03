@@ -54,7 +54,7 @@ export const STABILITY_MIN_DENSITY = 50;
  * starve independently) — same sample-size floor Pearson/Advanced use for
  * "insufficient" everywhere else.
  */
-const MIN_DIFFS = RELIABILITY_THRESHOLDS.MIN_PAIRS;
+export const STABILITY_MIN_DIFFS = RELIABILITY_THRESHOLDS.MIN_PAIRS;
 
 /**
  * The relative day-to-day volatility (see `StabilityResult.cv`) at which a
@@ -66,7 +66,7 @@ const MIN_DIFFS = RELIABILITY_THRESHOLDS.MIN_PAIRS;
  * sleep), which cluster around 0.45–0.70. 0.5 keeps that real-world cluster
  * spread through the middle of the scale rather than bunched at either end.
  */
-const STABILITY_REFERENCE_CV = 0.5;
+export const STABILITY_REFERENCE_CV = 0.5;
 
 export interface StabilityResult {
   metric: StabilityMetric;
@@ -137,7 +137,7 @@ export function computeStability(
   const nDiffs = diffs.length;
   const reliability = getReliability(nDiffs);
 
-  const insufficient = density < STABILITY_MIN_DENSITY || nDiffs < MIN_DIFFS;
+  const insufficient = density < STABILITY_MIN_DENSITY || nDiffs < STABILITY_MIN_DIFFS;
   if (insufficient) {
     return {
       metric, density, n, nDiffs,

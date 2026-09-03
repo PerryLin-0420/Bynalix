@@ -76,6 +76,10 @@ export interface DailyStatsRecord {
   last_meal_hour:     number | null; // latest meal_log time; < 4 AM unwraps to h+24
   exercise_hour:      number | null; // latest exercise/strength/cardio log time
   wake_hour:          number | null; // sleep_log wake_up_time
+  // Meal spacing (decimal hours). Null when nothing was eaten; 0 on a
+  // single-meal day — see `getDailyStatsRecords` for what that convention costs.
+  eating_window_h:    number | null; // last meal − first meal
+  max_meal_gap_h:     number | null; // longest stretch between two meals
 }
 
 // ─── Charts ──────────────────────────────────────────────────────────────────
