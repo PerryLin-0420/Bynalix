@@ -1,4 +1,5 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { clsx } from "clsx";
 import { CardHeader } from "@/components/common/CardHeader";
 import { ChartExportButton } from "@/components/common/ChartExportButton";
@@ -259,10 +260,23 @@ function StabilityGuide({ zh }: { zh: boolean }) {
       ["●", "Data density, same colours as the other stats pages"],
     ];
 
+  const [open, setOpen] = useState(false);
+
   return (
     <div className="card">
-      <CardHeader mb="mb-3" title={zh ? "怎麼看這張圖" : "How to read this"} />
-      <div className="space-y-3.5">
+      {/* The whole header is the toggle: on a phone a chevron alone is a
+          small target, and there is nothing else in this card to tap. */}
+      <button onClick={() => setOpen(v => !v)} aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 text-left">
+        <span className="text-sm font-semibold text-[var(--text-on-surface)]">
+          {zh ? "怎麼看這張圖" : "How to read this"}
+        </span>
+        <ChevronDown size={16}
+          className={clsx("shrink-0 text-[var(--text-on-surface-muted)] transition-transform",
+            open && "rotate-180")} />
+      </button>
+
+      {open && <div className="space-y-3.5 mt-3">
         <GuideSection title={zh ? "分數＝日對日波動有多小" : "The score is how little it wobbles day to day"}>
           <p>
             {zh
@@ -283,7 +297,7 @@ function StabilityGuide({ zh }: { zh: boolean }) {
           </p>
         </GuideSection>
 
-        <GuideSection title={zh ? "灰底三角形＝資料不足，不給分" : "A greyed wedge means it wasn't scored"}>
+        <GuideSection title={zh ? "三角色塊＝資料不足，不給分" : "A filled wedge means it wasn't scored"}>
           <p>
             {zh
               ? `記錄天數低於區間的 ${STABILITY_MIN_DENSITY}%，或「連續兩天都有記錄」不足 ${STABILITY_MIN_DIFFS} 次，就不計分（與其他統計頁面同一道門檻）。`
@@ -306,7 +320,7 @@ function StabilityGuide({ zh }: { zh: boolean }) {
             ))}
           </dl>
         </GuideSection>
-      </div>
+      </div>}
     </div>
   );
 }
