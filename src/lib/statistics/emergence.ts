@@ -107,6 +107,24 @@ export function planWindows(
 }
 
 /**
+ * Shortest stretch the before/since split test will score on either side of a
+ * candidate onset date. Sized so that a side at real logging density still
+ * clears `minSide` differenced pairs: at ~70% density 45 days yields ~32,
+ * just over the 30-pair floor. Below this a "split" is two samples too small
+ * to disagree about anything.
+ */
+export const EMERGENCE_MIN_PERIOD_DAYS = 45;
+
+/**
+ * Shortest record on which a split test can be attempted at all: both sides
+ * need `EMERGENCE_MIN_PERIOD_DAYS`, so a narrower record offers zero candidate
+ * onset dates and the scan returns nothing no matter what the data says. That
+ * is "nothing testable", not "nothing found" — a difference callers must show,
+ * because the two read as opposite conclusions.
+ */
+export const EMERGENCE_MIN_DAYS = EMERGENCE_MIN_PERIOD_DAYS * 2;
+
+/**
  * Lower than a goal-scored scan would need: a frame here re-runs the full
  * pairwise network (~90 pairs) instead of one variable against a fixed goal
  * (~13), so it costs roughly 7x as much per frame. This keeps a build's
@@ -340,7 +358,7 @@ const EMERGENCE_DEFAULTS = {
   // twenty, down from one in three at the network's usual 0.03 edge bar.
   maxP:          0.0001,
   minSide:       RELIABILITY_THRESHOLDS.HIGH_PAIRS,
-  minPeriodDays: 45,
+  minPeriodDays: EMERGENCE_MIN_PERIOD_DAYS,
   minContrast:   0.25,
   // ~90 candidate pairs means candidates per pair are trimmed to keep the
   // correction from erasing every moderate-strength effect, rather than
@@ -355,6 +373,21 @@ function splitCandidates(frames: NetworkFrame[], minPeriodDays: number, maxCandi
   if (usable.length <= maxCandidates) return usable;
   const stride = usable.length / maxCandidates;
   return Array.from({ length: maxCandidates }, (_, i) => usable[Math.floor(i * stride)]);
+}
+
+/**
+ * How many candidate onset dates a built frame sequence actually offers.
+ *
+ * Zero means `emergedNetworkLinks` never ran a single test on these frames —
+ * the record is too short (or too gappy) for both sides of any split to reach
+ * `EMERGENCE_MIN_PERIOD_DAYS`. Reporting that as "no relationship changed"
+ * would be a finding the scan never made.
+ */
+export function splitCandidateCount(
+  frames: NetworkFrame[],
+  minPeriodDays = EMERGENCE_MIN_PERIOD_DAYS,
+): number {
+  return splitCandidates(frames, minPeriodDays, Number.MAX_SAFE_INTEGER).length;
 }
 
 /**

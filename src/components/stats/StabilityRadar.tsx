@@ -1,7 +1,10 @@
+import { Fragment } from "react";
 import { clsx } from "clsx";
 import { CardHeader } from "@/components/common/CardHeader";
+import { ChartExportButton } from "@/components/common/ChartExportButton";
 import {
   STABILITY_METRICS, STABILITY_METRIC_ORDER, STABILITY_MIN_DENSITY,
+  STABILITY_MIN_DIFFS, STABILITY_REFERENCE_CV,
   type StabilityResult,
 } from "@/lib/statistics/stability";
 
@@ -13,10 +16,16 @@ interface Props {
 const SIZE = 300;
 const CENTER = SIZE / 2;
 const MAX_R = 100;
-/** Margin around the SIZE×SIZE drawing space so axis labels at the
- * horizontal extremes (anchored start/end, so their text runs outward
- * rather than being centered on the point) don't clip against the viewBox. */
-const PAD = 50;
+/**
+ * Margin around the SIZE×SIZE drawing space. Only the horizontal extremes
+ * need room: those labels are anchored start/end so their text runs outward
+ * from the point and would clip against the viewBox, while the top and bottom
+ * ones are centred and sit well inside it. Padding both axes equally left the
+ * chart floating in a tall band of white — obvious once the card is exported
+ * as an image.
+ */
+const PAD_X = 50;
+const PAD_Y = 6;
 const RINGS = [20, 40, 60, 80, 100];
 const N = STABILITY_METRIC_ORDER.length; // 7 — one axis per metric, hence the star shape
 const ANGLE_STEP = (2 * Math.PI) / N;
@@ -35,7 +44,7 @@ function scoreColor(score: number): string {
 }
 
 /** Detail-table track sizes: name | avg | wobble | n | score | density dot. */
-const TABLE_COLS = "3.25rem minmax(0,1fr) minmax(0,1fr) 1.5rem 1.75rem 0.5rem";
+const TABLE_COLS = "3.5rem minmax(0,1fr) minmax(0,1fr) 1.5rem 1.75rem 0.5rem";
 
 /** Enough precision to be useful without pushing a column out of alignment:
  *  a decimal only where the value is small enough for one to mean anything. */
@@ -71,18 +80,17 @@ export function StabilityRadar({ results, lang }: Props) {
   const half = ANGLE_STEP / 2;
 
   return (
+    <>
     <div className="card">
-      <CardHeader mb="mb-3"
+      <CardHeader mb="mb-1"
         title={zh ? "穩定星圖" : "Stability"} />
       <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
-        {zh
-          ? "體重、熱量、三大營養素、飲水、睡眠這七項，各自的日對日波動有多小 — 分數越高代表越穩定，不受長期趨勢影響（例如穩定減脂中的體重下降不算不穩定）。灰底三角形代表這段區間記錄天數不足，無法計算"
-          : "How little weight, calories, the three macros, water and sleep each wobble day to day — higher is more stable, and a steady long-term trend (like weight loss on a cut) doesn't count against it. A greyed wedge means too few logged days in range to score"}
+        {zh ? "七項核心數字的日對日波動 — 分數越高越穩定" : "Day-to-day wobble across seven core metrics — higher is steadier"}
       </p>
 
       <div className="flex justify-center">
-        <svg width={SIZE + PAD * 2} height={SIZE + PAD * 2}
-          viewBox={`${-PAD} ${-PAD} ${SIZE + PAD * 2} ${SIZE + PAD * 2}`} className="max-w-full">
+        <svg width={SIZE + PAD_X * 2} height={SIZE + PAD_Y * 2}
+          viewBox={`${-PAD_X} ${-PAD_Y} ${SIZE + PAD_X * 2} ${SIZE + PAD_Y * 2}`} className="max-w-full h-auto">
           {/* Insufficient-data wedges — drawn first, under the grid and polygon */}
           {ordered.map((r, i) => {
             if (r.score != null) return null;
@@ -174,7 +182,7 @@ export function StabilityRadar({ results, lang }: Props) {
               <div key={r.metric}
                 className={clsx("grid items-center gap-2 py-2", r.score == null && "opacity-70")}
                 style={{ gridTemplateColumns: TABLE_COLS }}>
-                <span className="text-xs font-medium text-[var(--text-on-surface)] truncate">
+                <span className="text-xs font-medium text-[var(--text-on-surface)] whitespace-nowrap">
                   {zh ? meta.labelZh : meta.labelEn}
                 </span>
                 {r.score == null ? (
@@ -207,6 +215,98 @@ export function StabilityRadar({ results, lang }: Props) {
         <span style={{ color: densityColor(60) }}>●</span> 50–79% ·{" "}
         <span style={{ color: densityColor(10) }}>●</span> {`<${STABILITY_MIN_DENSITY}%`}
       </p>
+      <ChartExportButton slug="stability" />
+    </div>
+
+    <StabilityGuide zh={zh} />
+    </>
+  );
+}
+
+// ── How to read the chart ────────────────────────────────────────────────────
+
+/** One titled block of the guide: a rule on the left, the explanation right. */
+function GuideSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-l-2 border-[var(--surface-border)] pl-3">
+      <p className="text-11 font-semibold text-[var(--text-on-surface)] mb-1">{title}</p>
+      <div className="space-y-1 text-10 leading-relaxed text-[var(--text-on-surface-muted)]">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * The chart's own explanation, given its own card rather than crowding the
+ * header: three separate things need saying (what the number means, what a
+ * greyed wedge means, what each table column is), and as one paragraph above
+ * the chart they were a wall of text nobody reads before the picture.
+ */
+function StabilityGuide({ zh }: { zh: boolean }) {
+  const halving = STABILITY_REFERENCE_CV;
+  const columns: [string, string][] = zh
+    ? [
+      ["平均", "該項目在這段區間的平均值，也是相對波動的分母"],
+      ["日波動", "相鄰兩天差值的標準差 — 每天平均跳動多少"],
+      ["n", "實際用到的「連續兩天都有記錄」配對數"],
+      ["分數", "0–100，由相對波動換算"],
+      ["●", "資料密度，與其他統計頁面同一組顏色"],
+    ]
+    : [
+      ["Avg", "Mean value over the range — the denominator of relative wobble"],
+      ["Wobble", "Stdev of consecutive-day differences — the typical daily jump"],
+      ["n", "Consecutive-day pairs actually used"],
+      ["Score", "0–100, converted from relative wobble"],
+      ["●", "Data density, same colours as the other stats pages"],
+    ];
+
+  return (
+    <div className="card">
+      <CardHeader mb="mb-3" title={zh ? "怎麼看這張圖" : "How to read this"} />
+      <div className="space-y-3.5">
+        <GuideSection title={zh ? "分數＝日對日波動有多小" : "The score is how little it wobbles day to day"}>
+          <p>
+            {zh
+              ? "取每天與前一天的差當作波動，再除以整體平均，得到與單位無關的「相對波動」。相對波動每增加 " + halving + "，分數就減半。"
+              : `Each day's change from the day before is the wobble; dividing by the overall mean makes it unit-free. Every ${halving} of relative wobble halves the score.`}
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-0.5">
+            {[[0, 100], [halving, 50], [halving * 2, 25]].map(([cv, sc]) => (
+              <span key={cv} className="rounded-lg bg-[var(--surface-container-low)] px-2 py-1 font-mono tabular-nums text-10">
+                {cv.toFixed(1)} → <span className="font-bold" style={{ color: scoreColor(sc) }}>{sc}</span>
+              </span>
+            ))}
+          </div>
+          <p>
+            {zh
+              ? "因為看的是「差」而不是整段的變異，長期趨勢不會被算成不穩定 — 穩定減脂中一路下降的體重仍然是高分。"
+              : "Because it reads differences rather than spread around the mean, a long-term trend doesn't count as instability — weight falling steadily on a cut still scores high."}
+          </p>
+        </GuideSection>
+
+        <GuideSection title={zh ? "灰底三角形＝資料不足，不給分" : "A greyed wedge means it wasn't scored"}>
+          <p>
+            {zh
+              ? `記錄天數低於區間的 ${STABILITY_MIN_DENSITY}%，或「連續兩天都有記錄」不足 ${STABILITY_MIN_DIFFS} 次，就不計分（與其他統計頁面同一道門檻）。`
+              : `Fewer than ${STABILITY_MIN_DENSITY}% of the range's days logged, or under ${STABILITY_MIN_DIFFS} consecutive-day pairs, and it is left unscored — the same gate the other stats pages use.`}
+          </p>
+          <p>
+            {zh
+              ? "三角形的顏色就是該項目的資料密度顏色。星形會直接跨過那個角，而不是掉到 0 — 沒有資料不等於不穩定。"
+              : "The wedge takes that metric's density colour, and the star jumps straight across the axis instead of dipping to zero — missing data is not the same as instability."}
+          </p>
+        </GuideSection>
+
+        <GuideSection title={zh ? "下方表格的欄位" : "The columns below"}>
+          <dl className="grid gap-x-2.5 gap-y-1" style={{ gridTemplateColumns: "auto minmax(0,1fr)" }}>
+            {columns.map(([term, desc]) => (
+              <Fragment key={term}>
+                <dt className="text-10 font-semibold text-[var(--text-on-surface)] text-right whitespace-nowrap">{term}</dt>
+                <dd className="text-10">{desc}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </GuideSection>
+      </div>
     </div>
   );
 }

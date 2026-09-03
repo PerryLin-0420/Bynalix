@@ -18,6 +18,7 @@ import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDate
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
 import { strengthEstKcalSimple } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
+import { ChartExportButton } from "@/components/common/ChartExportButton";
 import { EmptyState } from "@/components/common/EmptyState";
 import { StickyHeader } from "@/components/layout/StickyHeader";
 import { PillButton } from "@/components/common/PillButton";
@@ -835,6 +836,7 @@ export function History() {
                 </span>
               </p>
             )}
+            <ChartExportButton slug="weight-trend" />
           </div>
 
           <div className="card">
@@ -873,6 +875,7 @@ export function History() {
                 </span>
               </p>
             )}
+            <ChartExportButton slug="calories" />
           </div>
 
             <div className="card">
@@ -897,6 +900,7 @@ export function History() {
                   </LineChart>
                 </ResponsiveContainer>
               )}
+              <ChartExportButton slug="meals-per-day" />
             </div>
           {calPoints.length >= 2 && (
             <div className="card">
@@ -928,6 +932,7 @@ export function History() {
                   </div>
                 ))}
               </div>
+              <ChartExportButton slug="macros" />
             </div>
           )}
 
@@ -984,6 +989,7 @@ export function History() {
                       : "Set your ml/kg in Profile and your goal line will appear here"}
                   </p>
                 )}
+                <ChartExportButton slug="water" />
               </div>
             );
           })()}
@@ -1043,6 +1049,7 @@ export function History() {
                 <SleepQualityLegend t={t} />
               </>
             )}
+            <ChartExportButton slug="sleep-trend" />
           </div>
         </>
       )}
@@ -1123,6 +1130,7 @@ export function History() {
                         fill={selPart !== "全部" ? BODY_PART_COLORS[selPart] : "#8b5cf6"} />
                     </BarChart>
                   </ResponsiveContainer>
+                  <ChartExportButton slug="strength-volume" />
                 </div>
               ) : (
                 <div className="card bg-[var(--surface)] text-center py-10">
@@ -1261,6 +1269,7 @@ export function History() {
                             ) : (
                               <p className="text-center py-3 text-xs text-[var(--text-on-surface-muted)]">{t("history.noMaxWeightData")}</p>
                             )}
+                            <ChartExportButton slug="max-weight" />
                           </div>
                         );
                       })}
@@ -1414,6 +1423,7 @@ export function History() {
                     ))}
                   </div>
                 )}
+                <ChartExportButton slug="exercise-distribution" />
               </div>
 
               {/* Time + kcal line chart */}
@@ -1451,6 +1461,7 @@ export function History() {
                     </div>
                   ))}
                 </div>
+                <ChartExportButton slug="duration-kcal" />
               </div>
             </>
           )}
@@ -1498,6 +1509,7 @@ export function History() {
                     <Bar dataKey="total_kcal" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={24} />
                   </BarChart>
                 </ResponsiveContainer>
+                <ChartExportButton slug="activity-burn" />
               </div>
 
               {/* Activity log */}
@@ -1577,6 +1589,7 @@ export function History() {
                   </LineChart>
                 </ResponsiveContainer>
               )}
+              <ChartExportButton slug="body-composition" />
             </div>
 
             {/* Sleep quality chart */}
@@ -1626,6 +1639,7 @@ export function History() {
 
               {/* Sleep quality legend */}
               <SleepQualityLegend t={t} />
+              <ChartExportButton slug="sleep-record" />
             </div>
           </>
         );

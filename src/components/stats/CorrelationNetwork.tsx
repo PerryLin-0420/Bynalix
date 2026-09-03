@@ -9,6 +9,7 @@ import {
   type NetEdge, type NetVar, type VarDomain,
 } from "@/lib/statistics/network";
 import type { Reliability } from "@/lib/statistics/pearson";
+import { ChartExportButton } from "@/components/common/ChartExportButton";
 
 const SIZE = 340;           // graph square the node ring is laid out in
 const PAD_X = 54;           // extra horizontal viewBox room so labels never clip
@@ -430,6 +431,7 @@ export function CorrelationNetwork({ network, lang }: {
           )}
         </div>
       )}
+      <ChartExportButton slug="correlation-network" />
     </div>
   );
 }

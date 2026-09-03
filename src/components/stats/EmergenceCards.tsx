@@ -8,11 +8,12 @@ import { Network, X } from "lucide-react";
 import { clsx } from "clsx";
 import { DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { CardHeader } from "@/components/common/CardHeader";
+import { ChartExportButton } from "@/components/common/ChartExportButton";
 import { useLangStore } from "@/store/langStore";
 import { NET_VARS, type NetVar } from "@/lib/statistics/network";
 import {
-  buildNetworkTimeline, emergedNetworkLinks, groupEmergedByHub,
-  planWindows, WINDOW_MIN_DAYS, EMERGENCE_STEP_OPTIONS, EMERGENCE_WORK_BUDGET,
+  buildNetworkTimeline, emergedNetworkLinks, groupEmergedByHub, splitCandidateCount,
+  planWindows, WINDOW_MIN_DAYS, EMERGENCE_MIN_DAYS, EMERGENCE_STEP_OPTIONS, EMERGENCE_WORK_BUDGET,
   type NetworkFrame, type EmergedPairLink, type EmergenceCard as HubCard,
 } from "@/lib/statistics/emergence";
 import { getDailyStatsRecords, getDataDateBounds, getActiveDates } from "@/lib/db/queries/stats";
@@ -85,6 +86,8 @@ export function EmergenceCards({ userId, lang }: Props) {
   const [cards, setCards]       = useState<HubCard[]>([]);
   const [loose, setLoose]       = useState<EmergedPairLink[]>([]);
   const [built, setBuilt]       = useState<{ start: string; end: string; step: number } | null>(null);
+  /** Split dates the last build had to test — 0 means no test ran at all. */
+  const [splits, setSplits]     = useState(0);
   const [building, setBuilding] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; phase: "frames" | "emerged" }>(
     { done: 0, total: 0, phase: "frames" });
@@ -130,6 +133,14 @@ export function EmergenceCards({ userId, lang }: Props) {
   // cheaper single-variable scan, not this full-network one.
   const plan = useMemo(() => planWindows(totalDays, stepDays, WINDOW_MIN_DAYS, undefined, EMERGENCE_WORK_BUDGET), [totalDays, stepDays]);
   const rangeTooShort = modeCustom && customRange.start && customRange.end && plan.frameCount <= 0;
+  /**
+   * A split test needs a real period on both sides of the onset date, so a
+   * range under `EMERGENCE_MIN_DAYS` cannot produce a finding however good the
+   * data is. Calendar days are an upper bound on logged days, so this only
+   * ever rules a range out — a range that passes here can still turn out too
+   * gappy, which the post-build `splits === 0` branch catches.
+   */
+  const cannotSplit = totalDays > 0 && totalDays < EMERGENCE_MIN_DAYS;
 
   const handleOpen = async () => {
     setShowSetup(v => !v);
@@ -138,7 +149,7 @@ export function EmergenceCards({ userId, lang }: Props) {
   const [showSetup, setShowSetup] = useState(false);
 
   const handleBuild = async () => {
-    if (!startDate || !endDate || plan.frameCount <= 0) return;
+    if (!startDate || !endDate || plan.frameCount <= 0 || cannotSplit) return;
     abortRef.current = false;
     setBuilding(true);
     setProgress({ done: 0, total: plan.frameCount, phase: "frames" });
@@ -152,6 +163,7 @@ export function EmergenceCards({ userId, lang }: Props) {
       );
       if (res.frames.length) {
         setFrames(res.frames);
+        setSplits(splitCandidateCount(res.frames));
         setProgress({ done: 0, total: 0, phase: "emerged" });
         const emerged = abortRef.current ? [] : await emergedNetworkLinks(
           recs, res.frames, {},
@@ -164,7 +176,7 @@ export function EmergenceCards({ userId, lang }: Props) {
         setLoose(emerged.filter(l => !hubbed.has(l.key)));
         setBuilt({ start: startDate, end: endDate, step: res.effectiveStep });
       } else {
-        setCards([]); setLoose([]); setFrames([]);
+        setCards([]); setLoose([]); setFrames([]); setSplits(0);
         setBuilt({ start: startDate, end: endDate, step: res.effectiveStep });
       }
     } catch (e) { logError("EmergenceCards.build", e); }
@@ -262,6 +274,14 @@ export function EmergenceCards({ userId, lang }: Props) {
                 )}
               </p>
 
+              {cannotSplit && (
+                <p className="text-10 text-amber-600">
+                  {zh
+                    ? `這段區間只有 ${totalDays} 天。要判斷一個關聯是「新出現的」，必須把記錄切成前後兩段各自算一次再比較，兩段都至少要 ${EMERGENCE_MIN_DAYS / 2} 天，所以整段至少需要 ${EMERGENCE_MIN_DAYS} 天記錄才有得比。`
+                    : `This range is only ${totalDays} days. Calling a link "new" means splitting the record and scoring each side separately, and each side needs at least ${EMERGENCE_MIN_DAYS / 2} days — so there is nothing to compare under ${EMERGENCE_MIN_DAYS} days of record.`}
+                </p>
+              )}
+
               {stale && !building && (
                 <p className="text-10 text-amber-600">{zh ? "設定已變更，重新分析以套用" : "Settings changed — re-run to apply"}</p>
               )}
@@ -284,9 +304,9 @@ export function EmergenceCards({ userId, lang }: Props) {
                   </div>
                 </div>
               ) : (
-                <button onClick={handleBuild} disabled={plan.frameCount <= 0}
+                <button onClick={handleBuild} disabled={plan.frameCount <= 0 || !!cannotSplit}
                   className={clsx("w-full py-2.5 rounded-xl text-xs font-semibold transition-colors",
-                    plan.frameCount > 0 ? "bg-gray-900 text-white hover:bg-gray-700" : "bg-gray-100 text-gray-300 cursor-not-allowed")}>
+                    plan.frameCount > 0 && !cannotSplit ? "bg-gray-900 text-white hover:bg-gray-700" : "bg-gray-100 text-gray-300 cursor-not-allowed")}>
                   {built ? (zh ? "重新分析" : "Rebuild") : (zh ? "開始分析" : "Analyse")}
                 </button>
               )}
@@ -298,9 +318,15 @@ export function EmergenceCards({ userId, lang }: Props) {
       {built && !building && (
         cards.length === 0 && loose.length === 0 ? (
           <p className="text-xs text-[var(--text-on-surface-muted)]">
-            {zh
-              ? "這段區間沒有找到新出現且持續的關聯 — 目前的關係圖裡的連線多半是長期穩定的。"
-              : "No newly-emerged, still-holding relationship in this range — what's in the network graph above is mostly long-term stable."}
+            {splits === 0
+              // Nothing was tested, so "nothing found" would be a conclusion
+              // this scan never reached — say which it is.
+              ? (zh
+                ? `這段區間的記錄天數不足以切成前後兩段比較（兩段各需 ${EMERGENCE_MIN_DAYS / 2} 天），所以還沒有做過檢定 — 這不代表沒有變化，是還測不出來。繼續累積記錄後再回來看。`
+                : `Too few logged days here to split into a before and a since period (${EMERGENCE_MIN_DAYS / 2} days are needed on each side), so no test was run — that is not "no change", it is "not yet measurable". Come back with more record.`)
+              : (zh
+                ? "這段區間沒有找到新出現且持續的關聯 — 目前的關係圖裡的連線多半是長期穩定的。"
+                : "No newly-emerged, still-holding relationship in this range — what's in the network graph above is mostly long-term stable.")}
           </p>
         ) : (
           <div className="space-y-3">
@@ -327,6 +353,7 @@ export function EmergenceCards({ userId, lang }: Props) {
                 </div>
               </div>
             )}
+            <ChartExportButton slug="relationship-changes" />
           </div>
         )
       )}
