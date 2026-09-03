@@ -20,7 +20,8 @@ export type NetVar =
   | "weight_kg" | "calories" | "protein_g" | "carb_g" | "fat_g"
   | "water_ml" | "exercise_min" | "exercise_kcal" | "strength_volume_kg"
   | "sleep_hours" | "strength_freq_wk" | "cardio_freq_wk"
-  | "last_meal_hour" | "exercise_hour" | "wake_hour";
+  | "last_meal_hour" | "exercise_hour" | "wake_hour"
+  | "eating_window_h" | "max_meal_gap_h";
 
 export type VarDomain = "body" | "diet" | "water" | "exercise" | "sleep" | "time";
 
@@ -42,6 +43,8 @@ export const NET_VARS: Record<NetVar, NetVarMeta> = {
   last_meal_hour:     { labelZh: "最晚進食", labelEn: "Last meal",    domain: "time" },
   exercise_hour:      { labelZh: "運動時段", labelEn: "Workout time", domain: "time" },
   wake_hour:          { labelZh: "起床時間", labelEn: "Wake time",    domain: "time" },
+  eating_window_h:    { labelZh: "進食窗口", labelEn: "Eating window", domain: "time" },
+  max_meal_gap_h:     { labelZh: "最長餐距", labelEn: "Longest gap",  domain: "time" },
 };
 
 export const DOMAIN_COLORS: Record<VarDomain, string> = {
