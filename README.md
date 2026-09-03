@@ -24,24 +24,36 @@ but deeper personal understanding through self-owned data.
 
 ## Features
 
-- Local-first architecture
-- SQLite-based structured data storage
-- Nutrition tracking (foods, meals, reusable meal templates)
-- Workout tracking — strength training (sets & reps) and interval-based cardio
-- Body composition tracking (body fat, segmental muscle, body water, visceral fat, waist)
-- Goal & mode system (weight, calorie, macronutrient, and hydration targets)
-- Sleep & hydration tracking
-- Historical visualization, with optional trend-line fitting
-- Correlation analysis — variable relationship network with lagged effects
-- Pattern discovery — weekend-vs-weekday effects, significance gated
-- Timeline — which factors affect your goal long-term, and which only started recently, found by shrinking the analysis window day by day
-- Automatic sleep detection from screen activity (Android)
-- Custom exercises & foods
-- App lock — PIN and biometric unlock (Android)
-- Encrypted CSV export (password-protected, AES-256)
-- Full database export / import for backup & restore
-- Offline-first
-- Dual-language support (English / Chinese)
+### Tracking
+- **Food** — meals built from a searchable food library, custom meal types, reusable meal templates and saved favourite meals; a custom-food editor storing nutrition against a base quantity and unit (100 g by default) that any logged amount scales from, and drinks logged in ml can count toward the day's water automatically; category and aggregate tag filters (starch / protein / fat / favourites) with paging
+- **Exercise** — strength logged as sets × reps × weight by body part; interval-based cardio (running, swimming, cycling) with distance, duration and pace; other activities by duration and intensity. Calorie burn is estimated from lean body mass where body fat is known, and from body weight otherwise
+- **Body** — weight, body fat, skeletal muscle with segmental distribution, body water, visceral fat level, waist
+- **Sleep** — duration, quality and notes, with automatic detection of the overnight sleep window from screen activity on Android
+- **Water** — daily intake against a hydration goal
+
+### Goals
+- Eight modes — three cut rates, three bulk rates, maintenance, and fully custom
+- Calorie and macronutrient targets derived from BMR, NEAT and TDEE (Mifflin-St Jeor, or Katch-McArdle once body fat is known). Lean body mass is stored from a measured body-fat reading rather than drifting with day-to-day weight
+- Custom mode adds a free-form goal metric — any strength, cardio, body, diet or burn measure — with up to five variables scored against it
+
+### Analysis
+- **History** — weight, calories, macros, water, sleep, strength volume, per-exercise max, exercise distribution, activity burn and body composition over any range, with optional trend-line fitting and slope per week
+- **Correlation** — an influence ranking against your goal, plus a variable relationship network built on day-over-day changes (Spearman) with a 0–3 day lag search, so a shared trend cannot manufacture a link
+- **Patterns** — weekend-vs-weekday effects, significance gated; and relationship changes, which tells a link that has always held apart from one that measurably started partway through the record
+- **Stability** — a seven-axis star chart scoring how little weight, calories, the three macros, water and sleep wobble day to day, independent of any long-term trend
+- Every result carries its sample size and data density, and says "not enough data" rather than showing a number it cannot stand behind
+
+### Output
+- Any chart can be saved as an image, stamped with the export date
+- Encrypted CSV export of every table (AES-256 ZIP)
+- Full database export and import, for backup or moving to another device
+
+### Privacy & platform
+- Local-first — SQLite on your own device. No account, no server, no telemetry
+- Works fully offline
+- App lock with a password, plus biometric unlock on Android
+- Android, Windows, macOS, and an unsigned iOS build for sideloading
+- English and 繁體中文 throughout
 
 ---
 
