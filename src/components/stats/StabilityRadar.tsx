@@ -71,14 +71,15 @@ export function StabilityRadar({ results, lang }: Props) {
   const ordered = STABILITY_METRIC_ORDER.map(m => byMetric.get(m)!).filter(Boolean);
 
   // Score polygon: only real (non-insufficient) axes contribute a vertex, so
-  // the shape jumps straight across a gap rather than dipping to a false
-  // zero there — the wedge drawn separately below is what marks that gap.
+  // the shape jumps straight across a gap rather than dipping to a false zero
+  // there. An unscored axis is marked by its muted label and by "資料不足" in
+  // the table below — nothing is painted into the plot area for it, because a
+  // filled wedge competes with the shape itself for attention and says
+  // something the density column already says better.
   const validIdx = ordered.map((r, i) => ({ r, i })).filter(({ r }) => r.score != null);
   const scorePolygon = validIdx.length >= 2
     ? validIdx.map(({ i, r }) => pt(angleOf(i), (r.score! / 100) * MAX_R)).map(p => `${p.x},${p.y}`).join(" ")
     : null;
-
-  const half = ANGLE_STEP / 2;
 
   return (
     <>
@@ -92,19 +93,6 @@ export function StabilityRadar({ results, lang }: Props) {
       <div className="flex justify-center">
         <svg width={SIZE + PAD_X * 2} height={SIZE + PAD_Y * 2}
           viewBox={`${-PAD_X} ${-PAD_Y} ${SIZE + PAD_X * 2} ${SIZE + PAD_Y * 2}`} className="max-w-full h-auto">
-          {/* Insufficient-data wedges — drawn first, under the grid and polygon */}
-          {ordered.map((r, i) => {
-            if (r.score != null) return null;
-            const a = angleOf(i);
-            const p1 = pt(a - half, MAX_R);
-            const p2 = pt(a + half, MAX_R);
-            return (
-              <polygon key={`wedge-${r.metric}`}
-                points={`${CENTER},${CENTER} ${p1.x},${p1.y} ${p2.x},${p2.y}`}
-                fill={densityColor(r.density)} fillOpacity={0.16} />
-            );
-          })}
-
           {/* Grid rings */}
           {RINGS.map(pct => (
             <polygon key={pct}
@@ -140,7 +128,9 @@ export function StabilityRadar({ results, lang }: Props) {
             const meta = STABILITY_METRICS[r.metric];
             return (
               <text key={`label-${r.metric}`} x={p.x} y={p.y} textAnchor={anchor} dominantBaseline="middle"
-                className="text-10 font-semibold" fill="var(--text-on-surface)">
+                className="text-10 font-semibold"
+                fill={r.score == null ? "var(--text-on-surface-muted)" : "var(--text-on-surface)"}
+                fillOpacity={r.score == null ? 0.55 : 1}>
                 {zh ? meta.labelZh : meta.labelEn}
               </text>
             );
@@ -297,7 +287,7 @@ function StabilityGuide({ zh }: { zh: boolean }) {
           </p>
         </GuideSection>
 
-        <GuideSection title={zh ? "三角色塊＝資料不足，不給分" : "A filled wedge means it wasn't scored"}>
+        <GuideSection title={zh ? "資料不足的項目不給分" : "A metric without enough data isn't scored"}>
           <p>
             {zh
               ? `記錄天數低於區間的 ${STABILITY_MIN_DENSITY}%，或「連續兩天都有記錄」不足 ${STABILITY_MIN_DIFFS} 次，就不計分（與其他統計頁面同一道門檻）。`
@@ -305,8 +295,8 @@ function StabilityGuide({ zh }: { zh: boolean }) {
           </p>
           <p>
             {zh
-              ? "三角形的顏色就是該項目的資料密度顏色。星形會直接跨過那個角，而不是掉到 0 — 沒有資料不等於不穩定。"
-              : "The wedge takes that metric's density colour, and the star jumps straight across the axis instead of dipping to zero — missing data is not the same as instability."}
+              ? "這種項目的軸標籤會變淡，星形直接跨過那個角，而不是掉到 0 — 沒有資料不等於不穩定。實際的資料密度看下方表格最右邊的色點。"
+              : "Its axis label is dimmed and the star jumps straight across that axis instead of dipping to zero — missing data is not the same as instability. The actual density is the coloured dot at the right of the table below."}
           </p>
         </GuideSection>
 
