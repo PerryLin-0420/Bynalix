@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { BottomSheet, Dialog } from "@/components/common/Modal";
 import { format } from "date-fns";
 import {
@@ -186,6 +186,8 @@ export function FoodLog() {
   const [results, setResults]           = useState<FoodItem[]>([]);
   const [page, setPage]                 = useState(0);
   const [hasMore, setHasMore]           = useState(false);
+  /** The scrollable results list — reset to the top whenever its contents change. */
+  const resultsRef                      = useRef<HTMLDivElement>(null);
   const [pickedFood, setPickedFood]     = useState<FoodItem | null>(null);
   const [pickedQty, setPickedQty]       = useState("100");
 
@@ -385,6 +387,10 @@ export function FoodLog() {
     const t = setTimeout(() => doSearch(query, catFilter, page), 250);
     return () => clearTimeout(t);
   }, [query, catFilter, page, sheetOpen, doSearch]);
+
+  // A new page (or a new search) is a new list: keep it scrolled to its own
+  // first row instead of inheriting however far down the previous one was.
+  useEffect(() => { resultsRef.current?.scrollTo({ top: 0 }); }, [results]);
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
@@ -1041,7 +1047,7 @@ export function FoodLog() {
                 </div>
 
                 {/* Results */}
-                <div className="space-y-0.5 max-h-44 overflow-y-auto">
+                <div ref={resultsRef} className="space-y-0.5 max-h-44 overflow-y-auto">
                   {results.length === 0 && query && (
                     <p className="text-xs text-[var(--text-on-surface-muted)] text-center py-4">{lang === "zh" ? `找不到「${query}」` : `No results for "${query}"`}</p>
                   )}

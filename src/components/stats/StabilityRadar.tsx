@@ -34,6 +34,15 @@ function scoreColor(score: number): string {
   return score >= 70 ? "#10b981" : score >= 40 ? "#f59e0b" : "#f43f5e";
 }
 
+/** Detail-table track sizes: name | avg | wobble | n | score | density dot. */
+const TABLE_COLS = "3.25rem minmax(0,1fr) minmax(0,1fr) 1.5rem 1.75rem 0.5rem";
+
+/** Enough precision to be useful without pushing a column out of alignment:
+ *  a decimal only where the value is small enough for one to mean anything. */
+function fmtVal(v: number): string {
+  return v >= 100 ? Math.round(v).toString() : v.toFixed(1);
+}
+
 function angleOf(i: number): number {
   return START_ANGLE + i * ANGLE_STEP;
 }
@@ -144,32 +153,54 @@ export function StabilityRadar({ results, lang }: Props) {
         ))}
       </div>
 
-      {/* Detail table — same row layout as the Patterns tab's Lag Impact card */}
-      <div className="space-y-0 divide-y divide-[var(--surface-border)] mt-2 pt-2 border-t border-[var(--surface-border)]">
-        {ordered.map(r => {
-          const meta = STABILITY_METRICS[r.metric];
-          return (
-            <div key={r.metric} className={clsx("flex items-center gap-2 py-2", r.score == null && "opacity-70")}>
-              <p className="text-xs font-medium text-[var(--text-on-surface)] w-16 shrink-0 truncate">
-                {zh ? meta.labelZh : meta.labelEn}
-              </p>
-              <p className="text-11 text-[var(--text-on-surface-muted)] flex-1">
-                {r.score == null
-                  ? (zh ? "資料不足" : "insufficient data")
-                  : (zh
-                    ? `平均 ${r.mean!.toFixed(r.mean! >= 100 ? 0 : 1)}${meta.unit} · 日波動 ±${r.volatility!.toFixed(r.volatility! >= 100 ? 0 : 1)}${meta.unit}`
-                    : `avg ${r.mean!.toFixed(r.mean! >= 100 ? 0 : 1)}${meta.unit} · daily wobble ±${r.volatility!.toFixed(r.volatility! >= 100 ? 0 : 1)}${meta.unit}`)}
-                <span className="ml-1 text-gray-400">n={r.nDiffs}</span>
-              </p>
-              {r.score != null && (
-                <span className="text-xs font-mono font-bold shrink-0" style={{ color: scoreColor(r.score) }}>
-                  {r.score}
+      {/* Detail table. A real column grid rather than one run-on line per row:
+          every figure is the same kind of number down its own column, so the
+          seven metrics can be compared by scanning a column instead of
+          re-reading a sentence. Numerics are tabular so digits line up. */}
+      <div className="mt-2 pt-2 border-t border-[var(--surface-border)]">
+        <div className="grid items-center gap-2 pb-1.5 text-9 font-semibold uppercase tracking-wide text-[var(--text-on-surface-muted)]"
+          style={{ gridTemplateColumns: TABLE_COLS }}>
+          <span>{zh ? "項目" : "Metric"}</span>
+          <span className="text-right">{zh ? "平均" : "Avg"}</span>
+          <span className="text-right">{zh ? "日波動" : "Wobble"}</span>
+          <span className="text-right">n</span>
+          <span className="text-right">{zh ? "分數" : "Score"}</span>
+          <span />
+        </div>
+        <div className="divide-y divide-[var(--surface-border)]">
+          {ordered.map(r => {
+            const meta = STABILITY_METRICS[r.metric];
+            return (
+              <div key={r.metric}
+                className={clsx("grid items-center gap-2 py-2", r.score == null && "opacity-70")}
+                style={{ gridTemplateColumns: TABLE_COLS }}>
+                <span className="text-xs font-medium text-[var(--text-on-surface)] truncate">
+                  {zh ? meta.labelZh : meta.labelEn}
                 </span>
-              )}
-              <span className="text-base leading-none shrink-0" style={{ color: densityColor(r.density) }}>●</span>
-            </div>
-          );
-        })}
+                {r.score == null ? (
+                  <span className="col-span-3 text-11 text-[var(--text-on-surface-muted)] text-right">
+                    {zh ? "資料不足" : "insufficient data"}
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-11 font-mono tabular-nums text-right text-[var(--text-on-surface-sub)]">
+                      {fmtVal(r.mean!)}<span className="text-gray-400">{meta.unit}</span>
+                    </span>
+                    <span className="text-11 font-mono tabular-nums text-right text-[var(--text-on-surface-sub)]">
+                      ±{fmtVal(r.volatility!)}<span className="text-gray-400">{meta.unit}</span>
+                    </span>
+                    <span className="text-11 font-mono tabular-nums text-right text-gray-400">{r.nDiffs}</span>
+                  </>
+                )}
+                <span className="text-xs font-mono font-bold tabular-nums text-right"
+                  style={{ color: r.score != null ? scoreColor(r.score) : undefined }}>
+                  {r.score ?? "—"}
+                </span>
+                <span className="text-base leading-none text-right" style={{ color: densityColor(r.density) }}>●</span>
+              </div>
+            );
+          })}
+        </div>
       </div>
       <p className="text-10 text-[var(--text-on-surface-muted)] mt-2">
         {zh ? "資料密度" : "Data density"}: <span style={{ color: densityColor(90) }}>●</span> ≥80% ·{" "}
