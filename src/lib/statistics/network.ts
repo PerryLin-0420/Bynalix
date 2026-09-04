@@ -493,6 +493,44 @@ export interface CorrelationNetwork {
   edges: NetEdge[];
 }
 
+/**
+ * Pairs whose same-day relationship is arithmetic rather than behavioural —
+ * one side is computed from the other, so their day-over-day changes move
+ * together by construction and a "correlation" between them measures the
+ * formula, not the person.
+ *
+ * A day's calories are (near enough) 4·protein + 4·carb + 9·fat, so "calories
+ * rose on the days carbs rose" is addition, not a finding — and worse, it
+ * crowds out real edges, because these identities always clear the |r| bar.
+ * Only the same-day alignment is dropped: whether today's calories move with
+ * *tomorrow's* carbs is a genuine question about eating patterns, and it is
+ * still asked at lags 1..maxLag.
+ *
+ * `exercise_kcal` / `exercise_min` is the one partial case — burn is
+ * estimated from duration for cardio, but strength adds calories without
+ * minutes, so the coupling is strong rather than total. It is excluded on the
+ * same principle: what survives is the estimator, not a behaviour.
+ */
+const DERIVED_SAME_DAY: readonly (readonly [NetVar, NetVar])[] = [
+  ["calories", "protein_g"],
+  ["calories", "carb_g"],
+  ["calories", "fat_g"],
+  ["exercise_kcal", "exercise_min"],
+];
+// The meal-spacing identities (eating window >= longest gap, and window = last
+// meal - first meal) belong to the same principle but are not listed here:
+// all three variables live in the "time" domain, so the time<->time rule in
+// computeCorrelationNetwork already drops those pairs outright.
+
+
+const DERIVED_SAME_DAY_KEYS = new Set(
+  DERIVED_SAME_DAY.map(([a, b]) => (a < b ? `${a}|${b}` : `${b}|${a}`)));
+
+/** Whether this pair's lag-0 alignment is an identity — see DERIVED_SAME_DAY. */
+export function isDerivedSameDay(a: NetVar, b: NetVar): boolean {
+  return DERIVED_SAME_DAY_KEYS.has(a < b ? `${a}|${b}` : `${b}|${a}`);
+}
+
 export interface NetworkOptions {
   minAbsR?: number;   // default 0.3
   maxP?: number;      // default 0.05
@@ -573,7 +611,8 @@ export function computeCorrelationNetwork(
       // Time↔time pairs are trivially coupled (late wake → late meals) and
       // only add clutter — never draw them.
       if (NET_VARS[a].domain === "time" && NET_VARS[b].domain === "time") continue;
-      const same = evaluate(a, b, 0);
+      // Derived pairs skip lag 0 only; their lagged alignments still count.
+      const same = isDerivedSameDay(a, b) ? null : evaluate(a, b, 0);
       // Best lagged option in either direction
       let bestLagged: Candidate | null = null;
       for (let lag = 1; lag <= maxLag; lag++) {
