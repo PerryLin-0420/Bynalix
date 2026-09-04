@@ -69,7 +69,14 @@ function stampDate(canvas: HTMLCanvasElement, date: Date): void {
 }
 
 async function captureCard(el: HTMLElement, date: Date): Promise<Uint8Array> {
-  const html2canvas = (await import("html2canvas")).default;
+  // html2canvas-pro rather than html2canvas: the original measures a font's
+  // baseline with a hidden probe appended to `document.body`, which inherits
+  // the page's own line-height (24px here) instead of the captured element's.
+  // Small text — every legend and caption in this app uses a 14px line box —
+  // was drawn ~6px below where the browser puts it, so swatches and labels came
+  // apart in the exported image. The fork takes the baseline from the canvas's
+  // own font metrics, which does not depend on any element's line-height.
+  const html2canvas = (await import("html2canvas-pro")).default;
   const canvas = await html2canvas(el, {
     backgroundColor: CAPTURE_BG,
     scale: CAPTURE_SCALE,
@@ -82,6 +89,29 @@ async function captureCard(el: HTMLElement, date: Date): Promise<Uint8Array> {
   const blob = await new Promise<Blob>((resolve, reject) =>
     canvas.toBlob(b => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", 0.92));
   return new Uint8Array(await blob.arrayBuffer());
+}
+
+/**
+ * The native bridge MainActivity injects. Present only inside the Android
+ * shell, so every call site treats it as optional.
+ */
+interface AndroidBridge {
+  saveImageToGallery?: (base64Jpeg: string, displayName: string) => string;
+}
+
+function androidBridge(): AndroidBridge | undefined {
+  return (window as unknown as { AndroidBridge?: AndroidBridge }).AndroidBridge;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  // Chunked: spreading a few hundred KB into String.fromCharCode at once
+  // overflows the argument list on some WebView builds.
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
 }
 
 /** Preferred Android target, if the user (or first-run setup) picked one. */
@@ -97,8 +127,31 @@ async function preferredDir(): Promise<string | null> {
   }
 }
 
-/** Android: write into the gallery folder, falling back to Documents/Bynalix/image. */
+/**
+ * Android: put the image in the gallery.
+ *
+ * The first attempt goes through the native bridge, because a file written
+ * straight to disk is invisible to every gallery app on the device: they list
+ * what MediaStore knows about, and nothing tells MediaStore a new file exists
+ * unless the app either inserts the image through it or asks the media scanner
+ * to look. That was the whole reason exports "saved" but never appeared.
+ *
+ * The plain file writes below stay as the fallback for a build without the
+ * bridge — the image is at least on disk and reachable through a file manager.
+ */
 async function saveToGallery(bytes: Uint8Array, filename: string): Promise<ExportResult> {
+  const bridge = androidBridge();
+  if (bridge?.saveImageToGallery) {
+    try {
+      const result = bridge.saveImageToGallery(toBase64(bytes), filename);
+      if (result === "ok") return "saved";
+      logError("exportImage.mediaStore", new Error(result));
+    } catch (e) {
+      logError("exportImage.mediaStore", e);
+    }
+    // fall through to the plain file write
+  }
+
   const { writeFile, mkdir } = await import("@tauri-apps/plugin-fs");
   const { homeDir, join }    = await import("@tauri-apps/api/path");
 

@@ -201,6 +201,43 @@ export function CorrelationNetwork({ network, lang }: {
     return { x: p.x + (dx / len) * d, y: p.y + (dy / len) * d };
   };
 
+  /** Point on a quadratic bezier at parameter t. */
+  const quadAt = (
+    a: { x: number; y: number }, c: { x: number; y: number }, b: { x: number; y: number }, t: number,
+  ) => {
+    const u = 1 - t;
+    return {
+      x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
+      y: u * u * a.y + 2 * u * t * c.y + t * t * b.y,
+    };
+  };
+
+  /** Every node the given edge does not touch, with the radius to clear it by. */
+  const obstaclesFor = (e: NetEdge) =>
+    ringNodes
+      .filter(n => n.id !== e.source && n.id !== e.target)
+      .map(n => ({ p: positions.get(n.id)!, r: nodeRadius(n.id) + 3 }))
+      .filter(o => o.p);
+
+  /**
+   * How close a candidate curve comes to the nearest node it should miss.
+   * Positive means it clears everything; the more positive, the more room.
+   */
+  const clearance = (
+    a: { x: number; y: number }, c: { x: number; y: number }, b: { x: number; y: number },
+    obstacles: { p: { x: number; y: number }; r: number }[],
+  ): number => {
+    let worst = Infinity;
+    for (let k = 0; k <= 24; k++) {
+      const q = quadAt(a, c, b, k / 24);
+      for (const o of obstacles) {
+        const d = Math.hypot(q.x - o.p.x, q.y - o.p.y) - o.r;
+        if (d < worst) worst = d;
+      }
+    }
+    return worst;
+  };
+
   /**
    * Build an edge's path. The control point is offset *perpendicular* to the
    * chord rather than pulled toward the centre: centre-pulled arcs all funnel
@@ -208,24 +245,56 @@ export function CorrelationNetwork({ network, lang }: {
    * consistent sideways bow — widened slightly per edge index — keeps chords
    * that would otherwise be collinear as visibly separate arcs.
    *
-   * Both endpoints are then trimmed back along the curve to the node rim (with
-   * room reserved for the lag arrowhead), so an edge attaches wherever its own
-   * curve meets the circle instead of at a fixed anchor point.
+   * That bow is then checked against every node the edge does not connect, and
+   * widened (or flipped to the other side) until the curve clears them. A line
+   * that disappears under an unrelated node reads as if it ended there, or as
+   * if that node were part of the relationship — neither is true, and on a ring
+   * this dense it happened to most of the long chords.
+   *
+   * Both endpoints are finally trimmed back along the curve to the node rim
+   * (with room reserved for the lag arrowhead), so an edge attaches wherever
+   * its own curve meets the circle instead of at a fixed anchor point.
    */
   const edgePath = (e: NetEdge, i: number) => {
     const p1 = positions.get(e.source), p2 = positions.get(e.target);
     if (!p1 || !p2) return "";
     const dx = p2.x - p1.x, dy = p2.y - p1.y;
     const len = Math.hypot(dx, dy) || 1;
-    const bow = len * 0.16 + (i % 3) * 4;
-    const cx = (p1.x + p2.x) / 2 + (-dy / len) * bow;
-    const cy = (p1.y + p2.y) / 2 + ( dx / len) * bow;
+    const nx = -dy / len, ny = dx / len;
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    const base = len * 0.16 + (i % 3) * 4;
+
+    // Try the preferred bow first, then progressively wider ones on either
+    // side. Keeping the original as candidate 0 means an edge that already
+    // clears everything is left exactly where it was.
+    const obstacles = obstaclesFor(e);
+    let cx = mx + nx * base, cy = my + ny * base;
+    if (obstacles.length > 0) {
+      let bestScore = -Infinity, bestX = cx, bestY = cy;
+      for (const mult of [1, -1, 1.7, -1.7, 2.5, -2.5, 3.4, -3.4]) {
+        const bow = base * mult;
+        const qx = mx + nx * bow, qy = my + ny * bow;
+        const score = clearance(p1, { x: qx, y: qy }, p2, obstacles);
+        if (score > 0) { bestX = qx; bestY = qy; bestScore = score; break; }
+        if (score > bestScore) { bestScore = score; bestX = qx; bestY = qy; }
+      }
+      cx = bestX; cy = bestY;
+    }
+
     const startGap = nodeRadius(e.source) + 2;
     const endGap   = nodeRadius(e.target) + (e.lag > 0 ? edgeWidth(e.r) + 4 : 2);
     const s = shrink(p1, cx, cy, startGap);
     const t = shrink(p2, cx, cy, endGap);
     return `M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`;
   };
+
+  // One path per edge, resolved once: the routing search is not free, and the
+  // path is needed twice per edge (visible stroke + hit area) on every render,
+  // including the ones that only change which node is selected.
+  const edgePaths = useMemo(
+    () => edges.map((e, i) => edgePath(e, i)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [edges, positions, ringNodes]);
 
   if (edges.length === 0) {
     return (
@@ -278,14 +347,14 @@ export function CorrelationNetwork({ network, lang }: {
           const selected = selEdge === e;
           return (
             <g key={i} opacity={dimmed ? 0.08 : 1} style={{ transition: "opacity .2s" }}>
-              <path d={edgePath(e, i)} fill="none" stroke={color}
+              <path d={edgePaths[i]} fill="none" stroke={color}
                 strokeWidth={edgeWidth(e.r) + (selected ? 1 : 0)}
                 strokeDasharray={e.lag > 0 ? "6 4" : undefined}
                 strokeLinecap="round"
                 markerEnd={e.lag > 0 ? `url(#net-arrow-${e.r >= 0 ? "pos" : "neg"})` : undefined}
                 opacity={selected ? 1 : 0.75} />
               {/* invisible wide hit area */}
-              <path d={edgePath(e, i)} fill="none" stroke="transparent" strokeWidth={14}
+              <path d={edgePaths[i]} fill="none" stroke="transparent" strokeWidth={14}
                 style={{ cursor: "pointer" }}
                 onClick={() => { setSelEdge(selected ? null : e); }} />
             </g>

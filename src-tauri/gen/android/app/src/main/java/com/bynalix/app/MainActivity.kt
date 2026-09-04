@@ -3,15 +3,21 @@ package com.bynalix.app
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Process
+import android.provider.MediaStore
 import android.provider.Settings
+import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.RequiresApi
 import java.io.File
 
 class MainActivity : TauriActivity() {
@@ -45,6 +51,35 @@ class MainActivity : TauriActivity() {
     fun refreshScreenStats() {
       writeScreenStats(applicationContext)
     }
+
+    /**
+     * Save a chart image so the system gallery can actually find it.
+     *
+     * Writing a file into a public folder is not enough: gallery apps read
+     * MediaStore, not the filesystem, so a plain file write leaves the image
+     * invisible until something else happens to trigger a scan. This inserts
+     * the image through MediaStore itself (API 29+), or writes it and asks the
+     * media scanner to pick it up (older releases).
+     *
+     * @param base64Jpeg the JPEG bytes, base64-encoded
+     * @param displayName the filename to show in the gallery
+     * @return "ok" on success, or "err: <reason>" — the caller falls back to a
+     *         plain Documents write rather than losing the export.
+     */
+    @JavascriptInterface
+    fun saveImageToGallery(base64Jpeg: String, displayName: String): String {
+      return try {
+        val bytes = Base64.decode(base64Jpeg, Base64.DEFAULT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+          insertViaMediaStore(applicationContext, bytes, displayName)
+        } else {
+          writeAndScan(applicationContext, bytes, displayName)
+        }
+        "ok"
+      } catch (e: Exception) {
+        "err: " + (e.message ?: e.javaClass.simpleName)
+      }
+    }
   }
 
   override fun onWebViewCreate(webView: WebView) {
@@ -68,6 +103,63 @@ class MainActivity : TauriActivity() {
   // ── UsageStats helpers ────────────────────────────────────────────────────
 
   companion object {
+
+    /** Gallery album the exported charts land in. */
+    private const val ALBUM = "Bynalix"
+
+    /**
+     * API 29+: hand the bytes to MediaStore and let it own the file.
+     *
+     * IS_PENDING keeps the entry hidden while it is being written, so a gallery
+     * app scanning mid-write never shows a half-decoded image; clearing it is
+     * what publishes the picture.
+     */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun insertViaMediaStore(context: Context, bytes: ByteArray, displayName: String) {
+      val resolver = context.contentResolver
+      val values = ContentValues().apply {
+        put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
+        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+        put(
+          MediaStore.Images.Media.RELATIVE_PATH,
+          Environment.DIRECTORY_PICTURES + File.separator + ALBUM,
+        )
+        put(MediaStore.Images.Media.IS_PENDING, 1)
+      }
+
+      val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+        ?: throw IllegalStateException("MediaStore refused the insert")
+      try {
+        resolver.openOutputStream(uri)?.use { it.write(bytes) }
+          ?: throw IllegalStateException("no output stream for $uri")
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING, 0)
+        resolver.update(uri, values, null, null)
+      } catch (e: Exception) {
+        // Leaving a pending row behind would show up as a permanently
+        // invisible, undeletable entry, so drop it before rethrowing.
+        resolver.delete(uri, null, null)
+        throw e
+      }
+    }
+
+    /**
+     * Pre-29: write into the public Pictures folder, then tell the media
+     * scanner about it — without that call the file exists but no gallery app
+     * knows it does. Needs WRITE_EXTERNAL_STORAGE to have been granted; if it
+     * has not, this throws and the caller falls back.
+     */
+    private fun writeAndScan(context: Context, bytes: ByteArray, displayName: String) {
+      @Suppress("DEPRECATION")
+      val dir = File(
+        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+        ALBUM,
+      )
+      if (!dir.exists() && !dir.mkdirs()) throw IllegalStateException("cannot create $dir")
+      val file = File(dir, displayName)
+      file.writeBytes(bytes)
+      MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), arrayOf("image/jpeg"), null)
+    }
 
     /** Minimum length of a screen-off gap to be treated as sleep (3 h). */
     private const val MIN_SLEEP_MS = 3 * 60 * 60_000L

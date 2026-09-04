@@ -61,12 +61,10 @@ but deeper personal understanding through self-owned data.
 
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
-**Latest — v1.6.2**
-- Every chart can be saved as an image, stamped with the export date
-- Meal spacing — eating window and longest gap — joins the correlation network
-- Relationship changes now says when a range is too short to test, instead of implying it found nothing
-- Stability's explanation moved into its own collapsible card; the density wedge is gone from the plot area
-- Fixes: the in-app version number, and food search scroll position on page change
+**Latest — v1.6.3**
+- Same-day correlations between derived quantities (calories vs macros, burn vs duration) are no longer drawn — they measure arithmetic, not behaviour
+- Network edges are routed around the nodes they don't connect, instead of passing underneath them
+- Exported images no longer mis-place small text; on Android they now appear in the gallery
 
 ---
 
