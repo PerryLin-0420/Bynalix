@@ -1,3 +1,5 @@
+![Bynálix](docs/banner.png)
+
 🌐 Language: [English](./README.md) | [繁體中文](./README-TW.md)
 
 # Bynálix

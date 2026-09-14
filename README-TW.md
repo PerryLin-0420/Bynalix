@@ -1,3 +1,5 @@
+![Bynálix](docs/banner.png)
+
 # Bynálix
 
 本地優先的個人健康分析平台。
