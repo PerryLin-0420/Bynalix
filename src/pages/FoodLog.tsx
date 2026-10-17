@@ -833,7 +833,8 @@ export function FoodLog() {
                 <div className="border-t border-[var(--surface-border)]">
                   {group.entries.map((e, i) => (
                     <div key={e.meal_log_id}
-                      className={clsx("flex items-center gap-2 px-4 py-2.5",
+                      className={clsx("flex gap-2 px-4 py-2.5",
+                        editEntry?.meal_log_id === e.meal_log_id ? "items-end" : "items-center",
                         i < group.entries.length - 1 && "border-b border-[var(--surface-border)]")}>
                       {editEntry?.meal_log_id === e.meal_log_id ? (
                         /* ── Inline edit row ── */
@@ -845,13 +846,13 @@ export function FoodLog() {
                                 type="number" inputMode="decimal" min="0"
                                 value={editEntry.quantity}
                                 onChange={ev => setEditEntry(p => p ? { ...p, quantity: ev.target.value } : null)}
-                                className="w-20 rounded-lg border border-[var(--color-outline-variant)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-secondary)]"
+                                className="w-20 h-9 rounded-lg border border-[var(--color-outline-variant)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-secondary)]"
                               />
                               <span className="text-xs text-[var(--text-on-surface-muted)]">{editEntry.unit}</span>
                               <select
                                 value={editEntry.meal_type}
                                 onChange={ev => setEditEntry(p => p ? { ...p, meal_type: ev.target.value } : null)}
-                                className="rounded-lg border border-[var(--color-outline-variant)] px-1 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-secondary)]">
+                                className="h-9 rounded-lg border border-[var(--color-outline-variant)] px-1 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-secondary)]">
                                 {(knownTypes).map(mt => <option key={mt} value={mt}>{getMealLabel(mt)}</option>)}
                               </select>
                             </div>
@@ -995,7 +996,7 @@ export function FoodLog() {
                     value={query} onChange={e => setQuery(e.target.value)} />
                   {query && (
                     <button onClick={() => setQuery("")}
-                      className="absolute right-3 top-2.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
+                      className="absolute inset-y-0 right-0 px-3 flex items-center text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
                       <X size={14} />
                     </button>
                   )}
@@ -1193,7 +1194,7 @@ export function FoodLog() {
                   <div className="space-y-1.5">
                     {basket.map((item, idx) => (
                       <div key={idx}
-                        className="flex items-center gap-2 px-3 py-2.5 bg-[var(--surface-container-low)] rounded-xl">
+                        className="flex items-end gap-2 px-3 py-2.5 bg-[var(--surface-container-low)] rounded-xl">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[var(--text-on-surface)] truncate">{foodName(item.food)}</p>
                           <div className="flex items-center gap-1.5 mt-1 text-xs text-[var(--text-on-surface-muted)]">
@@ -1207,11 +1208,11 @@ export function FoodLog() {
                             <span>· {item.cal} kcal</span>
                           </div>
                         </div>
-                        <span className="text-xs text-[var(--text-on-surface-muted)] shrink-0">
+                        <span className="text-xs text-[var(--text-on-surface-muted)] shrink-0 self-center">
                           <span className="font-bold text-[var(--text-on-surface)]">P</span>{item.p.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">C</span>{item.c.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">F</span>{item.f.toFixed(1)}
                         </span>
                         <button onClick={() => setBasket(b => b.filter((_, i) => i !== idx))}
-                          className="icon-btn text-red-400 hover:text-red-500 transition-colors"><X size={15} /></button>
+                          className="icon-btn-field text-red-400 hover:text-red-500 transition-colors"><X size={15} /></button>
                       </div>
                     ))}
                   </div>

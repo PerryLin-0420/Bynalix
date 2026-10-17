@@ -756,8 +756,8 @@ export function BodyStatus() {
                         <TimePicker value={editTime} onChange={setEditTime} />
                       </div>
                       <div className="flex gap-micro shrink-0">
-                        <button onClick={saveEdit} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
-                        <button onClick={() => setEditId(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
+                        <button onClick={saveEdit} className="icon-btn-field text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
+                        <button onClick={() => setEditId(null)} className="icon-btn-field text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">

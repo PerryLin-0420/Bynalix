@@ -953,8 +953,8 @@ export function ExerciseLog() {
                           <span className="text-[var(--text-on-surface-muted)] text-xs">@</span>
                           <UnitInput value={editingRunInterval.time} onChange={v => setEditingRunInterval(x => x ? { ...x, time: v } : null)}
                             unit="min" py="py-1" />
-                          <button onClick={saveEditRunInterval} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={15} /></button>
-                          <button onClick={() => setEditingRunInterval(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={15} /></button>
+                          <button onClick={saveEditRunInterval} className="icon-btn-field text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={15} /></button>
+                          <button onClick={() => setEditingRunInterval(null)} className="icon-btn-field text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={15} /></button>
                         </>
                       ) : (
                         <>
@@ -998,7 +998,7 @@ export function ExerciseLog() {
                     )}
                     <button onClick={addIntervalToRunning}
                       className="px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium shrink-0">{t("common.confirm")}</button>
-                    <button onClick={() => setAddRunIntervalTo(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
+                    <button onClick={() => setAddRunIntervalTo(null)} className="icon-btn-field text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                   </div>
                 ) : (
                   <button onClick={() => setAddRunIntervalTo({ sessionId: sess.id, d: "", t: "" })}
@@ -1092,8 +1092,8 @@ export function ExerciseLog() {
                         <option value="">{t("exercise.bodyPart")}</option>
                         {BODY_PARTS.map(p => <option key={p} value={p}>{bpLabel(p)}</option>)}
                       </select>
-                      <button onClick={saveEditSession} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
-                      <button onClick={() => setEditingSession(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
+                      <button onClick={saveEditSession} className="icon-btn-field text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
+                      <button onClick={() => setEditingSession(null)} className="icon-btn-field text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                     </div>
                   ) : (
                     /* ── Normal view ── */
@@ -1148,8 +1148,8 @@ export function ExerciseLog() {
                             <span className="text-[var(--text-on-surface-muted)] text-xs">×</span>
                             <UnitInput value={editingSet.reps} onChange={v => setEditingSet(s => s ? { ...s, reps: v } : null)}
                               unit={lang === "zh" ? "下" : "reps"} py="py-1" pr="pr-7" />
-                            <button onClick={saveEditSet} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={15} /></button>
-                            <button onClick={() => setEditingSet(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={15} /></button>
+                            <button onClick={saveEditSet} className="icon-btn-field text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={15} /></button>
+                            <button onClick={() => setEditingSet(null)} className="icon-btn-field text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={15} /></button>
                           </>
                         ) : (
                           /* ── Normal view ── */
@@ -1232,7 +1232,7 @@ export function ExerciseLog() {
                       <button onClick={addSetToSession}
                         className="px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium">{t("common.confirm")}</button>
                       <button onClick={() => { setAddSetTo(null); setAddSetErr(null); }}
-                        className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
+                        className="icon-btn-field text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                     </div>
                     {addSetErr && (
                       <p className="text-xs text-red-500 flex items-center gap-micro px-4 pb-2">
@@ -1398,8 +1398,8 @@ export function ExerciseLog() {
                         unit="ml" py="py-1" containerCls="relative max-w-[110px]" />
                       <TimePicker value={editingWater.time}
                         onChange={v => setEditingWater(x => x ? { ...x, time: v } : null)} />
-                      <button onClick={saveEditWater} className="icon-btn text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
-                      <button onClick={() => setEditingWater(null)} className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
+                      <button onClick={saveEditWater} className="icon-btn-field text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
+                      <button onClick={() => setEditingWater(null)} className="icon-btn-field text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
                     </div>
                   ) : (
                     /* ── Normal view ── */
@@ -1702,7 +1702,7 @@ export function ExerciseLog() {
                           unit={lang === "zh" ? "下" : "reps"} py="py-2" placeholder={t("exercise.reps")} />
                         {idx > 0 && (
                           <button onClick={() => setStrSets(ss => ss.filter((_, i) => i !== idx))}
-                            className="icon-btn text-red-400 hover:text-red-500 transition-colors"><X size={16} /></button>
+                            className="icon-btn-field text-red-400 hover:text-red-500 transition-colors"><X size={16} /></button>
                         )}
                       </div>
                     </div>
@@ -1800,7 +1800,7 @@ export function ExerciseLog() {
                   )}
                   {idx > 0 && (
                     <button onClick={() => setRunIntervals(xs => xs.filter((_, i) => i !== idx))}
-                      className="icon-btn text-red-400 hover:text-red-500 shrink-0"><X size={16} /></button>
+                      className="icon-btn-field text-red-400 hover:text-red-500 shrink-0"><X size={16} /></button>
                   )}
                 </div>
               ))}
