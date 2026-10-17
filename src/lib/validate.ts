@@ -55,6 +55,7 @@ export const BOUNDS = {
   runTime:       { zh: "時間",     en: "Time",           gt: 0,   lte: 1440 },
   strWeight:     { zh: "重量",     en: "Weight",         gt: 0,   lte: 700  },
   strReps:       { zh: "次數",     en: "Reps",           gt: 0              },
+  strExtra:      { zh: "額外負重", en: "Added load",     gte: 0,  lte: 700  },
   waterMl:       { zh: "水量",     en: "Amount",         gt: 0              },
   // Food
   foodQty:       { zh: "份量",     en: "Quantity",       gt: 0              },

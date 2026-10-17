@@ -63,10 +63,11 @@ but deeper personal understanding through self-owned data.
 
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
-**Latest — v1.6.3**
-- Same-day correlations between derived quantities (calories vs macros, burn vs duration) are no longer drawn — they measure arithmetic, not behaviour
-- Network edges are routed around the nodes they don't connect, instead of passing underneath them
-- Exported images no longer mis-place small text; on Android they now appear in the gallery
+**Latest — v1.6.4**
+- Push-ups are split into Standard / Knee / Incline / Decline; load is body weight × the variant's share (64% / 49% / 55% / 75%) plus any added load
+- Detected rest between strength sets is shown as a prediction, filled in only when you press Apply
+- Food quantities in a meal can be edited in place, without removing and re-adding the food
+- ✕ buttons beside an input are now as tall as the input
 
 ---
 

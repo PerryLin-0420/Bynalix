@@ -5,7 +5,7 @@ import { SEED_EXERCISES } from "./exercises";
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "11"; // added 槓鈴硬舉 (Barbell Deadlift)
+const SEED_VERSION = "12"; // split 伏地挺身 into 標準/跪姿/上斜/下斜
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {

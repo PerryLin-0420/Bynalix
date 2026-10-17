@@ -46,7 +46,10 @@ export const SEED_EXERCISES: SeedExercise[] = [
   { name: "下斜臥推",            name_en: "Decline Bench Press",        category: "重訓", default_mets: 5.0, body_part: "胸" },
   { name: "蝴蝶機夾胸",          name_en: "Pec Deck Fly",               category: "重訓", default_mets: 4.5, body_part: "胸" },
   { name: "啞鈴飛鳥",            name_en: "Dumbbell Fly",               category: "重訓", default_mets: 4.5, body_part: "胸" },
-  { name: "伏地挺身",            name_en: "Push-Up",                    category: "重訓", default_mets: 3.8, body_part: "胸" },
+  { name: "伏地挺身（標準）",    name_en: "Push-Up (Standard)",         category: "重訓", default_mets: 3.8, body_part: "胸" },
+  { name: "伏地挺身（跪姿）",    name_en: "Push-Up (Knee)",             category: "重訓", default_mets: 3.8, body_part: "胸" },
+  { name: "伏地挺身（上斜）",    name_en: "Push-Up (Incline)",          category: "重訓", default_mets: 3.8, body_part: "胸" },
+  { name: "伏地挺身（下斜）",    name_en: "Push-Up (Decline)",          category: "重訓", default_mets: 3.8, body_part: "胸" },
   { name: "雙槓撐體",            name_en: "Dips",                       category: "重訓", default_mets: 4.0, body_part: "胸" },
 
   // ── 背 ─────────────────────────────────────────────────────────────────────

@@ -30,6 +30,7 @@ interface FoodItem {
 interface BasketItem {
   food: FoodItem; quantity: number;
   cal: number; p: number; c: number; f: number;
+  qtyInput?: string; // raw text while the quantity is being edited in the meal list
 }
 
 interface MealEntry {
@@ -406,6 +407,17 @@ export function FoodLog() {
     setBasket(b => [...b, { food: pickedFood, quantity: qty, ...calcNutri(pickedFood, qty) }]);
     setPickedFood(null);
     setPickedQty("100");
+  };
+
+  // Edit a basket item's quantity in place; nutrition follows every valid value
+  const setBasketQty = (idx: number, raw: string) => {
+    setBasket(b => b.map((item, i) => {
+      if (i !== idx) return item;
+      const qty = parseFloat(raw);
+      return qty > 0
+        ? { ...item, qtyInput: raw, quantity: qty, ...calcNutri(item.food, qty) }
+        : { ...item, qtyInput: raw };
+    }));
   };
 
   const applyTemplate = async (t: MealTemplate) => {
@@ -821,7 +833,8 @@ export function FoodLog() {
                 <div className="border-t border-[var(--surface-border)]">
                   {group.entries.map((e, i) => (
                     <div key={e.meal_log_id}
-                      className={clsx("flex items-center gap-2 px-4 py-2.5",
+                      className={clsx("flex gap-2 px-4 py-2.5",
+                        editEntry?.meal_log_id === e.meal_log_id ? "items-end" : "items-center",
                         i < group.entries.length - 1 && "border-b border-[var(--surface-border)]")}>
                       {editEntry?.meal_log_id === e.meal_log_id ? (
                         /* ── Inline edit row ── */
@@ -833,13 +846,13 @@ export function FoodLog() {
                                 type="number" inputMode="decimal" min="0"
                                 value={editEntry.quantity}
                                 onChange={ev => setEditEntry(p => p ? { ...p, quantity: ev.target.value } : null)}
-                                className="w-20 rounded-lg border border-[var(--color-outline-variant)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-secondary)]"
+                                className="w-20 h-9 rounded-lg border border-[var(--color-outline-variant)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-secondary)]"
                               />
                               <span className="text-xs text-[var(--text-on-surface-muted)]">{editEntry.unit}</span>
                               <select
                                 value={editEntry.meal_type}
                                 onChange={ev => setEditEntry(p => p ? { ...p, meal_type: ev.target.value } : null)}
-                                className="rounded-lg border border-[var(--color-outline-variant)] px-1 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-secondary)]">
+                                className="h-9 rounded-lg border border-[var(--color-outline-variant)] px-1 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-secondary)]">
                                 {(knownTypes).map(mt => <option key={mt} value={mt}>{getMealLabel(mt)}</option>)}
                               </select>
                             </div>
@@ -983,7 +996,7 @@ export function FoodLog() {
                     value={query} onChange={e => setQuery(e.target.value)} />
                   {query && (
                     <button onClick={() => setQuery("")}
-                      className="absolute right-3 top-2.5 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
+                      className="absolute inset-y-0 right-0 px-3 flex items-center text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]">
                       <X size={14} />
                     </button>
                   )}
@@ -1181,18 +1194,25 @@ export function FoodLog() {
                   <div className="space-y-1.5">
                     {basket.map((item, idx) => (
                       <div key={idx}
-                        className="flex items-center gap-2 px-3 py-2.5 bg-[var(--surface-container-low)] rounded-xl">
+                        className="flex items-end gap-2 px-3 py-2.5 bg-[var(--surface-container-low)] rounded-xl">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[var(--text-on-surface)] truncate">{foodName(item.food)}</p>
-                          <p className="text-xs text-[var(--text-on-surface-muted)]">
-                            {item.quantity} {item.food.base_unit} · {item.cal} kcal
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-1 text-xs text-[var(--text-on-surface-muted)]">
+                            <div className="relative w-24">
+                              <input className="input-base py-1 pr-8 text-xs" type="number" inputMode="decimal"
+                                value={item.qtyInput ?? String(item.quantity)}
+                                onChange={e => setBasketQty(idx, e.target.value)}
+                                onBlur={() => setBasket(b => b.map((x, i) => i === idx ? { ...x, qtyInput: undefined } : x))} />
+                              <span className="absolute right-2 top-1.5 text-10">{item.food.base_unit}</span>
+                            </div>
+                            <span>· {item.cal} kcal</span>
+                          </div>
                         </div>
-                        <span className="text-xs text-[var(--text-on-surface-muted)] shrink-0">
+                        <span className="text-xs text-[var(--text-on-surface-muted)] shrink-0 self-center">
                           <span className="font-bold text-[var(--text-on-surface)]">P</span>{item.p.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">C</span>{item.c.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">F</span>{item.f.toFixed(1)}
                         </span>
                         <button onClick={() => setBasket(b => b.filter((_, i) => i !== idx))}
-                          className="icon-btn text-red-400 hover:text-red-500 transition-colors"><X size={15} /></button>
+                          className="icon-btn-field text-red-400 hover:text-red-500 transition-colors"><X size={15} /></button>
                       </div>
                     ))}
                   </div>
