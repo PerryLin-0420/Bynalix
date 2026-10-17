@@ -30,6 +30,7 @@ interface FoodItem {
 interface BasketItem {
   food: FoodItem; quantity: number;
   cal: number; p: number; c: number; f: number;
+  qtyInput?: string; // raw text while the quantity is being edited in the meal list
 }
 
 interface MealEntry {
@@ -406,6 +407,17 @@ export function FoodLog() {
     setBasket(b => [...b, { food: pickedFood, quantity: qty, ...calcNutri(pickedFood, qty) }]);
     setPickedFood(null);
     setPickedQty("100");
+  };
+
+  // Edit a basket item's quantity in place; nutrition follows every valid value
+  const setBasketQty = (idx: number, raw: string) => {
+    setBasket(b => b.map((item, i) => {
+      if (i !== idx) return item;
+      const qty = parseFloat(raw);
+      return qty > 0
+        ? { ...item, qtyInput: raw, quantity: qty, ...calcNutri(item.food, qty) }
+        : { ...item, qtyInput: raw };
+    }));
   };
 
   const applyTemplate = async (t: MealTemplate) => {
@@ -1184,9 +1196,16 @@ export function FoodLog() {
                         className="flex items-center gap-2 px-3 py-2.5 bg-[var(--surface-container-low)] rounded-xl">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[var(--text-on-surface)] truncate">{foodName(item.food)}</p>
-                          <p className="text-xs text-[var(--text-on-surface-muted)]">
-                            {item.quantity} {item.food.base_unit} · {item.cal} kcal
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-1 text-xs text-[var(--text-on-surface-muted)]">
+                            <div className="relative w-24">
+                              <input className="input-base py-1 pr-8 text-xs" type="number" inputMode="decimal"
+                                value={item.qtyInput ?? String(item.quantity)}
+                                onChange={e => setBasketQty(idx, e.target.value)}
+                                onBlur={() => setBasket(b => b.map((x, i) => i === idx ? { ...x, qtyInput: undefined } : x))} />
+                              <span className="absolute right-2 top-1.5 text-10">{item.food.base_unit}</span>
+                            </div>
+                            <span>· {item.cal} kcal</span>
+                          </div>
                         </div>
                         <span className="text-xs text-[var(--text-on-surface-muted)] shrink-0">
                           <span className="font-bold text-[var(--text-on-surface)]">P</span>{item.p.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">C</span>{item.c.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">F</span>{item.f.toFixed(1)}
