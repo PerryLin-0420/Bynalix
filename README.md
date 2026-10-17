@@ -65,6 +65,9 @@ Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-T
 
 **Latest — v1.6.4**
 - Push-ups are split into Standard / Knee / Incline / Decline; load is body weight × the variant's share (64% / 49% / 55% / 75%) plus any added load
+- Detected rest between strength sets is shown as a prediction, filled in only when you press Apply
+- Food quantities in a meal can be edited in place, without removing and re-adding the food
+- ✕ buttons beside an input are now as tall as the input
 
 ---
 
