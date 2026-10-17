@@ -7,6 +7,9 @@ see the [README](./README.md).
 
 ---
 
+### v1.6.4
+- **Push-ups are split into Standard / Knee / Incline / Decline, with load computed from body weight** — a push-up moves a fixed share of your body weight (64% / 49% / 55% / 75% respectively), so typing a "weight" for it meant guessing. Each set now asks only for reps and any added load (default 0); load = that day's (or the most recent) body weight × the variant's share + added load, and volume = load × reps. The total is stored like any other set, so volume, calorie estimates and statistics pick it up unchanged. Sessions logged under the old single "Push-Up" keep the weights they were saved with
+
 ### v1.6.3
 - **Same-day correlations between derived quantities are no longer drawn** — a day's calories are (near enough) 4·protein + 4·carb + 9·fat, so "calories rose on the days carbs rose" is addition, not behaviour. On a real multi-month export those three identities were the *strongest* edges in the whole graph (r = 0.87, 0.75, 0.67), crowding out everything real. Only their same-day alignment is dropped; the lagged question is still asked, and two of the three came back as genuine 1-day-lag findings with the opposite sign — a heavy day followed by a lighter one, which the identity had been masking. Exercise burn against exercise duration goes the same way, since burn is estimated from duration
 - **Network edges no longer pass underneath unrelated nodes** — a line disappearing under a node reads as if it ended there, or as if that node were part of the relationship. Each edge's curve is now checked against every node it does not connect and widened (or bent to the other side) until it clears them, keeping its original shape when it already did. On the same export this took edges tunnelling through a node from three to none
