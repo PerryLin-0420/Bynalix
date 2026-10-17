@@ -138,3 +138,23 @@ export function strengthEstKcalSimple(numSets: number, bodyWeightKg: number): nu
   }));
   return strengthEstKcal(mockSets, bodyWeightKg);
 }
+
+// ── Push-up load ─────────────────────────────────────────────────────────────
+
+/** Share of body weight carried by the arms/chest for each push-up variant. */
+export const PUSHUP_LOAD_RATIO: Record<string, number> = {
+  "伏地挺身（標準）": 0.64,
+  "伏地挺身（跪姿）": 0.49,
+  "伏地挺身（上斜）": 0.55,
+  "伏地挺身（下斜）": 0.75,
+};
+
+/** Body-weight ratio for a push-up variant, or null for any other exercise. */
+export function pushupRatio(exerciseName: string): number | null {
+  return PUSHUP_LOAD_RATIO[exerciseName.trim()] ?? null;
+}
+
+/** Push-up load (kg) = body weight × variant ratio + added load, to 0.1 kg. */
+export function pushupLoadKg(bodyWeightKg: number, ratio: number, extraKg = 0): number {
+  return Math.round((bodyWeightKg * ratio + extraKg) * 10) / 10;
+}

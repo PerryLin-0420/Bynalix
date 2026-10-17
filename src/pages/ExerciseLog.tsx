@@ -7,13 +7,13 @@ import { BottomSheet } from "@/components/common/Modal";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { showToast } from "@/store/toastStore";
-import { deleteExerciseEntry, deleteWaterEntry } from "@/lib/db/queries/log";
+import { deleteExerciseEntry, deleteWaterEntry, getBodyWeightOn } from "@/lib/db/queries/log";
 import { checkBound, BOUNDS } from "@/lib/validate";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { NoProfile } from "@/components/common/NoProfile";
 import { DateNavHeader } from "@/components/layout/DateNavHeader";
-import { exerciseKcalBasic, exerciseKcalLbm, cardioSessionKcal, strengthEstKcal, type Intensity, type CardioType as CardioKind } from "@/lib/calculations/exercise";
+import { exerciseKcalBasic, exerciseKcalLbm, cardioSessionKcal, strengthEstKcal, pushupRatio, pushupLoadKg, type Intensity, type CardioType as CardioKind } from "@/lib/calculations/exercise";
 import { BODY_PART_COLORS, BODY_PARTS, CARDIO_EMOJI, CARDIO_LABEL, type BodyPart } from "@/constants";
 import { leanBodyMass } from "@/lib/calculations/metabolism";
 import { ExerciseHistoryDrawer } from "@/components/exercise/ExerciseHistoryDrawer";
@@ -33,7 +33,7 @@ interface ExerciseEntry {
   duration_min: number; intensity: Intensity; calories_burned: number;
 }
 interface WaterEntry   { id: number; amount_ml: number; log_time: string; meal_log_id: number | null }
-interface StrengthSet  { id: number; set_number: number; weight_kg: number; reps: number; rest_sec: number | null; logged_at: string | null }
+interface StrengthSet  { id: number; set_number: number; weight_kg: number; reps: number; rest_sec: number | null; extra_kg: number | null; logged_at: string | null }
 interface StrengthSession {
   id: number; exercise_name: string; name_en: string | null;
   body_part: string | null; log_time: string; sets: StrengthSet[];
@@ -209,6 +209,8 @@ export function ExerciseLog() {
   const [strFilterPart, setStrFilterPart] = useState<BodyPart | "全部">("全部");
   const [strNameFocused, setStrNameFocused] = useState(false);
   const [strBodyPartError, setStrBodyPartError] = useState(false);
+  // Body weight for push-up load (that day's / latest weigh-in)
+  const [pushupBodyKg, setPushupBodyKg] = useState(0);
 
   // Running
   const [runningSessions, setRunningSessions]     = useState<RunningSession[]>([]);
@@ -246,7 +248,7 @@ export function ExerciseLog() {
   // Inline edit states
   const [editingEx,      setEditingEx]      = useState<{ id: number; duration: string; intensity: Intensity } | null>(null);
   const [editingSession, setEditingSession] = useState<{ id: number; name: string; bodyPart: string } | null>(null);
-  const [editingSet,     setEditingSet]     = useState<{ id: number; weight: string; reps: string } | null>(null);
+  const [editingSet,     setEditingSet]     = useState<{ id: number; weight: string; reps: string; ratio: number | null } | null>(null);
   const [editingWater,   setEditingWater]   = useState<{ id: number; amount: string; time: string } | null>(null);
 
   useEffect(() => {
@@ -300,6 +302,7 @@ export function ExerciseLog() {
         result.push({ ...s, sets });
       }
       setSessions(result);
+      setPushupBodyKg(await getBodyWeightOn(profile!.user_id, selectedDate, profile!.weight_kg));
     } catch (e) { logError("ExerciseLog", e); }
   };
 
@@ -522,7 +525,9 @@ export function ExerciseLog() {
   const saveStrengthSession = async () => {
     const name = strExName.trim();
     if (!name || !profile) return;
-    const validSets = strSets.filter(s => s.weight && s.reps);
+    const ratio = pushupRatio(name);
+    // Push-ups: the weight field is the added load (blank = 0)
+    const validSets = strSets.filter(s => s.reps && (ratio != null || s.weight));
     if (validSets.length === 0) return;
     // Custom exercise (not in DB): require body_part
     const isCustom = !exercises.some(e => e.name === name && e.category === "重訓");
@@ -530,7 +535,9 @@ export function ExerciseLog() {
     setStrBodyPartError(false);
     setStrFormErr(null);
     for (const s of validSets) {
-      const errW = checkBound(s.weight, BOUNDS.strWeight, lang, true);
+      const errW = ratio != null
+        ? checkBound(s.weight, BOUNDS.strExtra, lang)
+        : checkBound(s.weight, BOUNDS.strWeight, lang, true);
       const errR = checkBound(s.reps,   BOUNDS.strReps,   lang, true);
       if (errW || errR) { setStrFormErr(errW ?? errR); return; }
     }
@@ -558,9 +565,11 @@ export function ExerciseLog() {
       const sid = res.lastInsertId;
       for (let i = 0; i < validSets.length; i++) {
         const restSec = i > 0 && validSets[i].rest ? Math.round(parseFloat(validSets[i].rest) * 60) : null;
+        const extra   = ratio != null ? parseFloat(validSets[i].weight) || 0 : null;
+        const weight  = ratio != null ? pushupLoadKg(pushupBodyKg, ratio, extra!) : parseFloat(validSets[i].weight);
         await db.execute(
-          "INSERT INTO strength_set (session_id, set_number, weight_kg, reps, rest_sec, logged_at) VALUES (?,?,?,?,?,datetime('now','localtime'))",
-          [sid, i + 1, parseFloat(validSets[i].weight), parseInt(validSets[i].reps), restSec]);
+          "INSERT INTO strength_set (session_id, set_number, weight_kg, reps, rest_sec, extra_kg, logged_at) VALUES (?,?,?,?,?,?,datetime('now','localtime'))",
+          [sid, i + 1, weight, parseInt(validSets[i].reps), restSec, extra]);
       }
       setShowStrength(false);
       setStrExName(""); setStrSearch(""); setStrBodyPart(""); setStrExNameEn("");
@@ -571,11 +580,16 @@ export function ExerciseLog() {
 
   const addSetToSession = async () => {
     if (!addSetTo) return;
-    const w = parseFloat(addSetTo.w);
+    const sess  = sessions.find(s => s.id === addSetTo.sessionId);
+    const ratio = sess ? pushupRatio(sess.exercise_name) : null;
+    const extra = ratio != null ? parseFloat(addSetTo.w) || 0 : null;
+    const w = ratio != null ? pushupLoadKg(pushupBodyKg, ratio, extra!) : parseFloat(addSetTo.w);
     const r = parseInt(addSetTo.r);
     if (!w || !r) return;
     setAddSetErr(null);
-    const errW = checkBound(addSetTo.w, BOUNDS.strWeight, lang, true);
+    const errW = ratio != null
+      ? checkBound(addSetTo.w, BOUNDS.strExtra, lang)
+      : checkBound(addSetTo.w, BOUNDS.strWeight, lang, true);
     const errR = checkBound(addSetTo.r, BOUNDS.strReps,   lang, true);
     if (errW || errR) { setAddSetErr(errW ?? errR); return; }
     try {
@@ -586,8 +600,8 @@ export function ExerciseLog() {
         ? Math.round(parseFloat(addSetTo.rest) * 60)
         : null;
       await db.execute(
-        "INSERT INTO strength_set (session_id, set_number, weight_kg, reps, rest_sec, logged_at) VALUES (?,?,?,?,?,datetime('now','localtime'))",
-        [addSetTo.sessionId, (cnt?.c ?? 0) + 1, w, r, restSec]);
+        "INSERT INTO strength_set (session_id, set_number, weight_kg, reps, rest_sec, extra_kg, logged_at) VALUES (?,?,?,?,?,?,datetime('now','localtime'))",
+        [addSetTo.sessionId, (cnt?.c ?? 0) + 1, w, r, restSec, extra]);
       setAddSetTo(null);
       loadSessions();
     } catch (e) { logError("ExerciseLog", e); }
@@ -662,12 +676,15 @@ export function ExerciseLog() {
 
   const saveEditSet = async () => {
     if (!editingSet) return;
-    const w = parseFloat(editingSet.weight);
+    const { ratio } = editingSet;
+    if (ratio != null && checkBound(editingSet.weight, BOUNDS.strExtra, lang)) return;
+    const extra = ratio != null ? parseFloat(editingSet.weight) || 0 : null;
+    const w = ratio != null ? pushupLoadKg(pushupBodyKg, ratio, extra!) : parseFloat(editingSet.weight);
     const r = parseInt(editingSet.reps);
     if (!w || !r) return;
     try {
       const db = await getDb();
-      await db.execute("UPDATE strength_set SET weight_kg=?, reps=? WHERE id=?", [w, r, editingSet.id]);
+      await db.execute("UPDATE strength_set SET weight_kg=?, reps=?, extra_kg=? WHERE id=?", [w, r, extra, editingSet.id]);
       setEditingSet(null);
       loadSessions();
     } catch (e) { logError("ExerciseLog", e); }
@@ -711,6 +728,9 @@ export function ExerciseLog() {
     : strBodyPart
       ? strengthExs.filter(e => e.body_part === strBodyPart)
       : strengthExs;
+
+  const strRatio      = pushupRatio(strExName);
+  const strValidCount = strSets.filter(s => s.reps && (strRatio != null || s.weight)).length;
 
   const previewKcal = calcKcal();
   const totalStrVol = sessions.reduce((s, sess) => s + sess.sets.reduce((a, st) => a + st.weight_kg * st.reps, 0), 0);
@@ -1055,6 +1075,7 @@ export function ExerciseLog() {
 
           {filteredSessions.map(sess => {
             const vol = sess.sets.reduce((s, st) => s + st.weight_kg * st.reps, 0);
+            const sessRatio = pushupRatio(sess.exercise_name);
             const partColor = sess.body_part ? BODY_PART_COLORS[sess.body_part] : "#9ca3af";
             return (
               <div key={sess.id} className="card p-0 overflow-hidden">
@@ -1122,7 +1143,8 @@ export function ExerciseLog() {
                           /* ── Inline edit: weight + reps ── */
                           <>
                             <UnitInput value={editingSet.weight} onChange={v => setEditingSet(s => s ? { ...s, weight: v } : null)}
-                              unit="kg" py="py-1" pr="pr-7" />
+                              unit={sessRatio != null ? "+kg" : "kg"} py="py-1" pr="pr-7"
+                              placeholder={sessRatio != null ? "0" : undefined} />
                             <span className="text-[var(--text-on-surface-muted)] text-xs">×</span>
                             <UnitInput value={editingSet.reps} onChange={v => setEditingSet(s => s ? { ...s, reps: v } : null)}
                               unit={lang === "zh" ? "下" : "reps"} py="py-1" pr="pr-7" />
@@ -1134,14 +1156,16 @@ export function ExerciseLog() {
                           <>
                             <span className="flex-1 text-sm text-[var(--text-on-surface)]">
                               <span className="font-bold">{st.weight_kg}</span>
-                              <span className="text-[var(--text-on-surface-muted)] text-xs"> kg × </span>
+                              <span className="text-[var(--text-on-surface-muted)] text-xs"> kg{st.extra_kg ? ` (+${st.extra_kg})` : ""} × </span>
                               <span className="font-bold">{st.reps}</span>
                               <span className="text-[var(--text-on-surface-muted)] text-xs"> {lang === "zh" ? "下" : "reps"}</span>
                             </span>
                             <span className="text-xs text-[var(--text-on-surface-muted)]">
                               {Math.round(st.weight_kg * st.reps)} kg
                             </span>
-                            <button onClick={() => setEditingSet({ id: st.id, weight: String(st.weight_kg), reps: String(st.reps) })}
+                            <button onClick={() => setEditingSet(sessRatio != null
+                                ? { id: st.id, weight: st.extra_kg ? String(st.extra_kg) : "", reps: String(st.reps), ratio: sessRatio }
+                                : { id: st.id, weight: String(st.weight_kg), reps: String(st.reps), ratio: null })}
                               className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={15} /></button>
                             <button onClick={() => deleteSet(st.id)}
                               className="icon-btn text-red-400 hover:text-red-500 transition-colors"><X size={15} /></button>
@@ -1185,7 +1209,8 @@ export function ExerciseLog() {
                     {/* Weight × Reps row */}
                     <div className="flex items-center gap-2 px-4 py-2.5 bg-[var(--surface-container-low)] border-t border-[var(--surface-border)]">
                       <UnitInput value={addSetTo.w} onChange={v => setAddSetTo(a => a ? { ...a, w: v } : null)}
-                        unit="kg" placeholder={t("exercise.weightKg")} />
+                        unit={sessRatio != null ? "+kg" : "kg"}
+                        placeholder={sessRatio != null ? (lang === "zh" ? "額外負重 0" : "Added 0") : t("exercise.weightKg")} />
                       <span className="text-[var(--text-on-surface-muted)]">×</span>
                       <UnitInput value={addSetTo.r} onChange={v => setAddSetTo(a => a ? { ...a, r: v } : null)}
                         unit={lang === "zh" ? "下" : "reps"} placeholder={t("exercise.reps")} />
@@ -1630,6 +1655,13 @@ export function ExerciseLog() {
               {/* Sets builder */}
               <div>
                 <p className="text-xs font-semibold text-[var(--text-on-surface-muted)] uppercase tracking-wide mb-3">{t("exercise.setsSetup")}</p>
+                {strRatio != null && (
+                  <p className="text-xs text-[var(--text-on-surface-muted)] mb-3">
+                    {lang === "zh"
+                      ? `負重 = 體重 ${pushupBodyKg} kg × ${Math.round(strRatio * 100)}% + 額外負重（${pushupLoadKg(pushupBodyKg, strRatio)} kg）`
+                      : `Load = body weight ${pushupBodyKg} kg × ${Math.round(strRatio * 100)}% + added load (${pushupLoadKg(pushupBodyKg, strRatio)} kg)`}
+                  </p>
+                )}
                 <div className="space-y-tight">
                   {strSets.map((s, idx) => (
                     <div key={idx}>
@@ -1648,7 +1680,8 @@ export function ExerciseLog() {
                           {lang === "zh" ? `第 ${idx + 1} 組` : `${t("exercise.setLabel")} ${idx + 1}`}
                         </span>
                         <UnitInput value={s.weight} onChange={v => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, weight: v } : x))}
-                          unit="kg" py="py-2" placeholder={t("exercise.weightKg")} />
+                          unit={strRatio != null ? "+kg" : "kg"} py="py-2"
+                          placeholder={strRatio != null ? (lang === "zh" ? "額外負重 0" : "Added 0") : t("exercise.weightKg")} />
                         <span className="text-[var(--text-on-surface-muted)] text-sm">×</span>
                         <UnitInput value={s.reps} onChange={v => setStrSets(ss => ss.map((x, i) => i === idx ? { ...x, reps: v } : x))}
                           unit={lang === "zh" ? "下" : "reps"} py="py-2" placeholder={t("exercise.reps")} />
@@ -1675,11 +1708,11 @@ export function ExerciseLog() {
                 </p>
               )}
               <button onClick={saveStrengthSession}
-                disabled={!strExName.trim() || strSets.every(s => !s.weight || !s.reps)}
+                disabled={!strExName.trim() || strValidCount === 0}
                 className="btn-primary w-full py-3 text-sm font-semibold disabled:opacity-40">
                 {lang === "zh"
-                  ? `儲存（${strSets.filter(s => s.weight && s.reps).length} 組）`
-                  : `Save (${strSets.filter(s => s.weight && s.reps).length} ${strSets.filter(s => s.weight && s.reps).length === 1 ? "set" : "sets"})`}
+                  ? `儲存（${strValidCount} 組）`
+                  : `Save (${strValidCount} ${strValidCount === 1 ? "set" : "sets"})`}
               </button>
             </div>
         </BottomSheet>

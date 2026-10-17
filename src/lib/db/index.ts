@@ -216,6 +216,7 @@ CREATE TABLE IF NOT EXISTS strength_set (
   weight_kg REAL NOT NULL,
   reps INTEGER NOT NULL,
   rest_sec INTEGER,
+  extra_kg REAL,
   logged_at TEXT DEFAULT (datetime('now','localtime')),
   FOREIGN KEY (session_id) REFERENCES strength_session(id) ON DELETE CASCADE
 );
@@ -345,6 +346,8 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   { v: 35, sql: "ALTER TABLE sleep_log ADD COLUMN wake_up_time TEXT" },
   { v: 36, sql: "ALTER TABLE strength_set ADD COLUMN rest_sec INTEGER" },
   { v: 37, sql: "ALTER TABLE strength_set ADD COLUMN logged_at TEXT" },
+  // Push-up sets: added load on top of the body-weight share (weight_kg holds the total)
+  { v: 38, sql: "ALTER TABLE strength_set ADD COLUMN extra_kg REAL" },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

@@ -80,3 +80,12 @@ export async function deleteWaterEntry(id: number): Promise<void> {
   const db = await getDb();
   await db.execute("DELETE FROM water_log WHERE id=?", [id]);
 }
+
+/** Body weight on `date`: that day's latest weigh-in, else the most recent one before it, else `fallbackKg`. */
+export async function getBodyWeightOn(userId: number, date: string, fallbackKg: number): Promise<number> {
+  const db = await getDb();
+  const [row] = await db.select<{ weight_kg: number }[]>(
+    "SELECT weight_kg FROM weight_log WHERE user_id=? AND log_date<=? ORDER BY log_date DESC, log_time DESC, id DESC LIMIT 1",
+    [userId, date]);
+  return row?.weight_kg ?? fallbackKg;
+}
