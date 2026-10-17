@@ -205,7 +205,7 @@ export function ExerciseLog() {
   const [strExName, setStrExName]       = useState("");
   const [strBodyPart, setStrBodyPart]   = useState<BodyPart | "">("");
   const [strSets, setStrSets]           = useState<SetInput[]>([{ weight: "", reps: "", rest: "" }]);
-  const [addSetTo, setAddSetTo]         = useState<{ sessionId: number; w: string; r: string; rest: string; suggestedRest: number | null } | null>(null);
+  const [addSetTo, setAddSetTo]         = useState<{ sessionId: number; w: string; r: string; rest: string; suggestedRest: number | null; restApplied: boolean } | null>(null);
   const [strFilterPart, setStrFilterPart] = useState<BodyPart | "全部">("全部");
   const [strNameFocused, setStrNameFocused] = useState(false);
   const [strBodyPartError, setStrBodyPartError] = useState(false);
@@ -1190,19 +1190,34 @@ export function ExerciseLog() {
                             className="input-base py-1 pr-8 text-xs text-green-700 border-green-200 focus:border-green-400 w-full"
                             type="number" inputMode="decimal"
                             value={addSetTo.rest}
-                            onChange={e => setAddSetTo(a => a ? { ...a, rest: e.target.value } : null)}
-                            placeholder={addSetTo.suggestedRest ? String(+(addSetTo.suggestedRest / 60).toFixed(1)) : "0"}
+                            onChange={e => setAddSetTo(a => a ? { ...a, rest: e.target.value, restApplied: false } : null)}
+                            placeholder="0"
                           />
                           <span className="absolute right-2 top-1.5 text-10 text-green-500">min</span>
                         </div>
                         {addSetTo.suggestedRest != null && (
-                          <button
-                            onClick={() => setAddSetTo(a => a ? { ...a, rest: +(a.suggestedRest! / 60).toFixed(1) + "" } : null)}
-                            className="text-10 text-green-500 underline whitespace-nowrap">
-                            {lang === "zh"
-                              ? `自動偵測 ${Math.floor(addSetTo.suggestedRest / 60)}分${addSetTo.suggestedRest % 60}秒`
-                              : `Auto ${Math.floor(addSetTo.suggestedRest / 60)}m${addSetTo.suggestedRest % 60}s`}
-                          </button>
+                          <>
+                            <span className="text-10 text-green-500 whitespace-nowrap">
+                              {lang === "zh"
+                                ? `預測 ${Math.floor(addSetTo.suggestedRest / 60)}分${addSetTo.suggestedRest % 60}秒`
+                                : `Predicted ${Math.floor(addSetTo.suggestedRest / 60)}m${addSetTo.suggestedRest % 60}s`}
+                            </span>
+                            {/* Toggle: apply the predicted rest, or clear it again */}
+                            <button
+                              onClick={() => setAddSetTo(a => a
+                                ? (a.restApplied
+                                    ? { ...a, rest: "", restApplied: false }
+                                    : { ...a, rest: +(a.suggestedRest! / 60).toFixed(1) + "", restApplied: true })
+                                : null)}
+                              className={clsx("px-2 py-0.5 rounded-full text-10 font-medium whitespace-nowrap border transition-colors",
+                                addSetTo.restApplied
+                                  ? "bg-green-500 border-green-500 text-white"
+                                  : "border-green-300 text-green-600 hover:bg-green-50")}>
+                              {addSetTo.restApplied
+                                ? (lang === "zh" ? "已套用" : "Applied")
+                                : (lang === "zh" ? "套用" : "Apply")}
+                            </button>
+                          </>
                         )}
                       </div>
                     )}
@@ -1238,8 +1253,8 @@ export function ExerciseLog() {
                           const elapsed = Math.round((Date.now() - new Date(lastRow.logged_at).getTime()) / 1000);
                           if (elapsed > 0 && elapsed < 3600) suggested = elapsed;
                         }
-                        setAddSetTo({ sessionId: sess.id, w: "", r: "", rest: "", suggestedRest: suggested });
-                      } catch { setAddSetTo({ sessionId: sess.id, w: "", r: "", rest: "", suggestedRest: null }); }
+                        setAddSetTo({ sessionId: sess.id, w: "", r: "", rest: "", suggestedRest: suggested, restApplied: false });
+                      } catch { setAddSetTo({ sessionId: sess.id, w: "", r: "", rest: "", suggestedRest: null, restApplied: false }); }
                     }}
                     className="w-full flex items-center justify-center gap-micro.5 py-2.5 text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors border-t border-[var(--surface-border)]">
                     <Plus size={12} /> {t("exercise.addSet")}
