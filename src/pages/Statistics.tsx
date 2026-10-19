@@ -34,7 +34,7 @@ import { MODE_GOAL, MODE_META, STATS_MIN_DAYS } from "@/constants";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StatTab = "pearson" | "advanced" | "patterns" | "stability";
+type StatTab = "pearson" | "patterns" | "stability" | "advanced";
 
 interface LagRow extends LagCurveRow {
   sampleSize: number;
@@ -260,7 +260,7 @@ export function Statistics() {
   const dStr = (n: number) => lang === "zh" ? `${n}天` : `${n} days`;
 
   const [activeTab, setActiveTab] = useState<StatTab>("pearson");
-  const STAT_TABS = ["pearson", "advanced", "patterns", "stability"] as const;
+  const STAT_TABS = ["pearson", "patterns", "stability", "advanced"] as const;
   const statSwipe = useSwipeTabs(STAT_TABS, activeTab, setActiveTab as (t: string) => void);
 
   const { days, showCustom, setShowCustom, customRange, setCustomRange, modeCustom, setModeCustom, getFromTo, rangeTotal, selectPreset } = useDateRange(90);
@@ -959,12 +959,6 @@ export function Statistics() {
             ? (lang === "zh" ? "進階" : "Adv.")
             : (lang === "zh" ? "目標" : "Goal")}
         </PillButton>
-        <PillButton onClick={() => setActiveTab("advanced")} isActive={activeTab === "advanced"}
-          className="flex-1 py-2 text-sm flex items-center justify-center gap-micro">
-          {modeSettings?.mode === "custom"
-            ? (lang === "zh" ? "進階2" : "Adv.2")
-            : t("stats.tab.advanced")}
-        </PillButton>
         <PillButton onClick={() => setActiveTab("patterns")} isActive={activeTab === "patterns"}
           className="flex-1 py-2 text-sm">
           {lang === "zh" ? "規律" : "Patterns"}
@@ -972,6 +966,12 @@ export function Statistics() {
         <PillButton onClick={() => setActiveTab("stability")} isActive={activeTab === "stability"}
           className="flex-1 py-2 text-sm">
           {lang === "zh" ? "穩定度" : "Stability"}
+        </PillButton>
+        <PillButton onClick={() => setActiveTab("advanced")} isActive={activeTab === "advanced"}
+          className="flex-1 py-2 text-sm flex items-center justify-center gap-micro">
+          {modeSettings?.mode === "custom"
+            ? (lang === "zh" ? "進階2" : "Adv.2")
+            : t("stats.tab.advanced")}
         </PillButton>
       </div>
 
