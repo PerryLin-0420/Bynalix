@@ -221,6 +221,13 @@ function LagSection({ section, lang }: { section: { targetLabel: string; rows: L
           </div>
         );
       })}
+      {open && (
+        <p className="pt-2 text-10 text-[var(--text-on-surface-muted)]">
+          {zh ? "資料密度" : "Density"}: <span className="text-green-500">●</span> ≥80%{" "}
+          <span className="text-amber-400">●</span> 50–79%{" "}
+          <span className="text-red-400">●</span> &lt;50%
+        </p>
+      )}
     </div>
   );
 }
@@ -1068,9 +1075,6 @@ export function Statistics() {
                 <Target size={14} className="text-[var(--text-accent)]" />
                 {lang === "zh" ? "觀察目標" : "Goal"}
               </p>
-              <span className="text-10 text-[var(--text-on-surface-muted)]">
-                {lang === "zh" ? `最低須該區間 ${STATS_MIN_DAYS} 天有效資料` : `Min. ${STATS_MIN_DAYS} days of data required`}
-              </span>
             </div>
             {(() => {
               const wDensity = rangeTotal > 0 ? Math.round((daysWithData / rangeTotal) * 100) : 0;
@@ -1187,23 +1191,6 @@ export function Statistics() {
             {lagSections.map((section) => (
               <LagSection key={section.targetLabel} section={section} lang={lang} />
             ))}
-
-            {/* ── Density legend ────────────────────────────────────────── */}
-            <div className="flex items-center gap-4 px-1 pb-1">
-              <p className="text-10 text-white shrink-0">
-                {lang === "zh" ? "資料密度" : "Data density"}:
-              </p>
-              {[
-                { clx: "text-green-500",  label: lang === "zh" ? "≥80%" : "≥80%" },
-                { clx: "text-amber-400",  label: lang === "zh" ? "50–79%" : "50–79%" },
-                { clx: "text-red-400",    label: lang === "zh" ? "<50%" : "<50%" },
-              ].map(({ clx, label }) => (
-                <div key={label} className="flex items-center gap-micro">
-                  <span className={clsx("text-xs leading-none", clx)}>●</span>
-                  <span className="text-10 text-white">{label}</span>
-                </div>
-              ))}
-            </div>
 
           </div>
         );

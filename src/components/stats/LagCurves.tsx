@@ -85,8 +85,8 @@ export function LagCurves({ rows, isGood, maxLag, lang }: Props) {
       <CardHeader mb="mb-1" title={zh ? "延遲影響曲線 → 體重變化" : "Lag curves → weight change"} />
       <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
         {zh
-          ? `每條曲線是該項目在第 0–${maxLag} 天前的數值，與 3 日體重變化的相關係數 r。峰值落在哪一天，就是影響最明顯的延遲。`
-          : `Each curve is the correlation r between a factor 0–${maxLag} days earlier and the 3-day weight change. Where it peaks is the delay at which the effect shows most.`}
+          ? `與 0–${maxLag} 天後 3 日體重變化的相關 r · 峰值＝影響最明顯的那天`
+          : `r against the 3-day weight change 0–${maxLag} days later · the peak is when it shows most`}
       </p>
 
       {/* Column header — the mini-chart axis is shared, so it is labelled once. */}

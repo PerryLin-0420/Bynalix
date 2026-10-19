@@ -575,12 +575,8 @@ export function Dashboard() {
           })}
         </div>
         <p className="text-10 text-[var(--text-on-surface-muted)] mt-3">
-          {lang === "zh" ? "熱量與飲水達標：攝取在目標的 80–110% 範圍內"
-                        : "Calorie & water goals: within 80–110% of target"}
-        </p>
-        <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
-          {lang === "zh" ? "營養均衡達標：蛋白質、碳水、脂肪皆在目標的 80–110% 範圍內"
-                        : "Macro balance: protein, carb & fat all within 80–110% of target"}
+          {lang === "zh" ? "達標＝攝取在目標的 80–110%；營養均衡需三大營養素皆達標"
+                        : "Met = within 80–110% of target; macro balance needs all three macros met"}
         </p>
       </div>
     );
