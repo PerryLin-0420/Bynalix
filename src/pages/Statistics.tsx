@@ -4,14 +4,14 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { format, subDays } from "date-fns";
-import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
+import { BarChart2, ChevronDown, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
 import { MetricPicker, metricKey, metricLabel, ALL_BODY_PARTS, type MetricCfg } from "@/components/stats/MetricPicker";
 import { CorrelationNetwork } from "@/components/stats/CorrelationNetwork";
 import { EmergenceCards } from "@/components/stats/EmergenceCards";
 import { StabilityRadar } from "@/components/stats/StabilityRadar";
 import { LagCurves, type LagCurveRow } from "@/components/stats/LagCurves";
 import { ChartExportButton } from "@/components/common/ChartExportButton";
-import { WeekdayPatternCards } from "@/components/stats/WeekdayPatternCards";
+import { WeekdayPatternChart } from "@/components/stats/WeekdayPatternChart";
 import { computeCorrelationNetwork, computeWeekdayPatterns, type CorrelationNetwork as NetworkData, type WeekdayPattern } from "@/lib/statistics/network";
 import { computeStabilityChart, type StabilityResult } from "@/lib/statistics/stability";
 import { CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE } from "@/constants";
@@ -164,6 +164,63 @@ function FactorInsightCard({ label, r, density, isGood, insight, dcClx, reliabil
           )}
         </p>
       </div>
+    </div>
+  );
+}
+
+/** One target's lag list. Collapsed it shows only the strongest factor; the full rows open on tap. */
+function LagSection({ section, lang }: { section: { targetLabel: string; rows: LagRow[] }; lang: string }) {
+  const zh = lang === "zh";
+  const [open, setOpen] = useState(false);
+  const top = section.rows.find(r => r.best != null);
+  const rClx = (r: number | null) =>
+    r == null ? "text-gray-400" : r > 0.1 ? "text-red-400" : r < -0.1 ? "text-emerald-500" : "text-gray-400";
+  const lagTxt = (lag: number) => lag === 0 ? (zh ? "當天" : "same day") : `lag ${lag}d`;
+
+  return (
+    <div className="card space-y-0 divide-y divide-[var(--surface-border)]">
+      <button onClick={() => setOpen(v => !v)} aria-expanded={open}
+        className={clsx("w-full flex items-center gap-2 text-left", open && "pb-2")}>
+        <p className="text-xs font-semibold text-[var(--text-on-surface)] shrink-0">
+          {zh ? "延遲影響" : "Lag Impact"}
+          <span className="ml-1.5 text-[var(--text-accent)]">{section.targetLabel}</span>
+        </p>
+        {!open && (
+          <p className="flex-1 min-w-0 text-11 text-[var(--text-on-surface-muted)] truncate text-right">
+            {top?.best
+              ? <>{zh ? "最強：" : "Top: "}{top.label} · {lagTxt(top.best.lag)}{" "}
+                  <span className={clsx("font-mono font-bold", rClx(top.best.r))}>
+                    {top.best.r >= 0 ? "+" : ""}{top.best.r.toFixed(2)}
+                  </span></>
+              : (zh ? "資料不足" : "insufficient data")}
+          </p>
+        )}
+        <ChevronDown size={14} className={clsx("shrink-0 ml-auto text-[var(--text-on-surface-muted)] transition-transform", open && "rotate-180")} />
+      </button>
+      {open && section.rows.map((row) => {
+        const r    = row.best?.r   ?? null;
+        const lag  = row.best?.lag ?? null;
+        const n    = row.sampleSize;
+        const dotClx = densityDotCls(row.density);
+        const sym  = r == null ? "—" : Math.abs(r) <= 0.1 ? "→" : r > 0 ? "↑" : "↓";
+        const lowR = r !== null && n < RELIABILITY_THRESHOLDS.MIN_PAIRS;
+        return (
+          <div key={row.factor} className={clsx("flex items-center gap-2 py-2", lowR && "opacity-60")}>
+            <p className="text-xs font-medium text-[var(--text-on-surface)] w-20 shrink-0 truncate">{row.label}</p>
+            <span className={clsx("text-base font-bold w-5 text-center shrink-0", rClx(r))}>{sym}</span>
+            <p className="text-11 text-[var(--text-on-surface-muted)] flex-1">
+              {r == null || lag == null ? (zh ? "不足" : "n/a") : lagTxt(lag)}
+              {r !== null && <span className="ml-1 text-gray-400">n={n}</span>}
+            </p>
+            {r !== null && (
+              <span className={clsx("text-xs font-mono font-bold shrink-0", rClx(r))}>
+                {r >= 0 ? "+" : ""}{r.toFixed(2)}
+              </span>
+            )}
+            <span className={clsx("text-base leading-none shrink-0", dotClx)}>●</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1117,8 +1174,8 @@ export function Statistics() {
               ))}
             </div>
 
-            {/* ── Weekday-effect one-liner patterns ────────────────────── */}
-            <WeekdayPatternCards patterns={weekdayPatterns} lang={lang} />
+            {/* ── Weekend vs weekday bars, each expandable to a week curve ── */}
+            <WeekdayPatternChart patterns={weekdayPatterns} lang={lang} />
 
             {/* ── Correlation network graph ────────────────────────────── */}
             {network && <CorrelationNetwork network={network} lang={lang} />}
@@ -1126,44 +1183,9 @@ export function Statistics() {
             {/* ── Newly-emerged relationships, grouped by hub factor ───── */}
             <EmergenceCards userId={profile.user_id} lang={lang} />
 
-            {/* ── Lag sections ─────────────────────────────────────────── */}
+            {/* ── Lag sections — collapsed to a one-line summary by default ── */}
             {lagSections.map((section) => (
-              <div key={section.targetLabel} className="card space-y-0 divide-y divide-[var(--surface-border)]">
-                <p className="text-xs font-semibold text-[var(--text-on-surface)] pb-2">
-                  {lang === "zh" ? "延遲影響" : "Lag Impact"}
-                  <span className="ml-1.5 text-[var(--text-accent)]">{section.targetLabel}</span>
-                  <span className="ml-1 font-normal text-[var(--text-on-surface-muted)]">(0–7d)</span>
-                </p>
-                {section.rows.map((row) => {
-                  const r    = row.best?.r   ?? null;
-                  const lag  = row.best?.lag ?? null;
-                  const n    = row.sampleSize;
-                  const dotClx = densityDotCls(row.density);
-                  const sym  = r == null ? "—" : Math.abs(r) <= 0.1 ? "→" : r > 0 ? "↑" : "↓";
-                  const rClx = r == null ? "text-gray-400" : r > 0.1 ? "text-red-400" : r < -0.1 ? "text-emerald-500" : "text-gray-400";
-                  const lowR = r !== null && n < RELIABILITY_THRESHOLDS.MIN_PAIRS;
-                  return (
-                    <div key={row.factor} className={clsx("flex items-center gap-2 py-2", lowR && "opacity-60")}>
-                      <p className="text-xs font-medium text-[var(--text-on-surface)] w-20 shrink-0 truncate">{row.label}</p>
-                      <span className={clsx("text-base font-bold w-5 text-center shrink-0", rClx)}>{sym}</span>
-                      <p className="text-11 text-[var(--text-on-surface-muted)] flex-1">
-                        {r == null
-                          ? (lang === "zh" ? "不足" : "n/a")
-                          : lag === 0
-                            ? (lang === "zh" ? "當天" : "same day")
-                            : `lag ${lag}d`}
-                        {r !== null && <span className="ml-1 text-gray-400">n={n}</span>}
-                      </p>
-                      {r !== null && (
-                        <span className={clsx("text-xs font-mono font-bold shrink-0", rClx)}>
-                          {r >= 0 ? "+" : ""}{r.toFixed(2)}
-                        </span>
-                      )}
-                      <span className={clsx("text-base leading-none shrink-0", dotClx)}>●</span>
-                    </div>
-                  );
-                })}
-              </div>
+              <LagSection key={section.targetLabel} section={section} lang={lang} />
             ))}
 
             {/* ── Density legend ────────────────────────────────────────── */}
