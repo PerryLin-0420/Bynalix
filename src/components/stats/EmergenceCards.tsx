@@ -206,9 +206,7 @@ export function EmergenceCards({ userId, lang }: Props) {
           </button>
         } />
       <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
-        {zh
-          ? "上面的關係圖是「現在」的快照，看不出哪些關聯是最近才出現的。這裡把同一段記錄切成從長到短的窗口序列，找出真正新出現、且持續至今的關聯（像體重與熱量這種從頭到尾都成立的長期穩定關係不會列在這裡），並依共同因子分組成卡片。"
-          : "The graph above is a snapshot of \"now\" — it can't tell a relationship that's always held from one that just started. This re-scores the same record across a long-to-short window sequence to find links that measurably turned on and still hold (a long-term stable one, like weight and calories, is excluded), grouped into cards by shared factor."}
+        {zh ? "找出記錄中途才開始成立、且持續至今的關聯" : "Links that started partway through the record and still hold"}
       </p>
 
       {showSetup && (
@@ -277,8 +275,8 @@ export function EmergenceCards({ userId, lang }: Props) {
               {cannotSplit && (
                 <p className="text-10 text-amber-600">
                   {zh
-                    ? `這段區間只有 ${totalDays} 天。要判斷一個關聯是「新出現的」，必須把記錄切成前後兩段各自算一次再比較，兩段都至少要 ${EMERGENCE_MIN_DAYS / 2} 天，所以整段至少需要 ${EMERGENCE_MIN_DAYS} 天記錄才有得比。`
-                    : `This range is only ${totalDays} days. Calling a link "new" means splitting the record and scoring each side separately, and each side needs at least ${EMERGENCE_MIN_DAYS / 2} days — so there is nothing to compare under ${EMERGENCE_MIN_DAYS} days of record.`}
+                    ? `至少需要 ${EMERGENCE_MIN_DAYS} 天記錄才能比較前後兩段（目前 ${totalDays} 天）`
+                    : `Needs at least ${EMERGENCE_MIN_DAYS} days to compare before and after (now ${totalDays})`}
                 </p>
               )}
 
@@ -321,12 +319,8 @@ export function EmergenceCards({ userId, lang }: Props) {
             {splits === 0
               // Nothing was tested, so "nothing found" would be a conclusion
               // this scan never reached — say which it is.
-              ? (zh
-                ? `這段區間的記錄天數不足以切成前後兩段比較（兩段各需 ${EMERGENCE_MIN_DAYS / 2} 天），所以還沒有做過檢定 — 這不代表沒有變化，是還測不出來。繼續累積記錄後再回來看。`
-                : `Too few logged days here to split into a before and a since period (${EMERGENCE_MIN_DAYS / 2} days are needed on each side), so no test was run — that is not "no change", it is "not yet measurable". Come back with more record.`)
-              : (zh
-                ? "這段區間沒有找到新出現且持續的關聯 — 目前的關係圖裡的連線多半是長期穩定的。"
-                : "No newly-emerged, still-holding relationship in this range — what's in the network graph above is mostly long-term stable.")}
+              ? (zh ? "記錄天數還不夠，暫時測不出變化" : "Not enough logged days to test yet")
+              : (zh ? "沒有找到新出現的關聯" : "No newly-emerged links in this range")}
           </p>
         ) : (
           <div className="space-y-3">
@@ -388,13 +382,8 @@ function HubChart({ card, frames, lang, varLabel, md, dayStr, lagLabel }: {
 
   return (
     <div className="rounded-xl bg-[var(--surface-container-low)] px-3 py-3">
-      <p className="text-xs font-semibold text-[var(--text-on-surface)] mb-0.5">
+      <p className="text-xs font-semibold text-[var(--text-on-surface)] mb-2">
         {zh ? `${varLabel(card.hub)} 的新出現關聯` : `${varLabel(card.hub)}'s newly-emerged links`}
-      </p>
-      <p className="text-9 text-[var(--text-on-surface-muted)] mb-2">
-        {zh
-          ? `${card.links.length} 個因子在這段記錄裡開始與「${varLabel(card.hub)}」同時變化`
-          : `${card.links.length} factors started moving together with "${varLabel(card.hub)}" during this record`}
       </p>
 
       <ResponsiveContainer width="100%" height={160}>
@@ -453,9 +442,7 @@ function HubChart({ card, frames, lang, varLabel, md, dayStr, lagLabel }: {
         })}
       </div>
       <p className="text-9 text-[var(--text-on-surface-muted)] mt-1.5">
-        {zh
-          ? "垂直虛線＝最早的起始日期；p 值已對整趟搜尋校正"
-          : "Dashed line = earliest onset date; p corrected for the whole search"}
+        {zh ? "虛線＝最早起始日" : "Dashed line = earliest onset"}
       </p>
     </div>
   );

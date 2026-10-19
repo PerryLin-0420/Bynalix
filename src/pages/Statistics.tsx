@@ -4,13 +4,14 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { format, subDays } from "date-fns";
-import { BarChart2, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
+import { BarChart2, ChevronDown, TrendingDown, TrendingUp, Minus, RefreshCw, Target, Pencil, Plus, X, User } from "lucide-react";
 import { MetricPicker, metricKey, metricLabel, ALL_BODY_PARTS, type MetricCfg } from "@/components/stats/MetricPicker";
 import { CorrelationNetwork } from "@/components/stats/CorrelationNetwork";
 import { EmergenceCards } from "@/components/stats/EmergenceCards";
 import { StabilityRadar } from "@/components/stats/StabilityRadar";
+import { LagCurves, type LagCurveRow } from "@/components/stats/LagCurves";
 import { ChartExportButton } from "@/components/common/ChartExportButton";
-import { WeekdayPatternCards } from "@/components/stats/WeekdayPatternCards";
+import { WeekdayPatternChart } from "@/components/stats/WeekdayPatternChart";
 import { computeCorrelationNetwork, computeWeekdayPatterns, type CorrelationNetwork as NetworkData, type WeekdayPattern } from "@/lib/statistics/network";
 import { computeStabilityChart, type StabilityResult } from "@/lib/statistics/stability";
 import { CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE } from "@/constants";
@@ -27,22 +28,20 @@ import { useDateRange } from "@/hooks/useDateRange";
 import { useSwipeTabs } from "@/hooks/useSwipe";
 import { getDailyStatsRecords, getActiveDates } from "@/lib/db/queries/stats";
 import { getDb } from "@/lib/db";
-import { computeInfluenceRanking, FACTOR_LABELS, FACTOR_LABELS_EN, RELIABILITY_THRESHOLDS, getReliability, lagCorrelation, bestLag, buildDateRange as buildDateRangePure, linearInterpolate as linearInterpPure, type Factor, type Reliability, type LagResult } from "@/lib/statistics/pearson";
+import { RELIABILITY_THRESHOLDS, getReliability, lagCorrelation, bestLag, buildDateRange as buildDateRangePure, linearInterpolate as linearInterpPure, type Reliability } from "@/lib/statistics/pearson";
 import { logError } from "@/lib/error";
 import { MODE_GOAL, MODE_META, STATS_MIN_DAYS } from "@/constants";
-import type { DailyStatsRecord } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StatTab = "pearson" | "advanced" | "patterns" | "stability";
+type StatTab = "pearson" | "patterns" | "stability" | "advanced";
 
-interface LagRow {
-  factor: string;
-  label: string;
-  best: LagResult | null;
-  density: number;
+interface LagRow extends LagCurveRow {
   sampleSize: number;
 }
+
+/** Days of lag scanned for every lag analysis on the page. */
+const MAX_LAG = 7;
 
 interface TrendTabData {
   trends: {
@@ -50,6 +49,8 @@ interface TrendTabData {
     sleep:    { slope: number; significant: boolean } | null;
     calories: { slope: number; significant: boolean } | null;
   };
+  /** Factor → weight-change lag profiles, shown as curves on the goal tab. */
+  weightLag: LagRow[];
   lagSections: { targetLabel: string; rows: LagRow[] }[];
 }
 
@@ -167,6 +168,70 @@ function FactorInsightCard({ label, r, density, isGood, insight, dcClx, reliabil
   );
 }
 
+/** One target's lag list. Collapsed it shows only the strongest factor; the full rows open on tap. */
+function LagSection({ section, lang }: { section: { targetLabel: string; rows: LagRow[] }; lang: string }) {
+  const zh = lang === "zh";
+  const [open, setOpen] = useState(false);
+  const top = section.rows.find(r => r.best != null);
+  const rClx = (r: number | null) =>
+    r == null ? "text-gray-400" : r > 0.1 ? "text-red-400" : r < -0.1 ? "text-emerald-500" : "text-gray-400";
+  const lagTxt = (lag: number) => lag === 0 ? (zh ? "當天" : "same day") : `lag ${lag}d`;
+
+  return (
+    <div className="card space-y-0 divide-y divide-[var(--surface-border)]">
+      <button onClick={() => setOpen(v => !v)} aria-expanded={open}
+        className={clsx("w-full flex items-center gap-2 text-left", open && "pb-2")}>
+        <p className="text-xs font-semibold text-[var(--text-on-surface)] shrink-0">
+          {zh ? "延遲影響" : "Lag Impact"}
+          <span className="ml-1.5 text-[var(--text-accent)]">{section.targetLabel}</span>
+        </p>
+        {!open && (
+          <p className="flex-1 min-w-0 text-11 text-[var(--text-on-surface-muted)] truncate text-right">
+            {top?.best
+              ? <>{zh ? "最強：" : "Top: "}{top.label} · {lagTxt(top.best.lag)}{" "}
+                  <span className={clsx("font-mono font-bold", rClx(top.best.r))}>
+                    {top.best.r >= 0 ? "+" : ""}{top.best.r.toFixed(2)}
+                  </span></>
+              : (zh ? "資料不足" : "insufficient data")}
+          </p>
+        )}
+        <ChevronDown size={14} className={clsx("shrink-0 ml-auto text-[var(--text-on-surface-muted)] transition-transform", open && "rotate-180")} />
+      </button>
+      {open && section.rows.map((row) => {
+        const r    = row.best?.r   ?? null;
+        const lag  = row.best?.lag ?? null;
+        const n    = row.sampleSize;
+        const dotClx = densityDotCls(row.density);
+        const sym  = r == null ? "—" : Math.abs(r) <= 0.1 ? "→" : r > 0 ? "↑" : "↓";
+        const lowR = r !== null && n < RELIABILITY_THRESHOLDS.MIN_PAIRS;
+        return (
+          <div key={row.factor} className={clsx("flex items-center gap-2 py-2", lowR && "opacity-60")}>
+            <p className="text-xs font-medium text-[var(--text-on-surface)] w-20 shrink-0 truncate">{row.label}</p>
+            <span className={clsx("text-base font-bold w-5 text-center shrink-0", rClx(r))}>{sym}</span>
+            <p className="text-11 text-[var(--text-on-surface-muted)] flex-1">
+              {r == null || lag == null ? (zh ? "不足" : "n/a") : lagTxt(lag)}
+              {r !== null && <span className="ml-1 text-gray-400">n={n}</span>}
+            </p>
+            {r !== null && (
+              <span className={clsx("text-xs font-mono font-bold shrink-0", rClx(r))}>
+                {r >= 0 ? "+" : ""}{r.toFixed(2)}
+              </span>
+            )}
+            <span className={clsx("text-base leading-none shrink-0", dotClx)}>●</span>
+          </div>
+        );
+      })}
+      {open && (
+        <p className="pt-2 text-10 text-[var(--text-on-surface-muted)]">
+          {zh ? "資料密度" : "Density"}: <span className="text-green-500">●</span> ≥80%{" "}
+          <span className="text-amber-400">●</span> 50–79%{" "}
+          <span className="text-red-400">●</span> &lt;50%
+        </p>
+      )}
+    </div>
+  );
+}
+
 function computePearsonAligned(
   goalPts: number[],
   varPts: number[],
@@ -259,16 +324,14 @@ export function Statistics() {
   const dStr = (n: number) => lang === "zh" ? `${n}天` : `${n} days`;
 
   const [activeTab, setActiveTab] = useState<StatTab>("pearson");
-  const STAT_TABS = ["pearson", "advanced", "patterns", "stability"] as const;
+  const STAT_TABS = ["pearson", "patterns", "stability", "advanced"] as const;
   const statSwipe = useSwipeTabs(STAT_TABS, activeTab, setActiveTab as (t: string) => void);
 
   const { days, showCustom, setShowCustom, customRange, setCustomRange, modeCustom, setModeCustom, getFromTo, rangeTotal, selectPreset } = useDateRange(90);
   const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
 
-  // Pearson tab
-  const [loading, setLoading]       = useState(false);
+  // Goal tab (weight lag curves) — fed by loadTrend
   const [daysWithData, setDaysWithData] = useState(0);
-  const [basicFactors, setBasicFactors] = useState<{ factor: string; label: string; r: number | null; density: number }[]>([]);
   const [advGoalDensity, setAdvGoalDensity] = useState(100);
 
   // Patterns tab (trend + lag)
@@ -311,7 +374,7 @@ export function Statistics() {
 
   useEffect(() => {
     if (profile) {
-      loadPearson(); loadTrend();
+      loadTrend();
       if (advGoalConfirmed && advGoalCfg) loadAdvChart(advGoalCfg, advVarCards, 1);
       if (adv2GoalConfirmed && adv2GoalCfg) loadAdvChart(adv2GoalCfg, adv2VarCards, 2);
     }
@@ -379,58 +442,6 @@ export function Statistics() {
     } catch (e) { logError("Statistics.loadActiveDates", e); }
   };
 
-  const loadPearson = async () => {
-    if (!profile) return;
-    setLoading(true);
-    try {
-      const { from, to } = getFromTo();
-      const recs = await getDailyStatsRecords(profile.user_id, days, from, to);
-      const withWeight = recs.filter((r: DailyStatsRecord) => r.weight_kg != null).length;
-      setDaysWithData(withWeight);
-
-      const sleepCount = recs.filter((r: DailyStatsRecord) => r.sleep_quality != null).length;
-      const includeSleep = sleepCount >= STATS_MIN_DAYS;
-
-      const pearsonRecs = recs.map((r: DailyStatsRecord) => ({
-        date:               r.date,
-        weight_kg:          r.weight_kg          ?? undefined,
-        calories_kcal:      r.calories           ?? undefined,
-        protein_g:          r.protein_g          ?? undefined,
-        carb_g:             r.carb_g             ?? undefined,
-        fat_g:              r.fat_g              ?? undefined,
-        water_ml:           r.water_ml           ?? undefined,
-        exercise_count:     r.exercise_count     ?? undefined,
-        exercise_min:       r.exercise_min       ?? undefined,
-        exercise_kcal:      r.exercise_kcal      ?? undefined,
-        strength_volume_kg: r.strength_volume_kg ?? undefined,
-        ...(includeSleep && {
-          sleep_quality: r.sleep_quality ?? undefined,
-          sleep_hours:   r.sleep_hours   ?? undefined,
-        }),
-      }));
-      const computed = computeInfluenceRanking(pearsonRecs, undefined, 9, STATS_MIN_DAYS) ?? [];
-      const resultMap = new Map(computed.map(r => [r.factor, r]));
-
-      const ALL_FACTORS: Factor[] = [
-        "calories_kcal", "protein_g", "carb_g", "fat_g", "water_ml",
-        "exercise_count", "exercise_min", "exercise_kcal", "strength_volume_kg",
-      ];
-      const bFactors = ALL_FACTORS.map(factor => {
-        const count = pearsonRecs.filter(r => (r as any)[factor] != null).length;
-        const density = rangeTotal > 0 ? Math.round((count / rangeTotal) * 100) : 0;
-        const res = resultMap.get(factor);
-        return {
-          factor,
-          label: lang === "en" ? (FACTOR_LABELS_EN[factor] ?? factor) : (FACTOR_LABELS[factor] ?? factor),
-          r: res?.r ?? null,
-          density,
-        };
-      });
-      setBasicFactors(bFactors);
-    } catch (e) { logError("Statistics.loadPearson", e); }
-    setLoading(false);
-  };
-
   const loadTrend = async () => {
     if (!profile) return;
     setPatternsLoading(true);
@@ -439,6 +450,7 @@ export function Statistics() {
       const recs = await getDailyStatsRecords(profile.user_id, days, from, to);
       const allDates = buildDateRangePure(from, to);
       const rangeLen = Math.max(1, allDates.length);
+      setDaysWithData(recs.filter(r => r.weight_kg != null).length);
 
       // ── Correlation network + weekday patterns ────────────────────────────
       setNetwork(computeCorrelationNetwork(recs, rangeLen));
@@ -485,11 +497,12 @@ export function Statistics() {
             const v = (r as any)[key];
             if (v != null) { fmap.set(r.date, v as number); nonNull++; }
           }
-          const results = lagCorrelation(fmap, targetMap, 7);
+          const results = lagCorrelation(fmap, targetMap, MAX_LAG);
           const best = bestLag(results);
           return {
             factor: key,
             label: lang === "en" ? labelEn : labelZh,
+            curve: [...results].sort((a, b) => a.lag - b.lag),
             best,
             density:    Math.round((nonNull / rangeLen) * 100),
             sampleSize: best?.sampleSize ?? 0,
@@ -498,18 +511,21 @@ export function Statistics() {
         return rows.sort((a, b) => (b.best ? Math.abs(b.best.r) : -1) - (a.best ? Math.abs(a.best.r) : -1));
       };
 
+      // Covers everything the old basic Pearson ranking did, plus sleep.
+      const weightLag = buildRows(weightTargetMap, [
+        { key: "calories",           labelZh: "攝取熱量", labelEn: "Calories"      },
+        { key: "protein_g",          labelZh: "蛋白質",   labelEn: "Protein"       },
+        { key: "carb_g",             labelZh: "碳水",     labelEn: "Carbs"         },
+        { key: "fat_g",              labelZh: "脂肪",     labelEn: "Fat"           },
+        { key: "water_ml",           labelZh: "飲水量",   labelEn: "Water"         },
+        { key: "sleep_hours",        labelZh: "睡眠時長", labelEn: "Sleep"         },
+        { key: "exercise_count",     labelZh: "運動次數", labelEn: "Workouts"      },
+        { key: "exercise_min",       labelZh: "運動時長", labelEn: "Exercise min"  },
+        { key: "exercise_kcal",      labelZh: "運動消耗", labelEn: "Exercise burn" },
+        { key: "strength_volume_kg", labelZh: "重訓總量", labelEn: "Strength vol." },
+      ]);
+
       const lagSections = [
-        {
-          targetLabel: lang === "zh" ? "→ 體重變化" : "→ Weight change",
-          rows: buildRows(weightTargetMap, [
-            { key: "calories",           labelZh: "攝取熱量", labelEn: "Calories"      },
-            { key: "protein_g",          labelZh: "蛋白質",   labelEn: "Protein"       },
-            { key: "water_ml",           labelZh: "飲水量",   labelEn: "Water"         },
-            { key: "sleep_hours",        labelZh: "睡眠時長", labelEn: "Sleep"         },
-            { key: "exercise_kcal",      labelZh: "運動消耗", labelEn: "Exercise burn" },
-            { key: "strength_volume_kg", labelZh: "重訓總量", labelEn: "Strength vol." },
-          ]),
-        },
         {
           targetLabel: lang === "zh" ? "→ 睡眠變化" : "→ Sleep change",
           rows: buildRows(sleepTargetMap, [
@@ -532,7 +548,7 @@ export function Statistics() {
         },
       ];
 
-      setTrendData({ trends, lagSections });
+      setTrendData({ trends, weightLag, lagSections });
     } catch (e) { logError("Statistics.loadTrend", e); }
     setPatternsLoading(false);
   };
@@ -972,9 +988,9 @@ export function Statistics() {
             </p>
           </div>
           <div className="flex items-center gap-micro shrink-0">
-            <button onClick={() => { loadPearson(); loadTrend(); }} disabled={loading || patternsLoading}
+            <button onClick={() => loadTrend()} disabled={patternsLoading}
               className={clsx("p-2 rounded-xl transition-all border border-white/30 text-white bg-white/10",
-                (loading || patternsLoading) ? "animate-spin opacity-40 cursor-wait" : "hover:bg-white/20")}>
+                patternsLoading ? "animate-spin opacity-40 cursor-wait" : "hover:bg-white/20")}>
               <RefreshCw size={16} />
             </button>
           </div>
@@ -1005,13 +1021,7 @@ export function Statistics() {
           className="flex-1 py-2 text-sm">
           {modeSettings?.mode === "custom"
             ? (lang === "zh" ? "進階" : "Adv.")
-            : (lang === "zh" ? "基礎" : "Basic")}
-        </PillButton>
-        <PillButton onClick={() => setActiveTab("advanced")} isActive={activeTab === "advanced"}
-          className="flex-1 py-2 text-sm flex items-center justify-center gap-micro">
-          {modeSettings?.mode === "custom"
-            ? (lang === "zh" ? "進階2" : "Adv.2")
-            : t("stats.tab.advanced")}
+            : (lang === "zh" ? "目標" : "Goal")}
         </PillButton>
         <PillButton onClick={() => setActiveTab("patterns")} isActive={activeTab === "patterns"}
           className="flex-1 py-2 text-sm">
@@ -1020,6 +1030,12 @@ export function Statistics() {
         <PillButton onClick={() => setActiveTab("stability")} isActive={activeTab === "stability"}
           className="flex-1 py-2 text-sm">
           {lang === "zh" ? "穩定度" : "Stability"}
+        </PillButton>
+        <PillButton onClick={() => setActiveTab("advanced")} isActive={activeTab === "advanced"}
+          className="flex-1 py-2 text-sm flex items-center justify-center gap-micro">
+          {modeSettings?.mode === "custom"
+            ? (lang === "zh" ? "進階2" : "Adv.2")
+            : t("stats.tab.advanced")}
         </PillButton>
       </div>
 
@@ -1045,7 +1061,7 @@ export function Statistics() {
       )}
 
       {/* ══════════════════════════════════════════
-          TAB: 體重影響因子 (Pearson)
+          TAB: 目標 (Goal) — weight goal card + lag curves
           — when mode is "custom", show advanced stats instead
       ══════════════════════════════════════════ */}
       {activeTab === "pearson" && modeSettings?.mode === "custom" && renderAdvancedStats(1)}
@@ -1059,9 +1075,6 @@ export function Statistics() {
                 <Target size={14} className="text-[var(--text-accent)]" />
                 {lang === "zh" ? "觀察目標" : "Goal"}
               </p>
-              <span className="text-10 text-[var(--text-on-surface-muted)]">
-                {lang === "zh" ? `最低須該區間 ${STATS_MIN_DAYS} 天有效資料` : `Min. ${STATS_MIN_DAYS} days of data required`}
-              </span>
             </div>
             {(() => {
               const wDensity = rangeTotal > 0 ? Math.round((daysWithData / rangeTotal) * 100) : 0;
@@ -1105,47 +1118,17 @@ export function Statistics() {
             })()}
           </div>
 
-          {/* ── Correlation ranking chart ────────────────────────── */}
-          {(() => {
-            const chartData = [...basicFactors]
-              .filter(f => f.r !== null)
-              .sort((a, b) => Math.abs(b.r!) - Math.abs(a.r!));
-            if (chartData.length === 0) return null;
-            return <PearsonBarChart data={chartData} lang={lang} slug="correlation-ranking"
-              colorFor={d => goalMode === "cut" ? (d.r ?? 0) < 0
-                : goalMode === "bulk" ? (d.r ?? 0) > 0
-                : (d.r ?? 0) > 0} />;
-          })()}
-
-          {/* ── Factor cards (all 9, always shown) ─────────────────── */}
-          <div className="space-y-3">
-            {(() => {
-              const sorted = [...basicFactors].sort((a, b) => {
-                if (a.r === null && b.r === null) return 0;
-                if (a.r === null) return 1;
-                if (b.r === null) return -1;
-                return Math.abs(b.r) - Math.abs(a.r);
-              });
-              return sorted.map(item => {
-                const { r, density } = item;
-                const isGood = r === null ? false
-                  : goalMode === "cut" ? r < 0
-                  : goalMode === "bulk" ? r > 0
-                  : r > 0;
-                const abs = r !== null ? Math.abs(r) : 0;
-                const strength = abs > 0.5 ? (lang === "zh" ? "強" : "strong") : abs > 0.3 ? (lang === "zh" ? "中等" : "moderate") : (lang === "zh" ? "輕微" : "weak");
-                const insight = r === null
-                  ? (lang === "zh" ? `資料密度 ${density}% 資料不足` : `Density ${density}% – Insufficient data`)
-                  : abs <= 0.1 ? (lang === "zh" ? "與體重變化無明顯相關" : "No clear correlation with weight")
-                  : isGood ? `${lang === "zh" ? "有助達成目標" : "Supports your goal"}（${strength}）`
-                  : `${lang === "zh" ? "可能影響目標" : "May affect goal"}（${strength}）`;
-                const dc = densityColor(density);
-                const dcClx = dc === "green" ? "text-green-500" : dc === "yellow" ? "text-amber-400" : "text-red-400";
-                return <FactorInsightCard key={item.factor} label={item.label} r={r} density={density}
-                  isGood={isGood} insight={insight} dcClx={dcClx} lang={lang} />;
-              });
-            })()}
-          </div>
+          {/* ── Lag curves: what moves weight, and how many days later ── */}
+          {trendData ? (
+            <LagCurves rows={trendData.weightLag} maxLag={MAX_LAG} lang={lang}
+              isGood={r => goalMode === "cut" ? r < 0 : r > 0} />
+          ) : (
+            <div className="card text-center py-10">
+              <p className="text-sm text-[var(--text-on-surface-muted)]">
+                {patternsLoading ? (lang === "zh" ? "載入中…" : "Loading…") : (lang === "zh" ? "尚無資料" : "No data")}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1195,8 +1178,8 @@ export function Statistics() {
               ))}
             </div>
 
-            {/* ── Weekday-effect one-liner patterns ────────────────────── */}
-            <WeekdayPatternCards patterns={weekdayPatterns} lang={lang} />
+            {/* ── Weekend vs weekday bars, each expandable to a week curve ── */}
+            <WeekdayPatternChart patterns={weekdayPatterns} lang={lang} />
 
             {/* ── Correlation network graph ────────────────────────────── */}
             {network && <CorrelationNetwork network={network} lang={lang} />}
@@ -1204,62 +1187,10 @@ export function Statistics() {
             {/* ── Newly-emerged relationships, grouped by hub factor ───── */}
             <EmergenceCards userId={profile.user_id} lang={lang} />
 
-            {/* ── Lag sections ─────────────────────────────────────────── */}
+            {/* ── Lag sections — collapsed to a one-line summary by default ── */}
             {lagSections.map((section) => (
-              <div key={section.targetLabel} className="card space-y-0 divide-y divide-[var(--surface-border)]">
-                <p className="text-xs font-semibold text-[var(--text-on-surface)] pb-2">
-                  {lang === "zh" ? "延遲影響" : "Lag Impact"}
-                  <span className="ml-1.5 text-[var(--text-accent)]">{section.targetLabel}</span>
-                  <span className="ml-1 font-normal text-[var(--text-on-surface-muted)]">(0–7d)</span>
-                </p>
-                {section.rows.map((row) => {
-                  const r    = row.best?.r   ?? null;
-                  const lag  = row.best?.lag ?? null;
-                  const n    = row.sampleSize;
-                  const dotClx = densityDotCls(row.density);
-                  const sym  = r == null ? "—" : Math.abs(r) <= 0.1 ? "→" : r > 0 ? "↑" : "↓";
-                  const rClx = r == null ? "text-gray-400" : r > 0.1 ? "text-red-400" : r < -0.1 ? "text-emerald-500" : "text-gray-400";
-                  const lowR = r !== null && n < RELIABILITY_THRESHOLDS.MIN_PAIRS;
-                  return (
-                    <div key={row.factor} className={clsx("flex items-center gap-2 py-2", lowR && "opacity-60")}>
-                      <p className="text-xs font-medium text-[var(--text-on-surface)] w-20 shrink-0 truncate">{row.label}</p>
-                      <span className={clsx("text-base font-bold w-5 text-center shrink-0", rClx)}>{sym}</span>
-                      <p className="text-11 text-[var(--text-on-surface-muted)] flex-1">
-                        {r == null
-                          ? (lang === "zh" ? "不足" : "n/a")
-                          : lag === 0
-                            ? (lang === "zh" ? "當天" : "same day")
-                            : `lag ${lag}d`}
-                        {r !== null && <span className="ml-1 text-gray-400">n={n}</span>}
-                      </p>
-                      {r !== null && (
-                        <span className={clsx("text-xs font-mono font-bold shrink-0", rClx)}>
-                          {r >= 0 ? "+" : ""}{r.toFixed(2)}
-                        </span>
-                      )}
-                      <span className={clsx("text-base leading-none shrink-0", dotClx)}>●</span>
-                    </div>
-                  );
-                })}
-              </div>
+              <LagSection key={section.targetLabel} section={section} lang={lang} />
             ))}
-
-            {/* ── Density legend ────────────────────────────────────────── */}
-            <div className="flex items-center gap-4 px-1 pb-1">
-              <p className="text-10 text-white shrink-0">
-                {lang === "zh" ? "資料密度" : "Data density"}:
-              </p>
-              {[
-                { clx: "text-green-500",  label: lang === "zh" ? "≥80%" : "≥80%" },
-                { clx: "text-amber-400",  label: lang === "zh" ? "50–79%" : "50–79%" },
-                { clx: "text-red-400",    label: lang === "zh" ? "<50%" : "<50%" },
-              ].map(({ clx, label }) => (
-                <div key={label} className="flex items-center gap-micro">
-                  <span className={clsx("text-xs leading-none", clx)}>●</span>
-                  <span className="text-10 text-white">{label}</span>
-                </div>
-              ))}
-            </div>
 
           </div>
         );

@@ -11,6 +11,7 @@
  *   testing ~50 pairs × lags guarantees false positives without a gate.
  */
 
+import { parseISO } from "date-fns";
 import type { DailyStatsRecord } from "@/types";
 import { RELIABILITY_THRESHOLDS, getReliability, type Reliability } from "./pearson";
 
@@ -684,6 +685,8 @@ export interface WeekdayPattern {
   p: number;           // Welch's t-test, two-tailed
   nWeekend: number;
   nWeekday: number;
+  /** Mean per day of week, Monday first (index 0 = Mon … 6 = Sun); null where nothing was logged. */
+  byDow: ({ mean: number; n: number } | null)[];
 }
 
 /** Welch's t-test two-tailed p-value. */
@@ -721,11 +724,16 @@ export function computeWeekdayPatterns(
     // spans a full week — a weekend-vs-weekday split of them means nothing.
     if (DERIVED_SERIES[v]) continue;
     const weekend: number[] = [], weekday: number[] = [];
+    const sums = Array<number>(7).fill(0), counts = Array<number>(7).fill(0);
     for (const r of recs) {
       const val = (r as any)[v] as number | null | undefined;
       if (val == null) continue;
-      const dow = new Date(r.date).getDay();
+      // parseISO reads the date as local midnight; `new Date("yyyy-MM-dd")` is
+      // UTC and lands on the previous weekday anywhere west of Greenwich.
+      const dow = parseISO(r.date).getDay();
       (dow === 0 || dow === 6 ? weekend : weekday).push(val);
+      const mon0 = (dow + 6) % 7;
+      sums[mon0] += val; counts[mon0]++;
     }
     if (weekend.length < minPerGroup || weekday.length < minPerGroup) continue;
     const wm = weekend.reduce((s, x) => s + x, 0) / weekend.length;
@@ -739,6 +747,7 @@ export function computeWeekdayPatterns(
       relPct: dm !== 0 ? ((wm - dm) / Math.abs(dm)) * 100 : 0,
       p,
       nWeekend: weekend.length, nWeekday: weekday.length,
+      byDow: sums.map((sum, i) => counts[i] ? { mean: sum / counts[i], n: counts[i] } : null),
     });
   }
   return out.sort((a, b) => Math.abs(b.relPct) - Math.abs(a.relPct));

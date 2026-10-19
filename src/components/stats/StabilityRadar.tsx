@@ -87,7 +87,7 @@ export function StabilityRadar({ results, lang }: Props) {
       <CardHeader mb="mb-1"
         title={zh ? "穩定星圖" : "Stability"} />
       <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
-        {zh ? "七項核心數字的日對日波動 — 分數越高越穩定" : "Day-to-day wobble across seven core metrics — higher is steadier"}
+        {zh ? "七項核心數字的日對日波動" : "Day-to-day wobble across seven core metrics"}
       </p>
 
       <div className="flex justify-center">
@@ -240,14 +240,12 @@ function StabilityGuide({ zh }: { zh: boolean }) {
       ["日波動", "相鄰兩天差值的標準差 — 每天平均跳動多少"],
       ["n", "實際用到的「連續兩天都有記錄」配對數"],
       ["分數", "0–100，由相對波動換算"],
-      ["●", "資料密度，與其他統計頁面同一組顏色"],
     ]
     : [
       ["Avg", "Mean value over the range — the denominator of relative wobble"],
       ["Wobble", "Stdev of consecutive-day differences — the typical daily jump"],
       ["n", "Consecutive-day pairs actually used"],
       ["Score", "0–100, converted from relative wobble"],
-      ["●", "Data density, same colours as the other stats pages"],
     ];
 
   const [open, setOpen] = useState(false);
@@ -295,8 +293,8 @@ function StabilityGuide({ zh }: { zh: boolean }) {
           </p>
           <p>
             {zh
-              ? "這種項目的軸標籤會變淡，星形直接跨過那個角，而不是掉到 0 — 沒有資料不等於不穩定。實際的資料密度看下方表格最右邊的色點。"
-              : "Its axis label is dimmed and the star jumps straight across that axis instead of dipping to zero — missing data is not the same as instability. The actual density is the coloured dot at the right of the table below."}
+              ? "軸標籤變淡、星形跨過該角，不會掉到 0 — 沒資料不等於不穩定。"
+              : "Its label dims and the star skips that axis rather than dropping to zero — missing data isn't instability."}
           </p>
         </GuideSection>
 

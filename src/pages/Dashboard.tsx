@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { fmtDay } from "@/lib/dateFormat";
-import { Droplets, Dumbbell, Scale, TrendingDown, TrendingUp, Minus, Flame, Wheat } from "lucide-react";
+import { Droplets, Moon, Scale, TrendingDown, TrendingUp, Minus, Flame, Wheat } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
@@ -46,11 +46,11 @@ export function Dashboard() {
 
   useEffect(() => { loadUser(); }, []);
 
+  const tdee = profile ? computeTdee(profile, lbmKg) : null;
   const targets = (() => {
-    if (!profile || !modeSettings) return null;
+    if (!profile || !modeSettings || tdee == null) return null;
     try {
       const w = Math.round(profile.weight_kg);
-      const tdee = computeTdee(profile, lbmKg);
       return calculateNutritionTargets({
         weightKg: w, lbmKg, mode: modeSettings.mode, tdee,
         targetCalories: modeSettings.custom_calories ?? undefined,
@@ -124,7 +124,6 @@ export function Dashboard() {
     </div>
   );
 
-  const netCalories = totals.calories - totals.exercise_kcal;
 
   // ── Stat card sub-components ────────────────────────────────────────────────
 
@@ -153,18 +152,31 @@ export function Dashboard() {
     </div>
   );
 
-  const ExerciseCard = (
+  const sleep = extras?.sleep ?? null;
+  const SLEEP_QUALITY: Record<"good" | "normal" | "poor", { label: string; cls: string }> = {
+    good:   { label: t("body.sleep.good"),   cls: "text-emerald-600" },
+    normal: { label: t("body.sleep.normal"), cls: "text-[var(--text-on-surface-muted)]" },
+    poor:   { label: t("body.sleep.poor"),   cls: "text-rose-500" },
+  };
+
+  const SleepCard = (
     <div className="card">
-      <div className="flex items-center gap-micro.5 text-orange-500">
-        <Dumbbell size={16} />
-        <span className="text-xs font-medium">{t("dashboard.exercise")}</span>
+      <div className="flex items-center gap-micro.5 text-indigo-500">
+        <Moon size={16} />
+        <span className="text-xs font-medium">{lang === "zh" ? "睡眠" : "Sleep"}</span>
       </div>
-      <p className="text-xl font-bold text-[var(--text-on-surface)]">{Math.round(totals.exercise_kcal)}</p>
-      <p className="text-xs text-[var(--text-on-surface-muted)]">{t("dashboard.burned")}</p>
-      <div className="h-1.5 bg-[var(--surface-container)] rounded-full overflow-hidden">
-        <div className="h-full bg-orange-400 rounded-full transition-all"
-          style={{ width: `${Math.min((totals.exercise_kcal / 500) * 100, 100)}%` }} />
-      </div>
+      {sleep ? (
+        <>
+          <p className="text-xl font-bold text-[var(--text-on-surface)]">{sleep.hours != null ? sleep.hours.toFixed(1) : "—"}</p>
+          <p className="text-xs text-[var(--text-on-surface-muted)]">{lang === "zh" ? "小時" : "hours"}</p>
+          <p className={clsx("text-10 font-medium", SLEEP_QUALITY[sleep.quality].cls)}>{SLEEP_QUALITY[sleep.quality].label}</p>
+        </>
+      ) : (
+        <>
+          <p className="text-xl font-bold text-[var(--text-on-surface)]">—</p>
+          <p className="text-xs text-[var(--text-on-surface-muted)]">{t("dashboard.notLogged")}</p>
+        </>
+      )}
     </div>
   );
 
@@ -193,174 +205,191 @@ export function Dashboard() {
     </div>
   );
 
-  const calTarget = targets?.total_kcal ?? 2000;
+  const zh = lang === "zh";
+  const fmtK = (v: number) => Math.round(v).toLocaleString("en-US");
+  const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${fmtK(Math.abs(v))}`;
 
-  // Concentric ring definitions: outer → inner
-  const concentricRings = [
-    {
-      key: "calories",
-      label: lang === "zh" ? "總熱" : "Calories",
-      val: totals.calories, target: calTarget, unit: "kcal",
-      r: 82, sw: 11,
-      color: "#38bdf8", track: "rgba(56,189,248,0.10)",
-      Icon: Flame,
-    },
-    {
-      key: "carb",
-      label: t("dashboard.carb"),
-      val: totals.carb, target: targets?.carb_g ?? 200, unit: "g",
-      r: 64, sw: 11,
-      color: "#4ade80", track: "rgba(74,222,128,0.10)",
-      Icon: Wheat,
-    },
-    {
-      key: "protein",
-      label: t("dashboard.protein"),
-      val: totals.protein, target: targets?.protein_g ?? 150, unit: "g",
-      r: 46, sw: 11,
-      color: "#c084fc", track: "rgba(192,132,252,0.10)",
-      Icon: Dumbbell,
-    },
-    {
-      key: "fat",
-      label: t("dashboard.fat"),
-      val: totals.fat, target: targets?.fat_g ?? 60, unit: "g",
-      r: 28, sw: 11,
-      color: "#fb923c", track: "rgba(251,146,60,0.10)",
-      Icon: Droplets,
-    },
-  ];
+  // ── Calorie budget: target side and actual side, kept apart ─────────────────
+  // Target = TDEE adjusted by the mode's daily deficit/surplus (custom mode: the
+  // user's own number, shown as its offset from TDEE). Actual = what was eaten
+  // minus today's logged exercise burn. Remaining compares the two finals.
+  const calTarget   = targets?.total_kcal ?? 2000;
+  const adjustment  = tdee != null ? calTarget - tdee : 0;
+  const finalKcal   = totals.calories - totals.exercise_kcal;
+  const calRemain   = calTarget - finalKcal;
+  const calOver     = calRemain < 0;
+  const calPct      = calTarget > 0 ? Math.max(0, finalKcal) / calTarget : 0;
+  const isCustom    = modeSettings?.mode === "custom";
+  const adjLabel    = isCustom
+    ? (zh ? "自訂調整" : "Custom adj.")
+    : adjustment < 0 ? (zh ? "減脂額度" : "Deficit")
+    : adjustment > 0 ? (zh ? "增肌額度" : "Surplus")
+    : (zh ? "維持" : "Maintain");
 
-  const svgSize = 188;
-  const svgCx   = svgSize / 2;
+  // Gauge: a 240° speedometer whose full sweep ends at the target. Past it the
+  // needle pegs at the stop and the whole arc turns red, like a tachometer
+  // over the redline.
+  const G_SIZE = 220, G_R = 86, G_SW = 12, G_SWEEP = 240;
+  const gPoint = (deg: number, r = G_R) => {
+    const rad = (deg - 90) * Math.PI / 180;
+    return { x: G_SIZE / 2 + r * Math.cos(rad), y: G_SIZE / 2 + r * Math.sin(rad) };
+  };
+  const gArc = (from: number, to: number) => {
+    const a = gPoint(from), b = gPoint(to);
+    return `M ${a.x} ${a.y} A ${G_R} ${G_R} 0 ${to - from > 180 ? 1 : 0} 1 ${b.x} ${b.y}`;
+  };
+  const gDeg = (frac: number) => -G_SWEEP / 2 + Math.min(Math.max(frac, 0), 1) * G_SWEEP;
+  const gFill   = gDeg(calPct);
+  const gNeedle = calOver ? G_SWEEP / 2 + 6 : gFill; // pegged just past the stop
+  const gTicks  = Array.from({ length: 11 }, (_, i) => i / 10);
+
+  /** One line of a budget column: label left, figure right. `total` is the result line under the rule. */
+  const BudgetRow = ({ label, value, tone, total }: {
+    label: string; value: string; tone?: string; total?: boolean;
+  }) => (
+    <div className={clsx("flex items-baseline justify-between gap-2",
+      total && "pt-1.5 mt-1 border-t border-[var(--surface-border)]")}>
+      <span className={clsx(total ? "text-xs font-semibold text-[var(--text-on-surface)]" : "text-11 text-[var(--text-on-surface-muted)]")}>
+        {label}
+      </span>
+      <span className={clsx("font-mono tabular-nums",
+        total ? "text-base font-bold text-[var(--text-on-surface)]" : "text-xs font-semibold",
+        !total && (tone ?? "text-[var(--text-on-surface-sub)]"))}>
+        {value}
+      </span>
+    </div>
+  );
 
   const CalorieCard = (
-    <div className="card p-5 relative overflow-hidden">
-      {/* Scan-line texture */}
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.018) 3px,rgba(255,255,255,0.018) 4px)" }} />
-
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 relative">
-        <p className="text-base font-bold text-[var(--text-on-surface)]">
-          {lang === "zh" ? "今日攝取" : "Daily Intake"}
-        </p>
-        {targets && (
-          <p className="text-10 font-mono text-[var(--text-on-surface-muted)]">
-            {lang === "zh" ? "目標" : "Target"} {Math.round(targets.total_kcal)} kcal
-          </p>
-        )}
+    <div className="card p-5">
+      <div className="flex items-center gap-micro.5">
+        <Flame size={16} className="text-sky-500" />
+        <p className="text-base font-bold text-[var(--text-on-surface)]">{zh ? "今日熱量" : "Today's calories"}</p>
       </div>
 
-      {/* ── Top section: circles + current values ── */}
-      <div className="flex gap-4 relative">
-        {/* Concentric rings */}
-        <div className="relative shrink-0" style={{ width: svgSize, height: svgSize }}>
-          <svg width={svgSize} height={svgSize}
-            style={{ transform: "rotate(-90deg)", filter: "drop-shadow(0 0 8px rgba(56,189,248,0.18))" }}>
-            {concentricRings.map(ring => {
-              const circ           = 2 * Math.PI * ring.r;
-              const pct            = ring.target > 0 ? ring.val / ring.target : 0;
-              const over           = pct > 1;
-              const normalOffset   = circ * (1 - Math.min(pct, 1));
-              const overflowOffset = circ * (1 - Math.min(pct - 1, 1));
-              return (
-                <g key={ring.key}>
-                  <circle cx={svgCx} cy={svgCx} r={ring.r} fill="none" stroke={ring.track} strokeWidth={ring.sw} />
-                  <circle cx={svgCx} cy={svgCx} r={ring.r} fill="none"
-                    stroke={ring.color} strokeWidth={ring.sw}
-                    strokeDasharray={circ} strokeDashoffset={normalOffset}
-                    strokeLinecap="round"
-                    style={{ transition: "stroke-dashoffset 0.5s ease" }}
-                  />
-                  {over && (
-                    <circle cx={svgCx} cy={svgCx} r={ring.r} fill="none"
-                      stroke="#ef4444" strokeWidth={ring.sw}
-                      strokeDasharray={circ} strokeDashoffset={overflowOffset}
-                      strokeLinecap="round"
-                      style={{ transition: "stroke-dashoffset 0.5s ease" }}
-                    />
-                  )}
-                </g>
-              );
-            })}
-          </svg>
-        </div>
+      {/* Final vs target gauge */}
+      <div className="relative mx-auto" style={{ width: G_SIZE, height: G_SIZE - 8 }}>
+        <svg width={G_SIZE} height={G_SIZE}>
+          <path d={gArc(-G_SWEEP / 2, G_SWEEP / 2)} fill="none"
+            stroke={calOver ? "#f87171" : "var(--surface-container)"} strokeWidth={G_SW} strokeLinecap="round" />
+          {!calOver && calPct > 0 && (
+            <path d={gArc(-G_SWEEP / 2, gFill)} fill="none" stroke="#38bdf8" strokeWidth={G_SW} strokeLinecap="round" />
+          )}
 
-        {/* Current values panel — right of circles, height matched to SVG */}
-        <div className="flex-1 flex flex-col" style={{ height: svgSize }}>
-          {/* 已攝取 / Consumed header */}
-          <p className="text-xs font-bold text-[var(--text-on-surface)] pl-2 pb-2 shrink-0">
-            {lang === "zh" ? "已攝取" : "Consumed"}
-          </p>
-          <div className="flex-1 flex flex-col">
-          {concentricRings.map((ring, idx) => {
-            const over = ring.val > ring.target;
-            return (
-              <div key={ring.key}
-                className={clsx(
-                  "flex-1 flex flex-col justify-center pl-2",
-                  idx > 0 && "border-t border-[var(--surface-border)]"
-                )}>
-                {/* Item label */}
-                <p className="text-10 font-semibold tracking-wide leading-none mb-1"
-                  style={{ color: ring.color }}>
-                  {ring.label}
-                </p>
-                {/* Bold current value */}
-                <p className={clsx(
-                  "text-[15px] font-mono font-bold tabular-nums leading-none",
-                  over ? "text-red-400" : "text-[var(--text-on-surface)]"
-                )}>
-                  {Math.round(ring.val)}
-                  <span className="text-11 font-normal ml-1 text-[var(--text-on-surface-muted)]">
-                    {ring.unit}
-                  </span>
-                </p>
-              </div>
-            );
+          {/* Scale: minor tick every 10%, major at 0, 50% and the target */}
+          {gTicks.map(f => {
+            const major = f === 0 || f === 0.5 || f === 1;
+            const deg = gDeg(f);
+            const o = gPoint(deg, G_R - G_SW / 2 - 3);
+            const i = gPoint(deg, G_R - G_SW / 2 - (major ? 11 : 6));
+            return <line key={f} x1={i.x} y1={i.y} x2={o.x} y2={o.y}
+              stroke={major ? "var(--text-on-surface-sub)" : "var(--text-on-surface-muted)"}
+              strokeOpacity={major ? 0.8 : 0.45} strokeWidth={major ? 2 : 1} strokeLinecap="round" />;
           })}
-          </div>
+          {[{ f: 0, txt: "0" }, { f: 1, txt: zh ? "目標" : "Target" }].map(({ f, txt }) => {
+            // Outside the dial, under each end of the arc, clear of the needle's sweep
+            const l = gPoint(gDeg(f), G_R + G_SW / 2 + 8);
+            return <text key={f} x={l.x} y={l.y + 6} textAnchor="middle" dominantBaseline="middle"
+              className="text-9 font-semibold" fill={f === 1 && calOver ? "#ef4444" : "var(--text-on-surface-muted)"}>{txt}</text>;
+          })}
+
+          {/* Needle */}
+          <g style={{ transform: `rotate(${gNeedle}deg)`, transformOrigin: `${G_SIZE / 2}px ${G_SIZE / 2}px`, transition: "transform 0.6s cubic-bezier(.3,1.4,.5,1)" }}>
+            <path d={`M ${G_SIZE / 2 - 3.5} ${G_SIZE / 2} L ${G_SIZE / 2} ${G_SIZE / 2 - G_R + G_SW / 2 + 4} L ${G_SIZE / 2 + 3.5} ${G_SIZE / 2} Z`}
+              fill={calOver ? "#ef4444" : "var(--text-on-surface)"} />
+          </g>
+          <circle cx={G_SIZE / 2} cy={G_SIZE / 2} r={7} fill={calOver ? "#ef4444" : "var(--text-on-surface)"} />
+          <circle cx={G_SIZE / 2} cy={G_SIZE / 2} r={2.5} fill="var(--surface)" />
+        </svg>
+        {/* Readout sits in the open bottom of the dial, below the hub */}
+        <div className="absolute inset-x-0 flex flex-col items-center" style={{ top: G_SIZE / 2 + 16 }}>
+          <p className="text-10 text-[var(--text-on-surface-muted)] leading-none">{calOver ? (zh ? "超出" : "Over") : (zh ? "剩餘" : "Left")}</p>
+          <p className={clsx("text-2xl font-bold font-mono tabular-nums leading-tight", calOver ? "text-red-500" : "text-[var(--text-on-surface)]")}>
+            {fmtK(Math.abs(calRemain))}
+          </p>
+          <p className="text-10 text-[var(--text-on-surface-muted)] leading-none">kcal · {Math.round(calPct * 100)}%</p>
         </div>
       </div>
 
-      {/* ── Remaining section ── */}
-      <div className="mt-4 pt-3 border-t border-[var(--surface-border)]">
-        <p className="text-xs font-bold text-[var(--text-on-surface)] mb-3">
-          {lang === "zh" ? "剩餘" : "Remaining"}
-        </p>
-        <div className="flex justify-around items-start">
-          {concentricRings.map(ring => {
-            const over = ring.val > ring.target;
-            const diff = Math.round(Math.abs(ring.val - ring.target));
-            return (
-              <div key={ring.key} className="flex flex-col items-center gap-micro">
-                <div className="flex items-center gap-0.5">
-                  <ring.Icon size={10} style={{ color: over ? "#ef4444" : ring.color }} />
-                  <span className={clsx(
-                    "text-[12px] font-mono font-bold tabular-nums leading-none",
-                    over ? "text-red-400" : "text-[var(--text-on-surface)]"
-                  )}>
-                    {over ? "+" : ""}{diff}
+      <div className="grid grid-cols-2 gap-2.5">
+        {/* Target side */}
+        <div className="rounded-xl bg-[var(--surface-container-low)] px-3 py-2.5">
+          <p className="text-10 font-semibold uppercase tracking-wide text-[var(--text-accent)] mb-1.5">{zh ? "目標" : "Target"}</p>
+          <BudgetRow label="TDEE" value={tdee != null ? fmtK(tdee) : "—"} />
+          <BudgetRow label={adjLabel} value={signed(adjustment)}
+            tone={adjustment < 0 ? "text-rose-500" : adjustment > 0 ? "text-emerald-600" : undefined} />
+          <BudgetRow total label={zh ? "每日目標" : "Daily target"} value={fmtK(calTarget)} />
+        </div>
+
+        {/* Actual side */}
+        <div className="rounded-xl bg-[var(--surface-container-low)] px-3 py-2.5">
+          <p className="text-10 font-semibold uppercase tracking-wide text-sky-600 mb-1.5">{zh ? "實際" : "Actual"}</p>
+          <BudgetRow label={zh ? "攝取" : "Eaten"} value={fmtK(totals.calories)} />
+          <BudgetRow label={zh ? "運動消耗" : "Exercise"} value={signed(-totals.exercise_kcal)}
+            tone={totals.exercise_kcal > 0 ? "text-orange-500" : undefined} />
+          <BudgetRow total label={zh ? "最終熱量" : "Final"} value={fmtK(finalKcal)} />
+        </div>
+      </div>
+
+    </div>
+  );
+
+  // ── Macros: eaten vs target per macro ───────────────────────────────────────
+  const macros = [
+    { key: "protein", label: t("dashboard.protein"), val: totals.protein, target: targets?.protein_g ?? 150, color: "#c084fc" },
+    { key: "carb",    label: t("dashboard.carb"),    val: totals.carb,    target: targets?.carb_g    ?? 200, color: "#4ade80" },
+    { key: "fat",     label: t("dashboard.fat"),     val: totals.fat,     target: targets?.fat_g     ?? 60,  color: "#fb923c" },
+  ];
+
+  const RING_R = 30, RING_SW = 8, RING_SIZE = 2 * (RING_R + RING_SW);
+
+  const MacroCard = (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-micro.5">
+          <Wheat size={16} className="text-emerald-500" />
+          <p className="text-sm font-bold text-[var(--text-on-surface)]">{zh ? "三大營養素" : "Macros"}</p>
+        </div>
+        <p className="text-10 text-[var(--text-on-surface-muted)]">{zh ? "攝取 / 目標" : "eaten / target"}</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {macros.map(m => {
+          const pct  = m.target > 0 ? m.val / m.target : 0;
+          const over = pct > 1;
+          const circ = 2 * Math.PI * RING_R;
+          const c    = RING_SIZE / 2;
+          const diff = Math.round(Math.abs(m.target - m.val));
+          return (
+            <div key={m.key} className="flex flex-col items-center">
+              <div className="relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
+                <svg width={RING_SIZE} height={RING_SIZE} style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx={c} cy={c} r={RING_R} fill="none" stroke="var(--surface-container)" strokeWidth={RING_SW} />
+                  <circle cx={c} cy={c} r={RING_R} fill="none" stroke={m.color} strokeWidth={RING_SW} strokeLinecap="round"
+                    strokeDasharray={circ} strokeDashoffset={circ * (1 - Math.min(pct, 1))}
+                    style={{ transition: "stroke-dashoffset 0.5s ease" }} />
+                  {/* Overshoot laps the ring in red */}
+                  {over && (
+                    <circle cx={c} cy={c} r={RING_R} fill="none" stroke="#f87171" strokeWidth={RING_SW} strokeLinecap="round"
+                      strokeDasharray={circ} strokeDashoffset={circ * (1 - Math.min(pct - 1, 1))} />
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={clsx("text-base font-bold font-mono tabular-nums leading-none", over ? "text-red-500" : "text-[var(--text-on-surface)]")}>
+                    {Math.round(m.val)}
                   </span>
-                  <span className="text-9 text-[var(--text-on-surface-muted)] ml-0.5">
-                    {ring.unit}
-                  </span>
+                  <span className="text-9 text-[var(--text-on-surface-muted)] mt-0.5">/ {Math.round(m.target)} g</span>
                 </div>
               </div>
-            );
-          })}
-        </div>
+              <p className="flex items-center gap-1 text-xs font-medium text-[var(--text-on-surface)] mt-1.5">
+                <span className="w-2 h-2 rounded-full" style={{ background: m.color }} />{m.label}
+              </p>
+              <p className={clsx("text-10", over ? "text-red-500" : "text-[var(--text-on-surface-muted)]")}>
+                {over ? (zh ? `超出 ${diff} g` : `${diff} g over`) : (zh ? `剩 ${diff} g` : `${diff} g left`)}
+              </p>
+            </div>
+          );
+        })}
       </div>
-
-      {/* Net calories */}
-      {totals.exercise_kcal > 0 && (
-        <div className="mt-3 pt-3 border-t border-[var(--surface-border)] flex justify-between text-10 font-mono text-[var(--text-on-surface-muted)] relative">
-          <span>{t("dashboard.intake")} {Math.round(totals.calories)}</span>
-          <span className="text-green-500">−EX {Math.round(totals.exercise_kcal)}</span>
-          <span className="text-[var(--text-on-surface)] font-bold">NET {Math.round(netCalories)} kcal</span>
-        </div>
-      )}
     </div>
   );
 
@@ -575,12 +604,8 @@ export function Dashboard() {
           })}
         </div>
         <p className="text-10 text-[var(--text-on-surface-muted)] mt-3">
-          {lang === "zh" ? "熱量與飲水達標：攝取在目標的 80–110% 範圍內"
-                        : "Calorie & water goals: within 80–110% of target"}
-        </p>
-        <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
-          {lang === "zh" ? "營養均衡達標：蛋白質、碳水、脂肪皆在目標的 80–110% 範圍內"
-                        : "Macro balance: protein, carb & fat all within 80–110% of target"}
+          {lang === "zh" ? "達標＝攝取在目標的 80–110%；營養均衡需三大營養素皆達標"
+                        : "Met = within 80–110% of target; macro balance needs all three macros met"}
         </p>
       </div>
     );
@@ -683,10 +708,11 @@ export function Dashboard() {
 
         <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-28 pt-2">
           {CalorieCard}
+          {MacroCard}
 
           <div className="grid grid-cols-3 gap-3">
             {WaterCard}
-            {ExerciseCard}
+            {SleepCard}
             {WeightCard}
           </div>
 
