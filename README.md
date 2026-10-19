@@ -40,8 +40,8 @@ but deeper personal understanding through self-owned data.
 
 ### Analysis
 - **History** — weight, calories, macros, water, sleep, strength volume, per-exercise max, exercise distribution, activity burn and body composition over any range, with optional trend-line fitting and slope per week
-- **Correlation** — an influence ranking against your goal, plus a variable relationship network built on day-over-day changes (Spearman) with a 0–3 day lag search, so a shared trend cannot manufacture a link
-- **Patterns** — weekend-vs-weekday effects, significance gated; and relationship changes, which tells a link that has always held apart from one that measurably started partway through the record
+- **Goal** — lag curves showing how strongly each of ten factors moves your weight 0–7 days later, coloured by whether that direction helps or works against the current mode
+- **Patterns** — a variable relationship network built on day-over-day changes (Spearman) with a 0–3 day lag search, so a shared trend cannot manufacture a link; weekend-vs-weekday effects as bars with an average-week curve behind each, significance gated; and relationship changes, which tells a link that has always held apart from one that measurably started partway through the record
 - **Stability** — a seven-axis star chart scoring how little weight, calories, the three macros, water and sleep wobble day to day, independent of any long-term trend
 - Every result carries its sample size and data density, and says "not enough data" rather than showing a number it cannot stand behind
 
@@ -63,11 +63,11 @@ but deeper personal understanding through self-owned data.
 
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
-**Latest — v1.6.4**
-- Push-ups are split into Standard / Knee / Incline / Decline; load is body weight × the variant's share (64% / 49% / 55% / 75%) plus any added load
-- Detected rest between strength sets is shown as a prediction, filled in only when you press Apply
-- Food quantities in a meal can be edited in place, without removing and re-adding the food
-- ✕ buttons beside an input are now as tall as the input
+**Latest — v1.7.0**
+- Overview redesigned: a calorie gauge with a needle that turns fully red past the target, Target (TDEE ± mode adjustment) and Actual (eaten − exercise) shown side by side, and one ring per macro
+- Sleep replaces the exercise mini card on the Overview
+- Statistics: Basic becomes Goal, with lag curves per factor; tabs reordered to Goal / Patterns / Stability / Advanced
+- Weekend-vs-weekday patterns as bars with an average-week curve; lag lists collapsed by default; redundant notes trimmed
 
 ---
 

@@ -7,6 +7,17 @@ see the [README](./README.md).
 
 ---
 
+### v1.7.0
+- **Overview: calories split into Target and Actual** — the calorie card now shows two labelled columns. Target is TDEE adjusted by the mode's daily deficit or surplus (custom mode shows its own number as an offset from TDEE). Actual is what you ate minus today's logged exercise burn, giving the final calories. Remaining compares final calories with the daily target, so exercise logged today is deducted in plain sight instead of only in a small NET footer
+- **Overview: calorie gauge with a needle** — final vs target reads off a speedometer whose sweep ends at the daily target, with a 10% tick scale. Past the target the needle pegs beyond the stop and the whole arc turns red, like a tachometer over the redline; the centre readout switches from "left" to "over"
+- **Overview: one ring per macro** — protein, carbs and fat leave the old concentric rings for three separate rings, each with eaten / target in the centre and grams left or over below; overshoot laps the ring in red
+- **Overview: sleep card replaces exercise** — exercise burn now lives in the calorie card, so the mini card shows today's sleep hours and quality instead
+- **Statistics: Basic becomes Goal, with lag curves** — the Pearson ranking was the same-day slice of the Patterns tab's weight lag analysis. It is replaced by small-multiple curves of correlation against 0–7 days of lag for ten factors, on one shared scale, coloured by whether each direction supports the current mode's goal; tap a row for a full-size curve with per-lag sample size. The weight goal card and its unlock countdown stay
+- **Statistics: tabs reordered** — Goal / Patterns / Stability / Advanced; swiping follows the same order
+- **Patterns: weekend vs weekday as bars** — every significant effect is a diverging bar (% vs weekdays; clock-time items in hours), no longer capped at four, and each expands to its average Monday–Sunday curve with the weekend shaded. Weekdays are now read in local time; dates were parsed as UTC, which shifted them a day anywhere west of Greenwich
+- **Patterns: lag lists collapsed** — each Lag Impact section shows only its strongest factor until opened; the density legend moves inside
+- **Fewer, shorter notes** — relationship changes, the lag curves, the stability chart and guide, the goal card and the Overview's adherence note each drop text that repeated something already on screen
+
 ### v1.6.4
 - **Push-ups are split into Standard / Knee / Incline / Decline, with load computed from body weight** — a push-up moves a fixed share of your body weight (64% / 49% / 55% / 75% respectively), so typing a "weight" for it meant guessing. Each set now asks only for reps and any added load (default 0); load = that day's (or the most recent) body weight × the variant's share + added load, and volume = load × reps. The total is stored like any other set, so volume, calorie estimates and statistics pick it up unchanged. Sessions logged under the old single "Push-Up" keep the weights they were saved with
 - **Strength rest time: the auto-detected value is now shown as a prediction with a separate Apply button** — previously the detected rest sat in the field as a placeholder and as a link, so it was easy to think it had been recorded when it hadn't. It now reads "Predicted Xm Ys" next to an Apply button; nothing is filled in until you press it, the button turns green once applied, and pressing it again clears the value
