@@ -226,9 +226,10 @@ export function Dashboard() {
     : adjustment > 0 ? (zh ? "增肌額度" : "Surplus")
     : (zh ? "維持" : "Maintain");
 
-  // Gauge: a 240° speedometer whose full sweep is 125% of the target, so the
-  // target sits at a fixed tick (80% of the sweep) and overshoot has room to show.
-  const G_SIZE = 220, G_R = 86, G_SW = 14, G_SWEEP = 240, G_MAX = 1.25;
+  // Gauge: a 240° speedometer whose full sweep ends at the target. Past it the
+  // needle pegs at the stop and the whole arc turns red, like a tachometer
+  // over the redline.
+  const G_SIZE = 220, G_R = 86, G_SW = 12, G_SWEEP = 240;
   const gPoint = (deg: number, r = G_R) => {
     const rad = (deg - 90) * Math.PI / 180;
     return { x: G_SIZE / 2 + r * Math.cos(rad), y: G_SIZE / 2 + r * Math.sin(rad) };
@@ -237,9 +238,10 @@ export function Dashboard() {
     const a = gPoint(from), b = gPoint(to);
     return `M ${a.x} ${a.y} A ${G_R} ${G_R} 0 ${to - from > 180 ? 1 : 0} 1 ${b.x} ${b.y}`;
   };
-  const gDeg = (frac: number) => -G_SWEEP / 2 + Math.min(Math.max(frac, 0), G_MAX) / G_MAX * G_SWEEP;
-  const gTarget = gDeg(1);
+  const gDeg = (frac: number) => -G_SWEEP / 2 + Math.min(Math.max(frac, 0), 1) * G_SWEEP;
   const gFill   = gDeg(calPct);
+  const gNeedle = calOver ? G_SWEEP / 2 + 6 : gFill; // pegged just past the stop
+  const gTicks  = Array.from({ length: 11 }, (_, i) => i / 10);
 
   /** One line of a budget column: label left, figure right. `total` is the result line under the rule. */
   const BudgetRow = ({ label, value, tone, total }: {
@@ -266,35 +268,46 @@ export function Dashboard() {
       </div>
 
       {/* Final vs target gauge */}
-      <div className="relative mx-auto -mb-6" style={{ width: G_SIZE, height: G_SIZE }}>
+      <div className="relative mx-auto" style={{ width: G_SIZE, height: G_SIZE - 8 }}>
         <svg width={G_SIZE} height={G_SIZE}>
-          <path d={gArc(-G_SWEEP / 2, G_SWEEP / 2)} fill="none" stroke="var(--surface-container)" strokeWidth={G_SW} strokeLinecap="round" />
-          {calPct > 0 && (
-            <path d={gArc(-G_SWEEP / 2, Math.min(gFill, gTarget))} fill="none" stroke="#38bdf8" strokeWidth={G_SW} strokeLinecap="round"
-              style={{ transition: "d 0.5s ease" }} />
+          <path d={gArc(-G_SWEEP / 2, G_SWEEP / 2)} fill="none"
+            stroke={calOver ? "#f87171" : "var(--surface-container)"} strokeWidth={G_SW} strokeLinecap="round" />
+          {!calOver && calPct > 0 && (
+            <path d={gArc(-G_SWEEP / 2, gFill)} fill="none" stroke="#38bdf8" strokeWidth={G_SW} strokeLinecap="round" />
           )}
-          {calOver && (
-            <path d={gArc(gTarget, gFill)} fill="none" stroke="#f87171" strokeWidth={G_SW} strokeLinecap="round" />
-          )}
-          {/* Target tick */}
-          {(() => {
-            const o = gPoint(gTarget, G_R + G_SW / 2 + 5), i = gPoint(gTarget, G_R - G_SW / 2 - 5);
-            const l = gPoint(gTarget, G_R + G_SW / 2 + 16);
-            return (
-              <>
-                <line x1={i.x} y1={i.y} x2={o.x} y2={o.y} stroke="var(--text-on-surface)" strokeWidth={2.5} strokeLinecap="round" />
-                <text x={l.x} y={l.y} textAnchor="middle" dominantBaseline="middle" className="text-9 font-semibold"
-                  fill="var(--text-on-surface-muted)">{zh ? "目標" : "Target"}</text>
-              </>
-            );
-          })()}
+
+          {/* Scale: minor tick every 10%, major at 0, 50% and the target */}
+          {gTicks.map(f => {
+            const major = f === 0 || f === 0.5 || f === 1;
+            const deg = gDeg(f);
+            const o = gPoint(deg, G_R - G_SW / 2 - 3);
+            const i = gPoint(deg, G_R - G_SW / 2 - (major ? 11 : 6));
+            return <line key={f} x1={i.x} y1={i.y} x2={o.x} y2={o.y}
+              stroke={major ? "var(--text-on-surface-sub)" : "var(--text-on-surface-muted)"}
+              strokeOpacity={major ? 0.8 : 0.45} strokeWidth={major ? 2 : 1} strokeLinecap="round" />;
+          })}
+          {[{ f: 0, txt: "0" }, { f: 1, txt: zh ? "目標" : "Target" }].map(({ f, txt }) => {
+            // Outside the dial, under each end of the arc, clear of the needle's sweep
+            const l = gPoint(gDeg(f), G_R + G_SW / 2 + 8);
+            return <text key={f} x={l.x} y={l.y + 6} textAnchor="middle" dominantBaseline="middle"
+              className="text-9 font-semibold" fill={f === 1 && calOver ? "#ef4444" : "var(--text-on-surface-muted)"}>{txt}</text>;
+          })}
+
+          {/* Needle */}
+          <g style={{ transform: `rotate(${gNeedle}deg)`, transformOrigin: `${G_SIZE / 2}px ${G_SIZE / 2}px`, transition: "transform 0.6s cubic-bezier(.3,1.4,.5,1)" }}>
+            <path d={`M ${G_SIZE / 2 - 3.5} ${G_SIZE / 2} L ${G_SIZE / 2} ${G_SIZE / 2 - G_R + G_SW / 2 + 4} L ${G_SIZE / 2 + 3.5} ${G_SIZE / 2} Z`}
+              fill={calOver ? "#ef4444" : "var(--text-on-surface)"} />
+          </g>
+          <circle cx={G_SIZE / 2} cy={G_SIZE / 2} r={7} fill={calOver ? "#ef4444" : "var(--text-on-surface)"} />
+          <circle cx={G_SIZE / 2} cy={G_SIZE / 2} r={2.5} fill="var(--surface)" />
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center pt-1">
-          <p className="text-11 text-[var(--text-on-surface-muted)]">{calOver ? (zh ? "超出" : "Over") : (zh ? "剩餘" : "Left")}</p>
-          <p className={clsx("text-3xl font-bold font-mono tabular-nums leading-tight", calOver ? "text-red-500" : "text-[var(--text-on-surface)]")}>
+        {/* Readout sits in the open bottom of the dial, below the hub */}
+        <div className="absolute inset-x-0 flex flex-col items-center" style={{ top: G_SIZE / 2 + 16 }}>
+          <p className="text-10 text-[var(--text-on-surface-muted)] leading-none">{calOver ? (zh ? "超出" : "Over") : (zh ? "剩餘" : "Left")}</p>
+          <p className={clsx("text-2xl font-bold font-mono tabular-nums leading-tight", calOver ? "text-red-500" : "text-[var(--text-on-surface)]")}>
             {fmtK(Math.abs(calRemain))}
           </p>
-          <p className="text-11 text-[var(--text-on-surface-muted)]">kcal · {Math.round(calPct * 100)}%</p>
+          <p className="text-10 text-[var(--text-on-surface-muted)] leading-none">kcal · {Math.round(calPct * 100)}%</p>
         </div>
       </div>
 
