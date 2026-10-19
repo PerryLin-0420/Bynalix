@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { format } from "date-fns";
 import { fmtDay } from "@/lib/dateFormat";
-import { Droplets, Dumbbell, Scale, TrendingDown, TrendingUp, Minus, Flame, Wheat } from "lucide-react";
+import { Droplets, Moon, Scale, TrendingDown, TrendingUp, Minus, Flame, Wheat } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { calculateNutritionTargets } from "@/lib/calculations/strategy";
@@ -152,18 +152,31 @@ export function Dashboard() {
     </div>
   );
 
-  const ExerciseCard = (
+  const sleep = extras?.sleep ?? null;
+  const SLEEP_QUALITY: Record<"good" | "normal" | "poor", { label: string; cls: string }> = {
+    good:   { label: t("body.sleep.good"),   cls: "text-emerald-600" },
+    normal: { label: t("body.sleep.normal"), cls: "text-[var(--text-on-surface-muted)]" },
+    poor:   { label: t("body.sleep.poor"),   cls: "text-rose-500" },
+  };
+
+  const SleepCard = (
     <div className="card">
-      <div className="flex items-center gap-micro.5 text-orange-500">
-        <Dumbbell size={16} />
-        <span className="text-xs font-medium">{t("dashboard.exercise")}</span>
+      <div className="flex items-center gap-micro.5 text-indigo-500">
+        <Moon size={16} />
+        <span className="text-xs font-medium">{lang === "zh" ? "睡眠" : "Sleep"}</span>
       </div>
-      <p className="text-xl font-bold text-[var(--text-on-surface)]">{Math.round(totals.exercise_kcal)}</p>
-      <p className="text-xs text-[var(--text-on-surface-muted)]">{t("dashboard.burned")}</p>
-      <div className="h-1.5 bg-[var(--surface-container)] rounded-full overflow-hidden">
-        <div className="h-full bg-orange-400 rounded-full transition-all"
-          style={{ width: `${Math.min((totals.exercise_kcal / 500) * 100, 100)}%` }} />
-      </div>
+      {sleep ? (
+        <>
+          <p className="text-xl font-bold text-[var(--text-on-surface)]">{sleep.hours != null ? sleep.hours.toFixed(1) : "—"}</p>
+          <p className="text-xs text-[var(--text-on-surface-muted)]">{lang === "zh" ? "小時" : "hours"}</p>
+          <p className={clsx("text-10 font-medium", SLEEP_QUALITY[sleep.quality].cls)}>{SLEEP_QUALITY[sleep.quality].label}</p>
+        </>
+      ) : (
+        <>
+          <p className="text-xl font-bold text-[var(--text-on-surface)]">—</p>
+          <p className="text-xs text-[var(--text-on-surface-muted)]">{t("dashboard.notLogged")}</p>
+        </>
+      )}
     </div>
   );
 
@@ -213,6 +226,21 @@ export function Dashboard() {
     : adjustment > 0 ? (zh ? "增肌額度" : "Surplus")
     : (zh ? "維持" : "Maintain");
 
+  // Gauge: a 240° speedometer whose full sweep is 125% of the target, so the
+  // target sits at a fixed tick (80% of the sweep) and overshoot has room to show.
+  const G_SIZE = 220, G_R = 86, G_SW = 14, G_SWEEP = 240, G_MAX = 1.25;
+  const gPoint = (deg: number, r = G_R) => {
+    const rad = (deg - 90) * Math.PI / 180;
+    return { x: G_SIZE / 2 + r * Math.cos(rad), y: G_SIZE / 2 + r * Math.sin(rad) };
+  };
+  const gArc = (from: number, to: number) => {
+    const a = gPoint(from), b = gPoint(to);
+    return `M ${a.x} ${a.y} A ${G_R} ${G_R} 0 ${to - from > 180 ? 1 : 0} 1 ${b.x} ${b.y}`;
+  };
+  const gDeg = (frac: number) => -G_SWEEP / 2 + Math.min(Math.max(frac, 0), G_MAX) / G_MAX * G_SWEEP;
+  const gTarget = gDeg(1);
+  const gFill   = gDeg(calPct);
+
   /** One line of a budget column: label left, figure right. `total` is the result line under the rule. */
   const BudgetRow = ({ label, value, tone, total }: {
     label: string; value: string; tone?: string; total?: boolean;
@@ -232,9 +260,42 @@ export function Dashboard() {
 
   const CalorieCard = (
     <div className="card p-5">
-      <div className="flex items-center gap-micro.5 mb-3">
+      <div className="flex items-center gap-micro.5">
         <Flame size={16} className="text-sky-500" />
         <p className="text-base font-bold text-[var(--text-on-surface)]">{zh ? "今日熱量" : "Today's calories"}</p>
+      </div>
+
+      {/* Final vs target gauge */}
+      <div className="relative mx-auto -mb-6" style={{ width: G_SIZE, height: G_SIZE }}>
+        <svg width={G_SIZE} height={G_SIZE}>
+          <path d={gArc(-G_SWEEP / 2, G_SWEEP / 2)} fill="none" stroke="var(--surface-container)" strokeWidth={G_SW} strokeLinecap="round" />
+          {calPct > 0 && (
+            <path d={gArc(-G_SWEEP / 2, Math.min(gFill, gTarget))} fill="none" stroke="#38bdf8" strokeWidth={G_SW} strokeLinecap="round"
+              style={{ transition: "d 0.5s ease" }} />
+          )}
+          {calOver && (
+            <path d={gArc(gTarget, gFill)} fill="none" stroke="#f87171" strokeWidth={G_SW} strokeLinecap="round" />
+          )}
+          {/* Target tick */}
+          {(() => {
+            const o = gPoint(gTarget, G_R + G_SW / 2 + 5), i = gPoint(gTarget, G_R - G_SW / 2 - 5);
+            const l = gPoint(gTarget, G_R + G_SW / 2 + 16);
+            return (
+              <>
+                <line x1={i.x} y1={i.y} x2={o.x} y2={o.y} stroke="var(--text-on-surface)" strokeWidth={2.5} strokeLinecap="round" />
+                <text x={l.x} y={l.y} textAnchor="middle" dominantBaseline="middle" className="text-9 font-semibold"
+                  fill="var(--text-on-surface-muted)">{zh ? "目標" : "Target"}</text>
+              </>
+            );
+          })()}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pt-1">
+          <p className="text-11 text-[var(--text-on-surface-muted)]">{calOver ? (zh ? "超出" : "Over") : (zh ? "剩餘" : "Left")}</p>
+          <p className={clsx("text-3xl font-bold font-mono tabular-nums leading-tight", calOver ? "text-red-500" : "text-[var(--text-on-surface)]")}>
+            {fmtK(Math.abs(calRemain))}
+          </p>
+          <p className="text-11 text-[var(--text-on-surface-muted)]">kcal · {Math.round(calPct * 100)}%</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2.5">
@@ -257,23 +318,6 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Final vs target */}
-      <div className="mt-4">
-        <div className="relative h-2.5 bg-[var(--surface-container)] rounded-full overflow-hidden">
-          <div className={clsx("absolute inset-y-0 left-0 rounded-full transition-all duration-500", calOver ? "bg-red-400" : "bg-sky-400")}
-            style={{ width: `${Math.min(calPct, 1) * 100}%` }} />
-        </div>
-        <div className="flex items-baseline justify-between mt-1.5">
-          <p className={clsx("text-sm font-bold", calOver ? "text-red-500" : "text-[var(--text-on-surface)]")}>
-            {calOver
-              ? (zh ? `超出 ${fmtK(-calRemain)} kcal` : `${fmtK(-calRemain)} kcal over`)
-              : (zh ? `剩餘 ${fmtK(calRemain)} kcal` : `${fmtK(calRemain)} kcal left`)}
-          </p>
-          <p className="text-11 font-mono tabular-nums text-[var(--text-on-surface-muted)]">
-            {fmtK(finalKcal)} / {fmtK(calTarget)} · {Math.round(calPct * 100)}%
-          </p>
-        </div>
-      </div>
     </div>
   );
 
@@ -284,6 +328,8 @@ export function Dashboard() {
     { key: "fat",     label: t("dashboard.fat"),     val: totals.fat,     target: targets?.fat_g     ?? 60,  color: "#fb923c" },
   ];
 
+  const RING_R = 30, RING_SW = 8, RING_SIZE = 2 * (RING_R + RING_SW);
+
   const MacroCard = (
     <div className="card">
       <div className="flex items-center justify-between mb-3">
@@ -293,27 +339,38 @@ export function Dashboard() {
         </div>
         <p className="text-10 text-[var(--text-on-surface-muted)]">{zh ? "攝取 / 目標" : "eaten / target"}</p>
       </div>
-      <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
         {macros.map(m => {
-          const pct = m.target > 0 ? m.val / m.target : 0;
-          const over = m.val > m.target;
+          const pct  = m.target > 0 ? m.val / m.target : 0;
+          const over = pct > 1;
+          const circ = 2 * Math.PI * RING_R;
+          const c    = RING_SIZE / 2;
           const diff = Math.round(Math.abs(m.target - m.val));
           return (
-            <div key={m.key}>
-              <div className="flex items-baseline justify-between mb-1">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-on-surface)]">
-                  <span className="w-2 h-2 rounded-full" style={{ background: m.color }} />{m.label}
-                </span>
-                <span className="text-xs font-mono tabular-nums">
-                  <span className={clsx("font-bold", over ? "text-red-500" : "text-[var(--text-on-surface)]")}>{Math.round(m.val)}</span>
-                  <span className="text-[var(--text-on-surface-muted)]"> / {Math.round(m.target)} g</span>
-                </span>
+            <div key={m.key} className="flex flex-col items-center">
+              <div className="relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
+                <svg width={RING_SIZE} height={RING_SIZE} style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx={c} cy={c} r={RING_R} fill="none" stroke="var(--surface-container)" strokeWidth={RING_SW} />
+                  <circle cx={c} cy={c} r={RING_R} fill="none" stroke={m.color} strokeWidth={RING_SW} strokeLinecap="round"
+                    strokeDasharray={circ} strokeDashoffset={circ * (1 - Math.min(pct, 1))}
+                    style={{ transition: "stroke-dashoffset 0.5s ease" }} />
+                  {/* Overshoot laps the ring in red */}
+                  {over && (
+                    <circle cx={c} cy={c} r={RING_R} fill="none" stroke="#f87171" strokeWidth={RING_SW} strokeLinecap="round"
+                      strokeDasharray={circ} strokeDashoffset={circ * (1 - Math.min(pct - 1, 1))} />
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={clsx("text-base font-bold font-mono tabular-nums leading-none", over ? "text-red-500" : "text-[var(--text-on-surface)]")}>
+                    {Math.round(m.val)}
+                  </span>
+                  <span className="text-9 text-[var(--text-on-surface-muted)] mt-0.5">/ {Math.round(m.target)} g</span>
+                </div>
               </div>
-              <div className="h-1.5 bg-[var(--surface-container)] rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(pct, 1) * 100}%`, background: over ? "#f87171" : m.color }} />
-              </div>
-              <p className={clsx("text-10 mt-0.5 text-right", over ? "text-red-500" : "text-[var(--text-on-surface-muted)]")}>
+              <p className="flex items-center gap-1 text-xs font-medium text-[var(--text-on-surface)] mt-1.5">
+                <span className="w-2 h-2 rounded-full" style={{ background: m.color }} />{m.label}
+              </p>
+              <p className={clsx("text-10", over ? "text-red-500" : "text-[var(--text-on-surface-muted)]")}>
                 {over ? (zh ? `超出 ${diff} g` : `${diff} g over`) : (zh ? `剩 ${diff} g` : `${diff} g left`)}
               </p>
             </div>
@@ -642,7 +699,7 @@ export function Dashboard() {
 
           <div className="grid grid-cols-3 gap-3">
             {WaterCard}
-            {ExerciseCard}
+            {SleepCard}
             {WeightCard}
           </div>
 

@@ -3,6 +3,8 @@ import { format, subDays } from "date-fns";
 
 export interface DashboardExtras {
   hasSleep:    boolean;
+  /** Today's most recent sleep entry, if any. */
+  sleep:       { hours: number | null; quality: "good" | "normal" | "poor" } | null;
   hasStrength: boolean;
   streak:      number;
   weekly: {
@@ -40,8 +42,8 @@ export async function getDashboardExtras(
     weeklyExercise,
     weightRows,
   ] = await Promise.all([
-    db.select<{ cnt: number }[]>(
-      "SELECT COUNT(*) as cnt FROM sleep_log WHERE user_id=? AND sleep_date=?",
+    db.select<{ duration_hours: number | null; quality: "good" | "normal" | "poor" }[]>(
+      "SELECT duration_hours, quality FROM sleep_log WHERE user_id=? AND sleep_date=? ORDER BY id DESC LIMIT 1",
       [userId, today],
     ),
     db.select<{ cnt: number }[]>(
@@ -146,7 +148,8 @@ export async function getDashboardExtras(
   }
 
   return {
-    hasSleep:    (sleepToday[0]?.cnt    ?? 0) > 0,
+    hasSleep:    sleepToday.length > 0,
+    sleep:       sleepToday[0] ? { hours: sleepToday[0].duration_hours, quality: sleepToday[0].quality } : null,
     hasStrength: (strengthToday[0]?.cnt ?? 0) > 0,
     streak,
     weekly: {
