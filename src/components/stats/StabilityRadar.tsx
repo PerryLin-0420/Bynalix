@@ -5,7 +5,7 @@ import { CardHeader } from "@/components/common/CardHeader";
 import { ChartExportButton } from "@/components/common/ChartExportButton";
 import {
   STABILITY_METRICS, STABILITY_METRIC_ORDER, STABILITY_MIN_DENSITY,
-  STABILITY_MIN_DIFFS, STABILITY_REFERENCE_CV,
+  STABILITY_MIN_DIFFS,
   type StabilityResult,
 } from "@/lib/statistics/stability";
 
@@ -37,20 +37,18 @@ function densityColor(d: number): string {
   return d >= 80 ? "#10b981" : d >= 50 ? "#f59e0b" : "#f43f5e";
 }
 
-/** Score tiers: a wider "amber" band than density gets, since real logged
- * behaviour clusters in the middle of this scale (see stability.ts's own
- * calibration note) — 80/50 would paint almost everything but weight red. */
+/** Score tiers: 70 is under about 1.5× the allowed range, 40 under about 2.3×. */
 function scoreColor(score: number): string {
   return score >= 70 ? "#10b981" : score >= 40 ? "#f59e0b" : "#f43f5e";
 }
 
-/** Detail-table track sizes: name | avg | wobble | n | score | density dot. */
+/** Detail-table track sizes: name | tolerance | wobble | n | score | density dot. */
 const TABLE_COLS = "3.5rem minmax(0,1fr) minmax(0,1fr) 1.5rem 1.75rem 0.5rem";
 
 /** Enough precision to be useful without pushing a column out of alignment:
  *  a decimal only where the value is small enough for one to mean anything. */
 function fmtVal(v: number): string {
-  return v >= 100 ? Math.round(v).toString() : v.toFixed(1);
+  return v >= 100 ? Math.round(v).toString() : v >= 10 ? v.toFixed(0) : Number(v.toFixed(2)).toString();
 }
 
 function angleOf(i: number): number {
@@ -87,7 +85,7 @@ export function StabilityRadar({ results, lang }: Props) {
       <CardHeader mb="mb-1"
         title={zh ? "穩定星圖" : "Stability"} />
       <p className="text-10 text-[var(--text-on-surface-muted)] mb-3">
-        {zh ? "七項核心數字的日對日波動" : "Day-to-day wobble across seven core metrics"}
+        {zh ? "七項核心數字的日對日波動，在各自的容許範圍內即為滿分" : "Day-to-day wobble of seven core metrics — full marks within each one's allowed range"}
       </p>
 
       <div className="flex justify-center">
@@ -160,7 +158,7 @@ export function StabilityRadar({ results, lang }: Props) {
         <div className="grid items-center gap-2 pb-1.5 text-9 font-semibold uppercase tracking-wide text-[var(--text-on-surface-muted)]"
           style={{ gridTemplateColumns: TABLE_COLS }}>
           <span>{zh ? "項目" : "Metric"}</span>
-          <span className="text-right">{zh ? "平均" : "Avg"}</span>
+          <span className="text-right">{zh ? "容許" : "Allowed"}</span>
           <span className="text-right">{zh ? "日波動" : "Wobble"}</span>
           <span className="text-right">n</span>
           <span className="text-right">{zh ? "分數" : "Score"}</span>
@@ -176,17 +174,18 @@ export function StabilityRadar({ results, lang }: Props) {
                 <span className="text-xs font-medium text-[var(--text-on-surface)] whitespace-nowrap">
                   {zh ? meta.labelZh : meta.labelEn}
                 </span>
+                <span className="text-11 font-mono tabular-nums text-right text-gray-400">
+                  ±{fmtVal(meta.tolerance)}{meta.unit}
+                </span>
                 {r.score == null ? (
-                  <span className="col-span-3 text-11 text-[var(--text-on-surface-muted)] text-right">
-                    {zh ? "資料不足" : "insufficient data"}
+                  <span className="col-span-2 text-11 text-[var(--text-on-surface-muted)] text-right">
+                    {zh ? "資料不足" : "insufficient"}
                   </span>
                 ) : (
                   <>
-                    <span className="text-11 font-mono tabular-nums text-right text-[var(--text-on-surface-sub)]">
-                      {fmtVal(r.mean!)}<span className="text-gray-400">{meta.unit}</span>
-                    </span>
-                    <span className="text-11 font-mono tabular-nums text-right text-[var(--text-on-surface-sub)]">
-                      ±{fmtVal(r.volatility!)}<span className="text-gray-400">{meta.unit}</span>
+                    <span className={clsx("text-11 font-mono tabular-nums text-right",
+                      r.ratio! <= 1 ? "text-[var(--text-on-surface-sub)]" : "text-[var(--text-on-surface)] font-semibold")}>
+                      ±{fmtVal(r.volatility!)}<span className="text-gray-400 font-normal">{meta.unit}</span>
                     </span>
                     <span className="text-11 font-mono tabular-nums text-right text-gray-400">{r.nDiffs}</span>
                   </>
@@ -233,19 +232,18 @@ function GuideSection({ title, children }: { title: string; children: React.Reac
  * the chart they were a wall of text nobody reads before the picture.
  */
 function StabilityGuide({ zh }: { zh: boolean }) {
-  const halving = STABILITY_REFERENCE_CV;
   const columns: [string, string][] = zh
     ? [
-      ["平均", "該項目在這段區間的平均值，也是相對波動的分母"],
+      ["容許", "該項目物理上正常的日跳動幅度，在這之內就算穩定"],
       ["日波動", "相鄰兩天差值的標準差 — 每天平均跳動多少"],
       ["n", "實際用到的「連續兩天都有記錄」配對數"],
-      ["分數", "0–100，由相對波動換算"],
+      ["分數", "0–100，由日波動是容許的幾倍換算"],
     ]
     : [
-      ["Avg", "Mean value over the range — the denominator of relative wobble"],
+      ["Allowed", "The day-to-day jump that is physically normal for it — within this, it is stable"],
       ["Wobble", "Stdev of consecutive-day differences — the typical daily jump"],
       ["n", "Consecutive-day pairs actually used"],
-      ["Score", "0–100, converted from relative wobble"],
+      ["Score", "0–100, from how many allowed ranges the wobble spans"],
     ];
 
   const [open, setOpen] = useState(false);
@@ -265,16 +263,16 @@ function StabilityGuide({ zh }: { zh: boolean }) {
       </button>
 
       {open && <div className="space-y-3.5 mt-3">
-        <GuideSection title={zh ? "分數＝日對日波動有多小" : "The score is how little it wobbles day to day"}>
+        <GuideSection title={zh ? "分數＝日波動是容許範圍的幾倍" : "The score is wobble measured in allowed ranges"}>
           <p>
             {zh
-              ? "取每天與前一天的差當作波動，再除以整體平均，得到與單位無關的「相對波動」。相對波動每增加 " + halving + "，分數就減半。"
-              : `Each day's change from the day before is the wobble; dividing by the overall mean makes it unit-free. Every ${halving} of relative wobble halves the score.`}
+              ? "每個項目都有一個物理上正常的日跳動幅度。日波動在這個範圍內就是滿分；每多出一個範圍，分數減半。"
+              : "Each metric has a day-to-day jump that is physically normal for it. Wobble within that range is full marks; every further range past it halves the score."}
           </p>
           <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {[[0, 100], [halving, 50], [halving * 2, 25]].map(([cv, sc]) => (
-              <span key={cv} className="rounded-lg bg-[var(--surface-container-low)] px-2 py-1 font-mono tabular-nums text-10">
-                {cv.toFixed(1)} → <span className="font-bold" style={{ color: scoreColor(sc) }}>{sc}</span>
+            {[[1, 100], [2, 50], [3, 25]].map(([x, sc]) => (
+              <span key={x} className="rounded-lg bg-[var(--surface-container-low)] px-2 py-1 font-mono tabular-nums text-10">
+                {x}× → <span className="font-bold" style={{ color: scoreColor(sc) }}>{sc}</span>
               </span>
             ))}
           </div>
@@ -283,6 +281,21 @@ function StabilityGuide({ zh }: { zh: boolean }) {
               ? "因為看的是「差」而不是整段的變異，長期趨勢不會被算成不穩定 — 穩定減脂中一路下降的體重仍然是高分。"
               : "Because it reads differences rather than spread around the mean, a long-term trend doesn't count as instability — weight falling steadily on a cut still scores high."}
           </p>
+        </GuideSection>
+
+        <GuideSection title={zh ? "各項目的容許範圍" : "Each metric's allowed range"}>
+          <dl className="grid gap-x-2.5 gap-y-1" style={{ gridTemplateColumns: "auto auto minmax(0,1fr)" }}>
+            {STABILITY_METRIC_ORDER.map(m => {
+              const meta = STABILITY_METRICS[m];
+              return (
+                <Fragment key={m}>
+                  <dt className="text-10 font-semibold text-[var(--text-on-surface)] whitespace-nowrap">{zh ? meta.labelZh : meta.labelEn}</dt>
+                  <dd className="text-10 font-mono tabular-nums text-right whitespace-nowrap">±{fmtVal(meta.tolerance)} {meta.unit}</dd>
+                  <dd className="text-10">{zh ? meta.whyZh : meta.whyEn}</dd>
+                </Fragment>
+              );
+            })}
+          </dl>
         </GuideSection>
 
         <GuideSection title={zh ? "資料不足的項目不給分" : "A metric without enough data isn't scored"}>

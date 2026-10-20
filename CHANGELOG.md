@@ -7,6 +7,10 @@ see the [README](./README.md).
 
 ---
 
+### v1.7.1
+- **Stability is scored against a physical allowed range per metric** — the score used to divide day-to-day wobble by the metric's own average, so a slow quantity like weight landed near 100 whatever happened, and one shared yardstick (0.5) stood in for seven very different quantities. Each metric now has an allowed day-to-day jump set from what it physically does on its own: weight ±0.5 kg (water, glycogen, gut contents), calories ±300 kcal (about a snack, near food-estimate error), protein ±25 g (a serving), carbs ±50 g (two-thirds of a bowl of rice), fat ±15 g (a tablespoon of oil), water ±500 ml (two glasses), sleep ±0.75 h (45 minutes, still a regular schedule). Wobble within the range is full marks; each further range past it halves the score (1× → 100, 2× → 50, 3× → 25). The ranges come from physiology, not from your data, so a score means the same thing for everyone and never drifts with your history
+- **Stability table shows the allowed range** — the Avg column becomes Allowed, beside Wobble, and the guide card lists every metric's range with the reason for it
+
 ### v1.7.0
 - **Overview: calories split into Target and Actual** — the calorie card now shows two labelled columns. Target is TDEE adjusted by the mode's daily deficit or surplus (custom mode shows its own number as an offset from TDEE). Actual is what you ate minus today's logged exercise burn, giving the final calories. Remaining compares final calories with the daily target, so exercise logged today is deducted in plain sight instead of only in a small NET footer
 - **Overview: calorie gauge with a needle** — final vs target reads off a speedometer whose sweep ends at the daily target, with a 10% tick scale. Past the target the needle pegs beyond the stop and the whole arc turns red, like a tachometer over the redline; the centre readout switches from "left" to "over"
