@@ -23,17 +23,47 @@ import type { DailyStatsRecord } from "@/types";
 export type StabilityMetric =
   | "weight_kg" | "calories" | "protein_g" | "carb_g" | "fat_g" | "water_ml" | "sleep_hours";
 
-export interface StabilityMetricMeta { labelZh: string; labelEn: string; unit: string }
+export interface StabilityMetricMeta {
+  labelZh: string; labelEn: string; unit: string;
+  /**
+   * The day-to-day jump (stdev of consecutive-day differences, in the
+   * metric's own unit) that is still physically ordinary for it. Wobble
+   * within this band scores 100; it is the yardstick the score is built on.
+   */
+  tolerance: number;
+  /** Why this band counts as stable — shown in the guide card. */
+  whyZh: string; whyEn: string;
+}
 
-/** The seven axes of the stability star chart, in display order. */
+/**
+ * The seven axes of the stability star chart, in display order.
+ *
+ * Each tolerance is set from what the quantity physically does on its own,
+ * not from anyone's logged data, so a score means the same thing for every
+ * user and never drifts with their history.
+ */
 export const STABILITY_METRICS: Record<StabilityMetric, StabilityMetricMeta> = {
-  weight_kg:   { labelZh: "體重",   labelEn: "Weight",   unit: "kg" },
-  calories:    { labelZh: "熱量",   labelEn: "Calories", unit: "kcal" },
-  protein_g:   { labelZh: "蛋白質", labelEn: "Protein",  unit: "g" },
-  carb_g:      { labelZh: "碳水",   labelEn: "Carbs",    unit: "g" },
-  fat_g:       { labelZh: "脂肪",   labelEn: "Fat",      unit: "g" },
-  water_ml:    { labelZh: "飲水",   labelEn: "Water",    unit: "ml" },
-  sleep_hours: { labelZh: "睡眠",   labelEn: "Sleep",    unit: "h" },
+  weight_kg:   { labelZh: "體重",   labelEn: "Weight",   unit: "kg",   tolerance: 0.5,
+    whyZh: "水分、肝醣與腸胃內容物本來就會讓體重每天起伏約 0.5 kg",
+    whyEn: "water, glycogen and gut contents alone move weight about 0.5 kg a day" },
+  calories:    { labelZh: "熱量",   labelEn: "Calories", unit: "kcal", tolerance: 300,
+    whyZh: "約一份點心，也接近食物熱量估算本身的誤差",
+    whyEn: "about one snack, and close to the error of food calorie estimates" },
+  protein_g:   { labelZh: "蛋白質", labelEn: "Protein",  unit: "g",    tolerance: 25,
+    whyZh: "約一份蛋白質來源（半塊雞胸、一杯豆漿加一顆蛋）",
+    whyEn: "about one protein serving (half a chicken breast, or milk and an egg)" },
+  carb_g:      { labelZh: "碳水",   labelEn: "Carbs",    unit: "g",    tolerance: 50,
+    whyZh: "約大半碗飯",
+    whyEn: "about two-thirds of a bowl of rice" },
+  fat_g:       { labelZh: "脂肪",   labelEn: "Fat",      unit: "g",    tolerance: 15,
+    whyZh: "約一湯匙油",
+    whyEn: "about one tablespoon of oil" },
+  water_ml:    { labelZh: "飲水",   labelEn: "Water",    unit: "ml",   tolerance: 500,
+    whyZh: "約兩杯水，天氣與活動量本來就會造成這個差距",
+    whyEn: "about two glasses — weather and activity alone account for that" },
+  sleep_hours: { labelZh: "睡眠",   labelEn: "Sleep",    unit: "h",    tolerance: 0.75,
+    whyZh: "45 分鐘內的夜間差異，一般仍視為作息規律",
+    whyEn: "night-to-night differences within 45 minutes still count as a regular schedule" },
 };
 
 export const STABILITY_METRIC_ORDER = Object.keys(STABILITY_METRICS) as StabilityMetric[];
@@ -56,18 +86,6 @@ export const STABILITY_MIN_DENSITY = 50;
  */
 export const STABILITY_MIN_DIFFS = RELIABILITY_THRESHOLDS.MIN_PAIRS;
 
-/**
- * The relative day-to-day volatility (see `StabilityResult.cv`) at which a
- * metric scores 50 — the score halves every time volatility doubles past
- * this point, and approaches 100 as volatility approaches zero. Tuned by
- * running this over a real multi-month export: a physically slow-moving
- * metric like weight naturally lands relative volatility two orders of
- * magnitude below one logged by daily choice (calories, macros, water,
- * sleep), which cluster around 0.45–0.70. 0.5 keeps that real-world cluster
- * spread through the middle of the scale rather than bunched at either end.
- */
-export const STABILITY_REFERENCE_CV = 0.5;
-
 export interface StabilityResult {
   metric: StabilityMetric;
   /** % of days in range that carry a logged value for this metric. */
@@ -76,13 +94,13 @@ export interface StabilityResult {
   n: number;
   /** Consecutive-day difference pairs the volatility figure is built from. */
   nDiffs: number;
-  /** Mean of the logged values — the "typical level" `cv` is relative to. */
+  /** Mean of the logged values. */
   mean: number | null;
   /** Population stdev of day-over-day differences — absolute volatility. */
   volatility: number | null;
-  /** volatility / mean — the scale-free figure the score is computed from. */
-  cv: number | null;
-  /** 0–100, 100 = no day-to-day wobble at all. Null when density is too low. */
+  /** volatility / the metric's tolerance — how many tolerance bands the wobble spans. */
+  ratio: number | null;
+  /** 0–100, 100 = wobble within the metric's tolerance. Null when density is too low. */
   score: number | null;
   /** Reliability of the underlying diff count, same tiers as the rest of the app. */
   reliability: Reliability;
@@ -99,9 +117,13 @@ function pstdev(xs: number[]): number {
   return Math.sqrt(mean(xs.map(x => (x - m) ** 2)));
 }
 
-/** volatility/mean → 0–100, halving every STABILITY_REFERENCE_CV of relative volatility. */
-function cvToScore(cv: number): number {
-  const score = 100 * Math.exp(-Math.LN2 * (cv / STABILITY_REFERENCE_CV));
+/**
+ * volatility/tolerance → 0–100. Anything within the tolerance band is full
+ * marks — that wobble is the quantity's own physics, not behaviour — and the
+ * score halves for every further band past it: 1× → 100, 2× → 50, 3× → 25.
+ */
+function ratioToScore(ratio: number): number {
+  const score = 100 * Math.pow(2, -Math.max(0, ratio - 1));
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
@@ -142,20 +164,18 @@ export function computeStability(
     return {
       metric, density, n, nDiffs,
       mean: n > 0 ? mean(values.map(r => r.v)) : null,
-      volatility: null, cv: null, score: null,
+      volatility: null, ratio: null, score: null,
       reliability, insufficient: true,
     };
   }
 
-  const levelMean = mean(values.map(r => r.v));
   const volatility = pstdev(diffs);
-  const cv = levelMean > 0 ? volatility / levelMean : null;
-  const score = cv != null ? cvToScore(cv) : null;
+  const ratio = volatility / STABILITY_METRICS[metric].tolerance;
 
   return {
     metric, density, n, nDiffs,
-    mean: levelMean, volatility, cv, score,
-    reliability, insufficient: score == null,
+    mean: mean(values.map(r => r.v)), volatility, ratio, score: ratioToScore(ratio),
+    reliability, insufficient: false,
   };
 }
 
