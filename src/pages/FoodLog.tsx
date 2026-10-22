@@ -32,6 +32,7 @@ interface FoodItem {
   counts_as_water: number; // 1 = auto-sync ml quantity to water_log
   // Advanced drinks (see lib/drink.ts)
   drink_advanced: number; sugar_g: number | null; sugar_fixed_g: number; default_toppings: string | null;
+  sugar_max_level: number;
 }
 
 interface BasketItem {

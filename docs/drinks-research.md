@@ -259,3 +259,72 @@
 - 麻古：[麻古熱量表](https://fitdietinformation.weebly.com/magu.html)、[漁人生醫 麻古](https://www.fmbiomed.com.tw/zh-TW/blogs/healthy-learning/114641)、[dailydietitian 麻古](https://dailydietitian.com.tw/%E9%BA%BB%E5%8F%A4%E7%86%B1%E9%87%8F%E5%9C%96%E9%91%91/)
 - 得正：[食尚玩家](https://supertaste.tvbs.com.tw/pack/350077)、[Yahoo 得正熱量圖鑑](https://tw.news.yahoo.com/%E5%BF%85%E5%96%9D%E7%83%8F%E9%BE%8D%E8%8C%B6-%E5%BE%97%E6%AD%A3-%E6%89%8B%E6%90%96%E9%A3%B2%E7%86%B1%E9%87%8F%E5%9C%96%E9%91%91-%E8%A6%BD%E8%A1%A8-074931569.html)、[foodpanda 十全計劃](https://www.foodpanda.com.tw/restaurant/oqzd/de-zheng-oolong-tea-project-gao-xiong-shi-quan-ji-hua)
 - 黑糖珍珠鮮奶（未收）：[韓奕](https://www.hanyitea.tw/single-post/calories/)、[三立](https://health.setn.com/news/1023001)
+
+
+---
+
+## 八、官網核對（seed v15）
+
+執行環境仍無法直接開啟官網，但搜尋引擎有收錄部分品牌的**官方頁面**，以下改用這些頁面的標示。
+
+### 清心福全（官網產品頁 chingshin.tw/product/…）
+
+**重要**：清心官網註明「本產品之最高糖分設定為『少糖』，若點『全糖』，門市調製時將視同『少糖』」，
+冬瓜檸檬最高為「半糖」，蜜香奶茶最高為「少蜜」。**官網標示值是在最高甜度下**。
+App 因此新增每款飲品的「最高甜度」欄位：清心的標示值對應少糖（70%），選半糖時只保留 0.5／0.7 的可調糖，
+高於最高甜度的選項不顯示，並註明「此店最高為少糖」。
+
+| 品項 | 大杯糖 g | 大杯熱量 | 中杯糖 g | 中杯熱量 | 最高甜度 | 備註 |
+|---|---|---|---|---|---|---|
+| 烏龍綠茶 | 51 | 226 | 34 | 149 | 少糖 | 與第一批一致 |
+| 極品菁茶 | 51 | 226 | 34 | 149 | 少糖 | 新增 |
+| 錫蘭紅茶 | 48 | 211 | 32 | 139 | 少糖 | 新增 |
+| 特選普洱 | 46 | 202 | 30 | 133 | 少糖 | 新增 |
+| 梅子綠茶 | 46 | 202 | 30 | 133 | 少糖 | 一致 |
+| 檸檬紅茶 | 49 | 208 | 32 | 137 | 少糖 | 新增 |
+| 冬瓜檸檬 | 61 | 261 | — | — | 半糖 | 新增，無中杯 |
+| 優多綠茶／多多綠茶 | 72 | 330 | — | — | 少糖 | 一致，無中杯 |
+| 鮮奶茶（紅茶拿鐵） | 61 | 375 | 40 | 247 | 少糖 | 一致 |
+| 珍珠鮮奶茶（珍珠紅茶拿鐵） | 58 | 636 | 34 | 401 | 少糖 | 新增 |
+| 珍珠蜜香鮮奶普洱 | 70 | 541 | 46 | 356 | 少蜜 | 新增 |
+| 咖啡奶茶 | 47 | 364 | 31 | 240 | 少糖 | 新增 |
+| 特級奶綠 | 54 | 620 | — | — | 少糖 | 新增 |
+| 珍珠奶茶／波霸奶茶 | 50 | 720 | 33 | 475 | 少糖 | 一致 |
+| 粉圓奶茶 | 59 | 674 | — | — | 少糖 | 新增 |
+| 布丁奶茶 | 70 | 613 | 34 | 355 | 少糖 | 新增；官網另有一版舊表 534 kcal（650 ml），採新版 |
+| 蜜香奶茶 | 72 | 737 | 48 | 486 | 少蜜 | **原「蜂蜜奶茶」改為官方名稱** |
+| 芝麻奶茶 | 58 | 737 | — | — | 少糖 | 新增 |
+| 冰淇淋奶茶 | 71 | 750 | — | — | 少糖 | 新增 |
+
+中杯值目前沒有寫進 App（App 以大杯為基準、依毫升縮放）。以烏龍綠茶為例，按 500 ml 縮放是 161 kcal，官網中杯 149 kcal，差約 8%，
+推測清心中杯實際容量小於 500 ml。之後若做品牌杯量，可改用官網中杯值。
+
+### 可不可熟成紅茶（官方線上點餐 order.ocard.co/kebuke）
+
+| 品項 | 大杯糖 g | 大杯熱量 | 中杯糖 g | 中杯熱量 | 備註 |
+|---|---|---|---|---|---|
+| 熟成紅茶 | 50 | 200 | 45 | 180 | 一致 |
+| 麗春紅茶 | 65 | 270 | 51 | 211 | 新增 |
+| 春芽綠茶 | 45 | 180 | — | — | 新增（點餐頁描述「春滿四溢的青翠綠茶」） |
+| 熟成檸果 | 59 | 257 | 49 | 211 | 新增 |
+| 雪花冷露 | 55 | 233 | — | — | **由 247／37（2022 報導）改為官方值** |
+| 熟成歐蕾 | 55 | 311 | — | — | 一致 |
+| 白玉歐蕾 | 50 | 492 | — | — | **由 443／45（2022 報導）改為官方值**（點餐頁條目為白玉鮮奶茶） |
+| 胭脂紅茶 | 50 | 200 | 45 | 180 | 官方頁未找到，維持營養師數字 |
+
+### 找得到官方頁面、但內容沒有被收錄的品牌
+- **迷客夏**：官網有「飲料標示」公告（2025-03-21）與 PDF（milksha.com/upload/price/2311280909390000002.pdf），搜尋只看得到標題。
+- **麻古茶坊**：官網 drink.php 各區有「熱量表」下載，搜尋看不到內容。
+- **茶湯會**：官網有「茶品糖量表」，但只有糖量、沒有熱量，無法直接換算整杯熱量（奶類、配料熱量未知）。
+- **大苑子**：官網只有「每份 43 大卡」，沒有杯型與糖量。
+- **50嵐、CoCo、得正**：沒有找到含營養標示的官方頁面，維持外送平台／營養師數字。
+
+這些需要能直接開啟官網（或你手動下載 PDF／熱量表放進 repo）才能核對。
+
+### 官網來源
+- 清心福全：[烏龍綠茶](https://www.chingshin.tw/product/oolong-green-tea)、[錫蘭紅茶](https://www.chingshin.tw/product/ceylon-black-tea)、[特選普洱](https://www.chingshin.tw/product/finest-puer-tea)、[梅子綠茶](https://www.chingshin.tw/product/plum-green-tea)、[檸檬紅茶](https://www.chingshin.tw/product/lemon-black-tea)、[冬瓜檸檬](https://www.chingshin.tw/product/lemon-winter-melon-tea)、[優多綠茶](https://www.chingshin.tw/product/yogurt-green-tea)、[鮮奶茶](https://www.chingshin.tw/product/fresh-milk-tea)、[珍珠鮮奶茶](https://www.chingshin.tw/product/pearl-tea-with-fresh-milk)、[珍珠蜜香鮮奶普洱](https://www.chingshin.tw/product/pearl-puer-tea-with-fresh-milk-and-honey)、[咖啡奶茶](https://www.chingshin.tw/product/milk-coffee)、[特級奶綠](https://www.chingshin.tw/product/finest-green-milk-tea)、[珍珠奶茶](https://www.chingshin.tw/product/pearl-milk-tea)、[粉圓奶茶](https://www.chingshin.tw/product/mini-pearl-milk-tea)、[布丁奶茶](https://www.chingshin.tw/product/pudding-milk-tea)、[蜜香奶茶](https://www.chingshin.tw/product/honey-milk-tea)、[芝麻奶茶](https://www.chingshin.tw/product/sesame-milk-tea)、[冰淇淋奶茶](https://www.chingshin.tw/product/ice-cream-milk-tea)、[極品菁茶](https://chingshin.tw/product_detail2.php?Key=8)
+- 可不可：[台北通化](https://order.ocard.co/kebuke/KoA1RQ)、[板橋陽明](https://order.ocard.co/kebuke/KrYB3m)、[科技大樓](https://order.ocard.co/kebuke/m3JMJQ)、[新竹食品](https://order.ocard.co/kebuke/mEPGLQ)
+- 迷客夏：[飲料標示公告](https://www.milksha.com/news_detail.php?Key=269&cID=4)、[現場調製飲料標示 PDF](https://www.milksha.com/upload/price/2311280909390000002.pdf)
+- 麻古：[飲料喝喝（含熱量表下載）](https://www.macutea.com.tw/drink.php)
+- 茶湯會：[茶品糖量產地標示](https://tp-tea.com/sugar/index.php?index_id=41)
+- 大苑子：[鮮榨產品頁](https://www.dayungs.com/home/product/fresh/?lang=en)

@@ -6,7 +6,7 @@ import { RETIRED_DRINKS, SEED_DRINKS, SEED_TOPPINGS } from "./drinks";
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "14"; // more drink-shop drinks, 茶凍 topping, 得正 紅茶 → 春烏龍
+const SEED_VERSION = "15"; // official 清心福全 / 可不可 figures, per-drink highest sugar level
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {
@@ -115,11 +115,11 @@ export async function seedBuiltins(db: Database): Promise<void> {
       `UPDATE food_database SET
          name_en=?, protein_g=?, carbohydrates_g=?, fat_g=?, calories_kcal=?,
          base_quantity=?, base_unit=?, category=?, counts_as_water=?,
-         drink_advanced=1, sugar_g=?, sugar_fixed_g=?, default_toppings=?
+         drink_advanced=1, sugar_g=?, sugar_fixed_g=?, default_toppings=?, sugar_max_level=?
        WHERE food_name=? AND source_type='builtin'`,
       [d.name_en ?? null, d.protein_g, d.carbohydrates_g, d.fat_g, d.calories_kcal,
        d.base_quantity, d.base_unit, d.category, d.counts_as_water ? 1 : 0,
-       d.sugar_g, d.sugar_fixed_g, defaults, d.food_name]);
+       d.sugar_g, d.sugar_fixed_g, defaults, d.sugar_max_level, d.food_name]);
   }
 
   // A retired builtin drink goes only if no log or template still points at it

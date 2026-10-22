@@ -63,6 +63,11 @@ interface DrinkSpec {
   toppings?: string[];
   /** Sugar-free with nothing added counts toward water (plain teas only). */
   water?: boolean;
+  /**
+   * Highest sugar level the shop sells, which is also the level its label is
+   * for — 清心福全 tops out at 少糖 (0.7), its 冬瓜檸檬 at 半糖 (0.5).
+   */
+  maxLevel?: number;
 }
 
 // Fixed sugar (per cup) where the published figure includes it: fresh milk
@@ -84,14 +89,28 @@ const DRINKS: DrinkSpec[] = [
   { name: "CoCo 冬韻擂焙珍奶", name_en: "CoCo Roasted Pearl Milk Tea",  ml: 700, kcal: 749,   sugar: 59,   kind: "creamer", toppings: ["珍珠"] },
   { name: "CoCo 英式鮮奶茶",   name_en: "CoCo English Fresh Milk Tea",  ml: 700, kcal: 401,   sugar: 59,   fixedSugar: 14, kind: "milk" },
   { name: "CoCo 珍珠鮮奶茶",   name_en: "CoCo Pearl Fresh Milk Tea",    ml: 700, kcal: 547,   sugar: 57,   fixedSugar: 14, kind: "milk", toppings: ["珍珠"] },
-  // ── 清心福全 — platform labels / dietitian figures that agree
-  { name: "清心福全 烏龍綠茶", name_en: "Chingshin Oolong Green Tea",   ml: 700, kcal: 226,   sugar: 51,   kind: "tea", water: true },
-  { name: "清心福全 梅子綠茶", name_en: "Chingshin Plum Green Tea",     ml: 700, kcal: 202,   sugar: 46,   fixedSugar: 5, kind: "tea" },
-  { name: "清心福全 優多綠茶", name_en: "Chingshin Yakult Green Tea",   ml: 700, kcal: 330,   sugar: 72,   fixedSugar: 16, kind: "tea" },
-  { name: "清心福全 鮮奶茶",   name_en: "Chingshin Fresh Milk Tea",     ml: 700, kcal: 375,   sugar: 61,   fixedSugar: 14, kind: "milk" },
-  { name: "清心福全 珍珠奶茶", name_en: "Chingshin Pearl Milk Tea",     ml: 700, kcal: 720,   sugar: 50,   kind: "creamer", toppings: ["珍珠"] },
-  { name: "清心福全 波霸奶茶", name_en: "Chingshin Boba Milk Tea",      ml: 700, kcal: 720,   sugar: 50,   kind: "creamer", toppings: ["波霸"] },
-  { name: "清心福全 蜂蜜奶茶", name_en: "Chingshin Honey Milk Tea",     ml: 700, kcal: 737,   sugar: 72,   kind: "creamer" },
+  // ── 清心福全 — official product pages (chingshin.tw), labelled at the shop's highest
+  // sugar level: 少糖 for most (全糖 orders are made as 少糖), 半糖 for 冬瓜檸檬
+  { name: "清心福全 烏龍綠茶", name_en: "Chingshin Oolong Green Tea",   ml: 700, kcal: 226, sugar: 51, kind: "tea", water: true, maxLevel: 0.7 },
+  { name: "清心福全 極品菁茶", name_en: "Chingshin Premium Green Tea",  ml: 700, kcal: 226, sugar: 51, kind: "tea", water: true, maxLevel: 0.7 },
+  { name: "清心福全 錫蘭紅茶", name_en: "Chingshin Ceylon Black Tea",   ml: 700, kcal: 211, sugar: 48, kind: "tea", water: true, maxLevel: 0.7 },
+  { name: "清心福全 特選普洱", name_en: "Chingshin Pu'er Tea",          ml: 700, kcal: 202, sugar: 46, kind: "tea", water: true, maxLevel: 0.7 },
+  { name: "清心福全 梅子綠茶", name_en: "Chingshin Plum Green Tea",     ml: 700, kcal: 202, sugar: 46, fixedSugar: 5,  kind: "tea", maxLevel: 0.7 },
+  { name: "清心福全 檸檬紅茶", name_en: "Chingshin Lemon Black Tea",    ml: 700, kcal: 208, sugar: 49, fixedSugar: 3,  kind: "tea", maxLevel: 0.7 },
+  { name: "清心福全 冬瓜檸檬", name_en: "Chingshin Winter Melon Lemon", ml: 700, kcal: 261, sugar: 61, fixedSugar: 30, kind: "tea", maxLevel: 0.5 },
+  { name: "清心福全 優多綠茶", name_en: "Chingshin Yakult Green Tea",   ml: 700, kcal: 330, sugar: 72, fixedSugar: 16, kind: "tea", maxLevel: 0.7 },
+  { name: "清心福全 鮮奶茶",   name_en: "Chingshin Fresh Milk Tea",     ml: 700, kcal: 375, sugar: 61, fixedSugar: 14, kind: "milk", maxLevel: 0.7 },
+  { name: "清心福全 珍珠鮮奶茶", name_en: "Chingshin Pearl Fresh Milk Tea", ml: 700, kcal: 636, sugar: 58, fixedSugar: 14, kind: "milk", toppings: ["珍珠"], maxLevel: 0.7 },
+  { name: "清心福全 珍珠蜜香鮮奶普洱", name_en: "Chingshin Pearl Honey Fresh Milk Pu'er", ml: 700, kcal: 541, sugar: 70, fixedSugar: 14, kind: "milk", toppings: ["珍珠"], maxLevel: 0.7 },
+  { name: "清心福全 咖啡奶茶", name_en: "Chingshin Coffee Milk Tea",    ml: 700, kcal: 364, sugar: 47, kind: "creamer", maxLevel: 0.7 },
+  { name: "清心福全 特級奶綠", name_en: "Chingshin Green Milk Tea",     ml: 700, kcal: 620, sugar: 54, kind: "creamer", maxLevel: 0.7 },
+  { name: "清心福全 珍珠奶茶", name_en: "Chingshin Pearl Milk Tea",     ml: 700, kcal: 720, sugar: 50, kind: "creamer", toppings: ["珍珠"], maxLevel: 0.7 },
+  { name: "清心福全 波霸奶茶", name_en: "Chingshin Boba Milk Tea",      ml: 700, kcal: 720, sugar: 50, kind: "creamer", toppings: ["波霸"], maxLevel: 0.7 },
+  { name: "清心福全 粉圓奶茶", name_en: "Chingshin Mini Pearl Milk Tea", ml: 700, kcal: 674, sugar: 59, kind: "creamer", toppings: ["珍珠"], maxLevel: 0.7 },
+  { name: "清心福全 布丁奶茶", name_en: "Chingshin Pudding Milk Tea",   ml: 700, kcal: 613, sugar: 70, kind: "creamer", toppings: ["布丁"], maxLevel: 0.7 },
+  { name: "清心福全 蜜香奶茶", name_en: "Chingshin Honey Milk Tea",     ml: 700, kcal: 737, sugar: 72, kind: "creamer", maxLevel: 0.7 },
+  { name: "清心福全 芝麻奶茶", name_en: "Chingshin Sesame Milk Tea",    ml: 700, kcal: 737, sugar: 58, kind: "creamer", maxLevel: 0.7 },
+  { name: "清心福全 冰淇淋奶茶", name_en: "Chingshin Ice Cream Milk Tea", ml: 700, kcal: 750, sugar: 71, fixedSugar: 15, kind: "creamer", maxLevel: 0.7 },
   // ── 迷客夏 — dietitian figures
   { name: "迷客夏 娜杯紅茶",         name_en: "Milksha Black Tea",              ml: 700, kcal: 128, sugar: 29, kind: "tea", water: true },
   { name: "迷客夏 青檸香茶",         name_en: "Milksha Lime Tea",               ml: 700, kcal: 258, sugar: 59, fixedSugar: 5,  kind: "tea" },
@@ -101,12 +120,15 @@ const DRINKS: DrinkSpec[] = [
   { name: "迷客夏 芋頭鮮奶",         name_en: "Milksha Taro Fresh Milk",        ml: 700, kcal: 463, sugar: 41, fixedSugar: 14, kind: "milk" },
   { name: "迷客夏 珍珠伯爵紅茶拿鐵", name_en: "Milksha Pearl Earl Grey Latte",  ml: 700, kcal: 426, sugar: 35, fixedSugar: 10, kind: "milk", toppings: ["珍珠"] },
   { name: "迷客夏 珍珠手炒黑糖鮮奶", name_en: "Milksha Pearl Brown Sugar Milk", ml: 700, kcal: 559, sugar: 55, fixedSugar: 40, kind: "milk", toppings: ["珍珠"] },
-  // ── 可不可熟成紅茶 — official order page (熟成紅茶) and dietitian figures
+  // ── 可不可熟成紅茶 — official ordering pages (order.ocard.co/kebuke); 胭脂紅茶 is a dietitian figure
   { name: "可不可 熟成紅茶",   name_en: "Kebuke Aged Black Tea",        ml: 700, kcal: 200,   sugar: 50,   kind: "tea", water: true },
+  { name: "可不可 麗春紅茶",   name_en: "Kebuke Li-Chun Black Tea",     ml: 700, kcal: 270,   sugar: 65,   kind: "tea", water: true },
+  { name: "可不可 春芽綠茶",   name_en: "Kebuke Spring Bud Green Tea",  ml: 700, kcal: 180,   sugar: 45,   kind: "tea", water: true },
   { name: "可不可 胭脂紅茶",   name_en: "Kebuke Rouge Black Tea",       ml: 700, kcal: 200,   sugar: 50,   kind: "tea", water: true },
-  { name: "可不可 雪花冷露",   name_en: "Kebuke Snow Cold Dew",         ml: 700, kcal: 247,   sugar: 37,   kind: "tea" },
+  { name: "可不可 熟成檸果",   name_en: "Kebuke Aged Tea with Lemon",   ml: 700, kcal: 257,   sugar: 59,   fixedSugar: 3, kind: "tea" },
+  { name: "可不可 雪花冷露",   name_en: "Kebuke Snow Cold Dew",         ml: 700, kcal: 233,   sugar: 55,   fixedSugar: 20, kind: "tea" },
   { name: "可不可 熟成歐蕾",   name_en: "Kebuke Aged Tea Au Lait",      ml: 700, kcal: 311,   sugar: 55,   fixedSugar: 14, kind: "milk" },
-  { name: "可不可 白玉歐蕾",   name_en: "Kebuke White Pearl Au Lait",   ml: 700, kcal: 443,   sugar: 45,   fixedSugar: 14, kind: "milk", toppings: ["珍珠"] },
+  { name: "可不可 白玉歐蕾",   name_en: "Kebuke White Pearl Au Lait",   ml: 700, kcal: 492,   sugar: 50,   fixedSugar: 14, kind: "milk", toppings: ["珍珠"] },
   // ── 麻古茶坊 — menu calorie table (dietitian round-ups)
   { name: "麻古 柳橙果粒茶",   name_en: "Macu Orange Fruit Tea",        ml: 700, kcal: 342,   sugar: 76,   fixedSugar: 25, kind: "tea" },
   { name: "麻古 楊枝甘露 2.0", name_en: "Macu Mango Pomelo Sago 2.0",   ml: 700, kcal: 373,   sugar: 66,   fixedSugar: 30, kind: "milk" },
@@ -135,11 +157,15 @@ function estimateMacros(kcal: number, sugar: number, kind: DrinkKind) {
 }
 
 /** Builtin drinks renamed or dropped since an earlier seed; removed when nothing references them. */
-export const RETIRED_DRINKS = ["得正 紅茶"]; // was 春烏龍's figure under the wrong name
+export const RETIRED_DRINKS = [
+  "得正 紅茶",          // was 春烏龍's figure under the wrong name
+  "清心福全 蜂蜜奶茶",  // official name is 蜜香奶茶
+];
 
 export interface SeedDrink extends SeedFood {
   sugar_g: number;
   sugar_fixed_g: number;
+  sugar_max_level: number;
   /** Topping names; resolved to ids when seeding. */
   default_toppings: string[];
 }
@@ -160,6 +186,7 @@ export const SEED_DRINKS: SeedDrink[] = DRINKS.map(d => {
     counts_as_water: d.water ?? false,
     sugar_g: r1(sugar),
     sugar_fixed_g: Math.min(r1(sugar), d.fixedSugar ?? 0),
+    sugar_max_level: d.maxLevel ?? 1,
     default_toppings: d.toppings ?? [],
   };
 });
