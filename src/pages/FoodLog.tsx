@@ -16,7 +16,7 @@ import { NoProfile } from "@/components/common/NoProfile";
 import { DateNavHeader } from "@/components/layout/DateNavHeader";
 import { FoodHistoryDrawer } from "@/components/food/FoodHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
-import { DrinkOptions, ToppingEditor, type NewTopping } from "@/components/food/DrinkOptions";
+import { DrinkOptions, SummaryTabs, ToppingEditor, type NewTopping } from "@/components/food/DrinkOptions";
 import {
   CUP_PRESETS, defaultDrinkOpts, drinkAdjustment, drinkCountsAsWater, drinkOptsSummary, isAdvancedDrink,
   parseCupSizes, parseDrinkOpts, parseToppings, round1, type DrinkOpts, type Topping, type ToppingPick,
@@ -242,6 +242,10 @@ export function FoodLog() {
   };
   const [cf, setCf] = useState(CF_EMPTY);
   const cfIsDrink = cf.category === "飲料";
+  // An advanced drink's form is split into tabs; any other food stays one page
+  const [cfTab, setCfTab] = useState<"basic" | "sugar" | "toppings">("basic");
+  const cfTabbed = cfIsDrink && cf.drinkAdvanced;
+  const cfView = cfTabbed ? cfTab : "basic";
   const cfCalories = Math.round(
     (parseFloat(cf.protein) || 0) * 4 +
     (parseFloat(cf.carb)    || 0) * 4 +
@@ -726,6 +730,7 @@ export function FoodLog() {
       defaultToppings: parseToppings(food.default_toppings),
     });
     setCustomFoodErr(null);
+    setCfTab("basic");
     setShowCustomFood(true);
   };
 
@@ -734,6 +739,7 @@ export function FoodLog() {
     setCfEditId(null);
     setCustomFoodErr(null);
     setCf(CF_EMPTY);
+    setCfTab("basic");
   };
 
   const saveCustomFood = async () => {
@@ -1443,7 +1449,22 @@ export function FoodLog() {
               </button>
             </div>
 
-            <div className="space-y-3">
+            {cfTabbed && (
+              <SummaryTabs active={cfView} onSelect={setCfTab} tabs={[
+                { key: "basic", title: lang === "zh" ? "基本" : "Basics",
+                  value: cf.name.trim() || (lang === "zh" ? "未命名" : "Untitled") },
+                { key: "sugar", title: lang === "zh" ? "糖量與杯型" : "Sugar & cups",
+                  value: `${parseFloat(cf.sugar) || 0} g · ${
+                    CUP_PRESETS.filter(c => parseFloat(cf.cups[c.key]) > 0).map(c => cf.cups[c.key]).join("/") ||
+                    (lang === "zh" ? "預設杯型" : "default cups")}` },
+                { key: "toppings", title: lang === "zh" ? "預設配料" : "Toppings",
+                  value: cf.defaultToppings.length
+                    ? (lang === "zh" ? `${cf.defaultToppings.reduce((n, p) => n + p.qty, 0)} 份` : `${cf.defaultToppings.reduce((n, p) => n + p.qty, 0)}`)
+                    : (lang === "zh" ? "無" : "None") },
+              ]} />
+            )}
+
+            {cfView === "basic" && <div className="space-y-3">
               <div className="flex gap-2">
                 <input className="input-base flex-1"
                   placeholder={lang === "en" ? "Food name *" : "食物名稱 *"}
@@ -1512,59 +1533,61 @@ export function FoodLog() {
                     <span>
                       <span className="block text-sm font-medium text-[var(--text-on-surface)]">{lang === "zh" ? "進階飲料設定" : "Advanced drink"}</span>
                       <span className="block text-10 text-[var(--text-on-surface-muted)]">
-                        {lang === "zh" ? "記錄時可選杯量、甜度與配料；上方數值請填全糖" : "Pick cup size, sugar and toppings when logging; enter full-sugar values above"}
+                        {lang === "zh" ? "記錄時可選杯量、甜度與配料；上方數值請填全糖、不含配料" : "Pick cup size, sugar and toppings when logging; enter full-sugar values without toppings above"}
                       </span>
                     </span>
                     <input type="checkbox" className="w-5 h-5 accent-[var(--color-primary)]" checked={cf.drinkAdvanced}
                       onChange={e => setCf(f => ({ ...f, drinkAdvanced: e.target.checked, unit: e.target.checked ? "ml" : f.unit }))} />
                   </label>
-                  {cf.drinkAdvanced && (
-                    <div className="grid grid-cols-2 gap-2">
-                      {([["sugar", lang === "zh" ? "全糖總糖量" : "Sugar (full)"], ["sugarFixed", lang === "zh" ? "不可調的糖" : "Fixed sugar"]] as const).map(([k, ph]) => (
-                        <div key={k}>
-                          <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">{ph}</p>
-                          <div className="relative">
-                            <input className="input-base pr-6" type="number" inputMode="decimal" placeholder="0"
-                              value={cf[k]} onChange={e => setCf(f => ({ ...f, [k]: e.target.value }))} />
-                            <span className="absolute right-2 top-2 text-xs text-[var(--text-on-surface-muted)]">g</span>
-                          </div>
-                        </div>
-                      ))}
-                      <p className="col-span-2 text-10 text-[var(--text-on-surface-muted)]">
-                        {lang === "zh" ? `以上皆為每 ${cf.quantity || 100} ml、不含配料；不可調的糖如鮮奶乳糖、果汁的糖` : `Per ${cf.quantity || 100} ml without toppings; fixed sugar is e.g. milk lactose or juice`}
-                      </p>
-
-                      {/* Cup volumes */}
-                      <div className="col-span-2">
-                        <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">
-                          {lang === "zh" ? "杯型容量（留空＝不提供；全部留空用預設 500／700／1000）" : "Cup volumes (blank = not offered; all blank = default 500 / 700 / 1000)"}
-                        </p>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {CUP_PRESETS.map(c => (
-                            <label key={c.key} className="block">
-                              <span className="block text-10 text-[var(--text-on-surface-sub)] mb-0.5">{lang === "zh" ? c.zh : c.en}（ml）</span>
-                              <input className="input-base text-sm" type="number" inputMode="decimal" placeholder={String(c.ml)}
-                                value={cf.cups[c.key]}
-                                onChange={e => setCf(f => ({ ...f, cups: { ...f.cups, [c.key]: e.target.value } }))} />
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Default toppings */}
-                      <div className="col-span-2">
-                        <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">
-                          {lang === "zh" ? "預設配料（記錄時自動帶入，可再增減）" : "Default toppings (pre-filled when logging, still editable)"}
-                        </p>
-                        <ToppingEditor picks={cf.defaultToppings}
-                          onPicks={p => setCf(f => ({ ...f, defaultToppings: p }))}
-                          toppings={toppings} onAddTopping={addCustomTopping} onDeleteTopping={deleteCustomTopping} lang={lang} />
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
-            </div>
+            </div>}
+
+            {cfView === "sugar" && (
+              <div className="grid grid-cols-2 gap-2">
+                {([["sugar", lang === "zh" ? "全糖總糖量" : "Sugar (full)"], ["sugarFixed", lang === "zh" ? "不可調的糖" : "Fixed sugar"]] as const).map(([k, ph]) => (
+                  <div key={k}>
+                    <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">{ph}</p>
+                    <div className="relative">
+                      <input className="input-base pr-6" type="number" inputMode="decimal" placeholder="0"
+                        value={cf[k]} onChange={e => setCf(f => ({ ...f, [k]: e.target.value }))} />
+                      <span className="absolute right-2 top-2 text-xs text-[var(--text-on-surface-muted)]">g</span>
+                    </div>
+                  </div>
+                ))}
+                <p className="col-span-2 text-10 text-[var(--text-on-surface-muted)]">
+                  {lang === "zh" ? `以上皆為每 ${cf.quantity || 100} ml、不含配料；不可調的糖如鮮奶乳糖、果汁的糖` : `Per ${cf.quantity || 100} ml without toppings; fixed sugar is e.g. milk lactose or juice`}
+                </p>
+
+                {/* Cup volumes */}
+                <div className="col-span-2">
+                  <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">
+                    {lang === "zh" ? "杯型容量（留空＝不提供；全部留空用預設 500／700／1000）" : "Cup volumes (blank = not offered; all blank = default 500 / 700 / 1000)"}
+                  </p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {CUP_PRESETS.map(c => (
+                      <label key={c.key} className="block">
+                        <span className="block text-10 text-[var(--text-on-surface-sub)] mb-0.5">{lang === "zh" ? c.zh : c.en}（ml）</span>
+                        <input className="input-base text-sm" type="number" inputMode="decimal" placeholder={String(c.ml)}
+                          value={cf.cups[c.key]}
+                          onChange={e => setCf(f => ({ ...f, cups: { ...f.cups, [c.key]: e.target.value } }))} />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cfView === "toppings" && (
+              <div>
+                <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">
+                  {lang === "zh" ? "預設配料（記錄時自動帶入，可再增減）" : "Default toppings (pre-filled when logging, still editable)"}
+                </p>
+                <ToppingEditor picks={cf.defaultToppings}
+                  onPicks={p => setCf(f => ({ ...f, defaultToppings: p }))}
+                  toppings={toppings} onAddTopping={addCustomTopping} onDeleteTopping={deleteCustomTopping} lang={lang} />
+              </div>
+            )}
 
             {customFoodErr && (
               <p className="text-xs text-red-500 flex items-center gap-micro pt-1">

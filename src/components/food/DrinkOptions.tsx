@@ -54,17 +54,7 @@ export function DrinkOptions({ food, qty, onQty, opts, onOpts, toppings, onAddTo
 
   return (
     <div className="mt-3">
-      <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[var(--surface-container)]" role="tablist">
-        {tabs.map(t => (
-          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
-            className={clsx("rounded-lg px-2 py-1.5 text-left transition-all min-w-0",
-              tab === t.key ? "bg-[var(--surface)] shadow-sm" : "hover:bg-[var(--surface-container-low)]")}>
-            <span className="block text-10 text-[var(--text-on-surface-muted)]">{t.title}</span>
-            <span className={clsx("block text-xs font-semibold truncate",
-              tab === t.key ? "text-[var(--text-accent)]" : "text-[var(--text-on-surface-sub)]")}>{t.value}</span>
-          </button>
-        ))}
-      </div>
+      <SummaryTabs tabs={tabs} active={tab} onSelect={setTab} />
 
       <div className="pt-3" role="tabpanel">
         {tab === "cup" && (
@@ -102,6 +92,28 @@ export function DrinkOptions({ food, qty, onQty, opts, onOpts, toppings, onAddTo
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** A row of small tabs, each showing a title over its current value. */
+export function SummaryTabs<K extends string>({ tabs, active, onSelect }: {
+  tabs: { key: K; title: string; value: string }[];
+  active: K;
+  onSelect: (k: K) => void;
+}) {
+  return (
+    <div className="grid gap-1 p-1 rounded-xl bg-[var(--surface-container)]" role="tablist"
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+      {tabs.map(t => (
+        <button key={t.key} role="tab" aria-selected={active === t.key} onClick={() => onSelect(t.key)}
+          className={clsx("rounded-lg px-2 py-1.5 text-left transition-all min-w-0",
+            active === t.key ? "bg-[var(--surface)] shadow-sm" : "hover:bg-[var(--surface-container-low)]")}>
+          <span className="block text-10 text-[var(--text-on-surface-muted)]">{t.title}</span>
+          <span className={clsx("block text-xs font-semibold truncate",
+            active === t.key ? "text-[var(--text-accent)]" : "text-[var(--text-on-surface-sub)]")}>{t.value}</span>
+        </button>
+      ))}
     </div>
   );
 }
