@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS food_database (
   sugar_g REAL,
   sugar_fixed_g REAL NOT NULL DEFAULT 0,
   default_toppings TEXT,
-  brand TEXT
+  brand TEXT,
+  cup_sizes TEXT
 );
 
 CREATE TABLE IF NOT EXISTS drink_topping (
@@ -388,6 +389,8 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   // dropped in favour of storing full-sugar values) — don't reuse the number.
   // Shop / brand of a drink-shop drink, for the brand filter under 飲料
   { v: 50, sql: "ALTER TABLE food_database ADD COLUMN brand TEXT" },
+  // Per-drink cup volumes ({"M":ml,"L":ml,"XL":ml}); null = the default 500 / 700 / 1000
+  { v: 51, sql: "ALTER TABLE food_database ADD COLUMN cup_sizes TEXT" },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

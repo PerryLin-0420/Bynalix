@@ -16,10 +16,10 @@ import { NoProfile } from "@/components/common/NoProfile";
 import { DateNavHeader } from "@/components/layout/DateNavHeader";
 import { FoodHistoryDrawer } from "@/components/food/FoodHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
-import { DrinkOptions, type NewTopping } from "@/components/food/DrinkOptions";
+import { DrinkOptions, ToppingEditor, type NewTopping } from "@/components/food/DrinkOptions";
 import {
-  defaultDrinkOpts, drinkAdjustment, drinkCountsAsWater, drinkOptsSummary, isAdvancedDrink,
-  parseDrinkOpts, round1, type DrinkOpts, type Topping,
+  CUP_PRESETS, defaultDrinkOpts, drinkAdjustment, drinkCountsAsWater, drinkOptsSummary, isAdvancedDrink,
+  parseCupSizes, parseDrinkOpts, parseToppings, round1, type DrinkOpts, type Topping, type ToppingPick,
 } from "@/lib/drink";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ interface FoodItem {
   // Advanced drinks (see lib/drink.ts)
   drink_advanced: number; sugar_g: number | null; sugar_fixed_g: number; default_toppings: string | null;
   brand: string | null;
+  cup_sizes: string | null;
 }
 
 interface BasketItem {
@@ -235,6 +236,9 @@ export function FoodLog() {
     // Advanced drink: nutrition above is at full sugar; sugar fields per the same amount
     drinkAdvanced: false, sugar: "", sugarFixed: "",
     brand: "",
+    // Advanced drink: its own cup volumes (blank = not offered; all blank = defaults)
+    cups: { M: "", L: "", XL: "" } as Record<"M" | "L" | "XL", string>,
+    defaultToppings: [] as ToppingPick[],
   };
   const [cf, setCf] = useState(CF_EMPTY);
   const cfIsDrink = cf.category === "飲料";
@@ -462,19 +466,24 @@ export function FoodLog() {
   // categories could land on a page past the new list's end.
   useEffect(() => { setPage(0); }, [query, catFilter, brandFilter]);
 
+  const loadDrinkBrands = async () => {
+    try {
+      const db = await getDb();
+      const rows = await db.select<{ brand: string }[]>(
+        `SELECT brand FROM food_database WHERE category = ? AND brand IS NOT NULL AND brand <> ''
+         GROUP BY brand ORDER BY COUNT(*) DESC, brand`, [DRINK_CATEGORY]);
+      setDrinkBrands(rows.map(r => r.brand));
+    } catch (e) { logError("FoodLog.loadDrinkBrands", e); }
+  };
+
   // Leaving 飲料 drops the brand; entering it loads the brands that have drinks
   useEffect(() => {
     if (catFilter !== DRINK_CATEGORY) { setBrandFilter(null); return; }
-    (async () => {
-      try {
-        const db = await getDb();
-        const rows = await db.select<{ brand: string }[]>(
-          `SELECT brand FROM food_database WHERE category = ? AND brand IS NOT NULL AND brand <> ''
-           GROUP BY brand ORDER BY COUNT(*) DESC, brand`, [DRINK_CATEGORY]);
-        setDrinkBrands(rows.map(r => r.brand));
-      } catch (e) { logError("FoodLog.loadDrinkBrands", e); }
-    })();
+    loadDrinkBrands();
   }, [catFilter]);
+
+  // The custom-food brand field offers the known brands
+  useEffect(() => { if (showCustomFood) loadDrinkBrands(); }, [showCustomFood]);
 
   useEffect(() => {
     if (!sheetOpen) return;
@@ -710,6 +719,11 @@ export function FoodLog() {
       sugar:      food.sugar_g != null ? String(food.sugar_g) : "",
       sugarFixed: food.sugar_fixed_g ? String(food.sugar_fixed_g) : "",
       brand:      food.brand ?? "",
+      cups: (() => {
+        const own = parseCupSizes(food.cup_sizes);
+        return { M: own?.M ? String(own.M) : "", L: own?.L ? String(own.L) : "", XL: own?.XL ? String(own.XL) : "" };
+      })(),
+      defaultToppings: parseToppings(food.default_toppings),
     });
     setCustomFoodErr(null);
     setShowCustomFood(true);
@@ -739,18 +753,23 @@ export function FoodLog() {
       const sugar = adv ? Math.min(parseFloat(cf.sugar) || 0, parseFloat(cf.carb) || 0) : null;
       const sugarFixed = adv ? Math.min(parseFloat(cf.sugarFixed) || 0, sugar ?? 0) : 0;
       const brand = cfIsDrink ? (cf.brand.trim() || null) : null;
+      const cupEntries = adv ? CUP_PRESETS
+        .map(c => [c.key, parseFloat(cf.cups[c.key])] as const)
+        .filter(([, ml]) => ml > 0) : [];
+      const cupSizes = cupEntries.length ? JSON.stringify(Object.fromEntries(cupEntries)) : null;
+      const defaultToppings = adv && cf.defaultToppings.length ? JSON.stringify(cf.defaultToppings) : null;
       if (cfEditId !== null) {
         await db.execute(
           `UPDATE food_database SET
              food_name=?, name_en=?, protein_g=?, carbohydrates_g=?, fat_g=?, calories_kcal=?,
              base_quantity=?, base_unit=?, category=?,
-             drink_advanced=?, sugar_g=?, sugar_fixed_g=?, brand=?
+             drink_advanced=?, sugar_g=?, sugar_fixed_g=?, brand=?, cup_sizes=?, default_toppings=?
            WHERE food_id=? AND source_type='custom'`,
           [cf.name, cf.name_en.trim() || null,
            parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
            parseFloat(cf.fat)||0, cfCalories,
            parseFloat(cf.quantity)||100, unit,
-           cf.category||null, adv ? 1 : 0, sugar, sugarFixed, brand, cfEditId]);
+           cf.category||null, adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings, cfEditId]);
         if (profile) {
           if (cf.addToFav) {
             await db.execute(
@@ -769,14 +788,14 @@ export function FoodLog() {
           `INSERT INTO food_database
              (food_name, name_en, protein_g, carbohydrates_g, fat_g, calories_kcal,
               base_quantity, base_unit, category, source_type, created_by,
-              drink_advanced, sugar_g, sugar_fixed_g, brand)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              drink_advanced, sugar_g, sugar_fixed_g, brand, cup_sizes, default_toppings)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [cf.name, cf.name_en.trim() || null,
            parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
            parseFloat(cf.fat)||0, cfCalories,
            parseFloat(cf.quantity)||100, unit,
            cf.category||null, "custom", profile?.user_id??null,
-           adv ? 1 : 0, sugar, sugarFixed, brand]);
+           adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings]);
         if (cf.addToFav && profile) {
           await db.execute(
             "INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?,?,?)",
@@ -1477,9 +1496,14 @@ export function FoodLog() {
               </div>
 
               {cfIsDrink && (
-                <input className="input-base"
-                  placeholder={lang === "zh" ? "品牌（選填，例如：50嵐）" : "Brand (optional, e.g. 50嵐)"}
-                  value={cf.brand} onChange={e => setCf(f => ({ ...f, brand: e.target.value }))} />
+                <>
+                  <input className="input-base" list="drink-brand-options"
+                    placeholder={lang === "zh" ? "品牌（選填，可選既有品牌或自行輸入）" : "Brand (optional — pick one or type a new one)"}
+                    value={cf.brand} onChange={e => setCf(f => ({ ...f, brand: e.target.value }))} />
+                  <datalist id="drink-brand-options">
+                    {drinkBrands.map(b => <option key={b} value={b} />)}
+                  </datalist>
+                </>
               )}
 
               {cfIsDrink && (
@@ -1507,8 +1531,35 @@ export function FoodLog() {
                         </div>
                       ))}
                       <p className="col-span-2 text-10 text-[var(--text-on-surface-muted)]">
-                        {lang === "zh" ? `以上皆為每 ${cf.quantity || 100} ml；不可調的糖如鮮奶乳糖、果汁的糖` : `Per ${cf.quantity || 100} ml; fixed sugar is e.g. milk lactose or juice`}
+                        {lang === "zh" ? `以上皆為每 ${cf.quantity || 100} ml、不含配料；不可調的糖如鮮奶乳糖、果汁的糖` : `Per ${cf.quantity || 100} ml without toppings; fixed sugar is e.g. milk lactose or juice`}
                       </p>
+
+                      {/* Cup volumes */}
+                      <div className="col-span-2">
+                        <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">
+                          {lang === "zh" ? "杯型容量（留空＝不提供；全部留空用預設 500／700／1000）" : "Cup volumes (blank = not offered; all blank = default 500 / 700 / 1000)"}
+                        </p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {CUP_PRESETS.map(c => (
+                            <label key={c.key} className="block">
+                              <span className="block text-10 text-[var(--text-on-surface-sub)] mb-0.5">{lang === "zh" ? c.zh : c.en}（ml）</span>
+                              <input className="input-base text-sm" type="number" inputMode="decimal" placeholder={String(c.ml)}
+                                value={cf.cups[c.key]}
+                                onChange={e => setCf(f => ({ ...f, cups: { ...f.cups, [c.key]: e.target.value } }))} />
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Default toppings */}
+                      <div className="col-span-2">
+                        <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">
+                          {lang === "zh" ? "預設配料（記錄時自動帶入，可再增減）" : "Default toppings (pre-filled when logging, still editable)"}
+                        </p>
+                        <ToppingEditor picks={cf.defaultToppings}
+                          onPicks={p => setCf(f => ({ ...f, defaultToppings: p }))}
+                          toppings={toppings} onAddTopping={addCustomTopping} onDeleteTopping={deleteCustomTopping} lang={lang} />
+                      </div>
                     </div>
                   )}
                 </div>

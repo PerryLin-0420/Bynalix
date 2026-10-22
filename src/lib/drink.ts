@@ -22,6 +22,8 @@ export interface DrinkFoodFields {
   sugar_fixed_g: number;
   counts_as_water: number;
   default_toppings: string | null;
+  /** JSON {"M": ml, "L": ml, "XL": ml}; a missing key hides that size. Null = CUP_PRESETS. */
+  cup_sizes?: string | null;
 }
 
 export interface Topping {
@@ -57,11 +59,32 @@ export const SUGAR_LEVELS: { ratio: number; zh: string; en: string }[] = [
 ];
 
 /** Cup-size shortcuts. Brand-specific sizes can override these later. */
-export const CUP_PRESETS: { ml: number; zh: string; en: string }[] = [
-  { ml: 500,  zh: "中杯",   en: "M" },
-  { ml: 700,  zh: "大杯",   en: "L" },
-  { ml: 1000, zh: "特大杯", en: "XL" },
+export type CupKey = "M" | "L" | "XL";
+export interface CupSize { key: CupKey; ml: number; zh: string; en: string }
+
+export const CUP_PRESETS: CupSize[] = [
+  { key: "M",  ml: 500,  zh: "中杯",   en: "M" },
+  { key: "L",  ml: 700,  zh: "大杯",   en: "L" },
+  { key: "XL", ml: 1000, zh: "特大杯", en: "XL" },
 ];
+
+export function parseCupSizes(json: string | null | undefined): Partial<Record<CupKey, number>> | null {
+  if (!json) return null;
+  try {
+    const v = JSON.parse(json);
+    if (!v || typeof v !== "object") return null;
+    const out: Partial<Record<CupKey, number>> = {};
+    for (const c of CUP_PRESETS) if (typeof v[c.key] === "number" && v[c.key] > 0) out[c.key] = v[c.key];
+    return Object.keys(out).length ? out : null;
+  } catch { return null; }
+}
+
+/** The cup shortcuts for a drink: its own sizes when set, else the defaults. */
+export function cupSizesFor(food: Pick<DrinkFoodFields, "cup_sizes">): CupSize[] {
+  const own = parseCupSizes(food.cup_sizes);
+  if (!own) return CUP_PRESETS;
+  return CUP_PRESETS.filter(c => own[c.key] != null).map(c => ({ ...c, ml: own[c.key]! }));
+}
 
 /** Topping servings change in half steps, with no upper limit. */
 export const TOPPING_STEP = 0.5;
