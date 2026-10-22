@@ -412,3 +412,37 @@ CoCo 芋頭西谷米牛乳（中杯和大杯同一組數字）、CoCo 西谷米�
 - 萬波：[台北衡陽店](https://www.foodpanda.com.tw/restaurant/ri3h/wan-bo-dao-yu-hong-cha-tai-bei-heng-yang-dian)、[台中美村南店](https://www.foodpanda.com.tw/restaurant/ehm1/wan-bo-dao-yu-hong-cha-tai-zhong-mei-cun-nan-dian)
 - 珍煮丹：[台中昌平店](https://www.foodpanda.com.tw/restaurant/fz45/zhen-zhu-dan-tai-zhong-chang-ping-dian)、[中和連城店](https://www.ubereats.com/tw/store/%E7%8F%8D%E7%85%AE%E4%B8%B9-%E4%B8%AD%E5%92%8C%E9%80%A3%E5%9F%8E%E5%BA%97/C0hycwcPVgmfFPN5GhSfww)
 - 鶴茶樓：[台北內湖店](https://www.foodpanda.com.tw/restaurant/bsc7/he-cha-lou-tai-bei-nei-hu-dian)
+
+
+---
+
+## 十、以外送平台為主的更新（seed v17）
+
+原則：**有外送平台（或官方）標示的品項，一律以平台數字為準**，取代營養師或新聞整理的數字。
+
+| 品項 | 舊值（來源） | 新值（平台） | 備註 |
+|---|---|---|---|
+| 50嵐 珍珠奶茶 | 668／53（營養師） | **726.6／56.9** | 樂業店等多店一致（冷飲大杯） |
+| 迷客夏 青檸香茶 | 258／59（營養師） | **209／44** | 多數門市；高雄小港店 257／59 |
+| 迷客夏 柳丁綠茶 | 297／66（營養師） | **251／52** | 多數門市；高雄小港店 297／66 |
+| 迷客夏 芋頭鮮奶 | 463／41（營養師） | **343／31** | |
+| 迷客夏 珍珠伯爵紅茶拿鐵 | 426／35（營養師） | 改為 **伯爵紅茶拿鐵 236／34** | 平台只標不含珍珠的版本；珍珠改用配料加 |
+| 迷客夏 珍珠手炒黑糖鮮奶 | 559／55（營養師） | 改為 **手炒黑糖鮮奶 334／41** | 同上；黑糖不可調 |
+| 麻古 柳橙果粒茶 | 342／76（營養師） | **342／77** | 龍潭、石牌、永和福和等店一致 |
+| 可不可 胭脂紅茶 | 200／50（營養師） | 200／50 | 平台（長春、中和民樂）確認相同 |
+| CoCo 紅柚香檸美式 | 223／51（圖鑑） | 223／51 | 平台（汐止福德等）確認相同 |
+| 迷客夏 焙香大麥拿鐵 | 169／25 | 169／25 | 平台確認相同 |
+| 得正 焙烏龍鮮奶／奶茶 | 409／72.6、575.5／62.7 | 相同 | 平台確認 |
+
+**仍沒有平台標示、維持原來源的**：50嵐 波霸奶茶（營養師）、麻古 波霸奶茶（舊版熱量表；平台只有波霸紅茶拿鐵，且兩店差很多：551／61 與 373／48）、
+迷客夏 娜杯紅茶（營養師）、迷客夏 冬瓜檸檬（兩個平台頁 364／82 與 289／65 不一致，暫維持 364／82）。
+
+舊的兩筆迷客夏「珍珠」品項只在沒有記錄或範本用到時才移除。
+
+### 來源
+- 50嵐：[Uber Eats 樂業店](https://www.ubereats.com/tw/store/50%E5%B5%90-%E6%A8%82%E6%A5%AD%E5%BA%97/eLpuvY2OTSyeZsIyy1rloA)、[台中樂群店](https://www.ubereats.com/tw/store/50%E5%B5%90-%E5%8F%B0%E4%B8%AD%E6%A8%82%E7%BE%A4%E5%BA%97/ds2A35fUUZ-AZS3zsC-15Q)
+- 迷客夏：[北醫店](https://www.foodpanda.com.tw/restaurant/ue2y/mi-ke-xia-milksha-tai-bei-bei-yi-dian)、[臺北景美店](https://www.ubereats.com/tw/store/%E8%BF%B7%E5%AE%A2%E5%A4%8F-milksha-%E8%87%BA%E5%8C%97%E6%99%AF%E7%BE%8E%E5%BA%97/9kKhlcTRRPWffepF_e7WZg)、[高雄小港店](https://www.foodpanda.com.tw/restaurant/bcgx/mi-ke-xia-milksha-gao-xiong-xiao-gang-dian)、[臺北公館店](https://www.ubereats.com/tw/store/%E8%BF%B7%E5%AE%A2%E5%A4%8F-milksha-%E8%87%BA%E5%8C%97%E5%85%AC%E9%A4%A8%E5%BA%97/G1NTHGG4WyeNsKszHhTE2g)
+- 麻古：[龍潭店](https://www.ubereats.com/tw/store/%E9%BA%BB%E5%8F%A4%E8%8C%B6%E5%9D%8Amacu-tea-%E9%BE%8D%E6%BD%AD%E5%BA%97/WMuc134eRSCIVFwsvSSIYQ)、[台北石牌店](https://www.ubereats.com/tw/store/%E9%BA%BB%E5%8F%A4%E8%8C%B6%E5%9D%8Amacu-tea-%E5%8F%B0%E5%8C%97%E7%9F%B3%E7%89%8C%E5%BA%97/zgV_1NTBXueuOXn4Tw52Vw)、[農安店](https://www.ubereats.com/tw/store/%E9%BA%BB%E5%8F%A4%E8%8C%B6%E5%9D%8Amacu-tea-%E8%BE%B2%E5%AE%89%E5%BA%97/Lealy2QbQ9anS1MxuvutZg)
+- 可不可：[台北長春店](https://www.ubereats.com/tw/taipei/food-delivery/可不可熟成紅茶-台北長春店/sUTUba4xQXaTwCW8WyKVpg)、[中和民樂店](https://www.ubereats.com/tw/store/%E5%8F%AF%E4%B8%8D%E5%8F%AF%E7%86%9F%E6%88%90%E7%B4%85%E8%8C%B6-%E4%B8%AD%E5%92%8C%E6%B0%91%E6%A8%82%E5%BA%97/-4KruzWXTRmUe4fBtwKtOg)
+- CoCo：[汐止福德店](https://www.foodpanda.com.tw/restaurant/ok50/cocodu-ke-xi-zhi-fu-de-dian)
+- 得正：[高雄十全計劃](https://www.foodpanda.com.tw/restaurant/oqzd/de-zheng-oolong-tea-project-gao-xiong-shi-quan-ji-hua)、[台北科技大樓計劃](https://www.ubereats.com/tw/store/%E5%BE%97%E6%AD%A3-oolong-tea-project-%E5%8F%B0%E5%8C%97%E7%A7%91%E6%8A%80%E5%A4%A7%E6%A8%93%E8%A8%88%E5%8A%83/IuEzUunIVd-Ku168YpbN6w)

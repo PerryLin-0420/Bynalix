@@ -6,7 +6,7 @@ import { RETIRED_DRINKS, SEED_DRINKS, SEED_TOPPINGS } from "./drinks";
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "16"; // delivery-platform labels: +44 drinks, 4 more chains
+const SEED_VERSION = "17"; // platform labels replace dietitian figures
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {
