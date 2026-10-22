@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Minus, Plus, Trash2, X } from "lucide-react";
 import { clsx } from "clsx";
 import {
-  SUGAR_LEVELS, TOPPING_STEP, adjustableSugar, cupSizesFor,
+  SUGAR_LEVELS, TOPPING_STEP, adjustableSugar, cupSizesFor, sugarLabel,
   type DrinkFoodFields, type DrinkOpts, type Topping, type ToppingPick,
 } from "@/lib/drink";
 
@@ -22,8 +22,6 @@ interface Props {
   lang: string;
 }
 
-const LABEL = "text-10 font-semibold text-[var(--text-on-surface-muted)] uppercase tracking-wide mb-1.5";
-
 const chip = (active: boolean) => clsx(
   "px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
   active
@@ -31,37 +29,60 @@ const chip = (active: boolean) => clsx(
     : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--color-outline)]");
 
 /**
- * The advanced-drink block under a picked drink: cup size (shortcuts + ml),
- * sugar level, and toppings with free serving counts.
+ * The advanced-drink block under a picked drink, as three small tabs — cup
+ * size (shortcuts + ml), sugar level, toppings — each showing its current
+ * choice so the whole order stays readable from the tab row.
  */
 export function DrinkOptions({ food, qty, onQty, opts, onOpts, toppings, onAddTopping, onDeleteTopping, lang }: Props) {
   const zh = lang === "zh";
+  const [tab, setTab] = useState<"cup" | "sugar" | "toppings">("cup");
   const sugarAdjustable = adjustableSugar(food) > 0;
   const qtyNum = parseFloat(qty) || 0;
+  const cups = cupSizesFor(food);
+  const cupName = cups.find(c => c.ml === qtyNum);
+  const toppingCount = opts.toppings.reduce((n, p) => n + p.qty, 0);
+
+  // Each tab carries its current choice, so the whole order reads off the tab row
+  const tabs = [
+    { key: "cup" as const,      title: zh ? "杯量" : "Cup",
+      value: `${cupName ? `${zh ? cupName.zh : cupName.en} ` : ""}${qtyNum || "—"} ml` },
+    { key: "sugar" as const,    title: zh ? "甜度" : "Sugar",
+      value: sugarAdjustable ? sugarLabel(opts.sugar, zh) : (zh ? "固定" : "Fixed") },
+    { key: "toppings" as const, title: zh ? "配料" : "Toppings",
+      value: toppingCount ? (zh ? `${toppingCount} 份` : `${toppingCount}`) : (zh ? "無" : "None") },
+  ];
 
   return (
-    <div className="space-y-3 mt-3">
-      {/* Cup size */}
-      <div>
-        <p className={LABEL}>{zh ? "杯量" : "Cup size"}</p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {cupSizesFor(food).map(c => (
-            <button key={c.key} onClick={() => onQty(String(c.ml))} className={chip(qtyNum === c.ml)}>
-              {zh ? c.zh : c.en} <span className="opacity-70">{c.ml}</span>
-            </button>
-          ))}
-          <span className="inline-flex items-center gap-1">
-            <input className="input-base w-24 text-sm" type="number" inputMode="decimal"
-              value={qty} onChange={e => onQty(e.target.value)} />
-            <span className="text-xs text-[var(--text-on-surface-muted)]">ml</span>
-          </span>
-        </div>
+    <div className="mt-3">
+      <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[var(--surface-container)]" role="tablist">
+        {tabs.map(t => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+            className={clsx("rounded-lg px-2 py-1.5 text-left transition-all min-w-0",
+              tab === t.key ? "bg-[var(--surface)] shadow-sm" : "hover:bg-[var(--surface-container-low)]")}>
+            <span className="block text-10 text-[var(--text-on-surface-muted)]">{t.title}</span>
+            <span className={clsx("block text-xs font-semibold truncate",
+              tab === t.key ? "text-[var(--text-accent)]" : "text-[var(--text-on-surface-sub)]")}>{t.value}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Sugar level */}
-      <div>
-        <p className={LABEL}>{zh ? "甜度" : "Sugar"}</p>
-        {sugarAdjustable ? (
+      <div className="pt-3" role="tabpanel">
+        {tab === "cup" && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {cups.map(c => (
+              <button key={c.key} onClick={() => onQty(String(c.ml))} className={chip(qtyNum === c.ml)}>
+                {zh ? c.zh : c.en} <span className="opacity-70">{c.ml}</span>
+              </button>
+            ))}
+            <span className="inline-flex items-center gap-1">
+              <input className="input-base w-24 text-sm" type="number" inputMode="decimal"
+                value={qty} onChange={e => onQty(e.target.value)} />
+              <span className="text-xs text-[var(--text-on-surface-muted)]">ml</span>
+            </span>
+          </div>
+        )}
+
+        {tab === "sugar" && (sugarAdjustable ? (
           <div className="flex flex-wrap gap-1.5">
             {SUGAR_LEVELS.map(l => (
               <button key={l.ratio} onClick={() => onOpts({ ...opts, sugar: l.ratio })} className={chip(opts.sugar === l.ratio)}>
@@ -71,14 +92,15 @@ export function DrinkOptions({ food, qty, onQty, opts, onOpts, toppings, onAddTo
           </div>
         ) : (
           <p className="text-xs text-[var(--text-on-surface-muted)]">{zh ? "這杯的糖無法調整" : "Sugar can't be adjusted for this drink"}</p>
-        )}
-      </div>
+        ))}
 
-      {/* Toppings */}
-      <div>
-        <p className={LABEL}>{zh ? "配料（每份）" : "Toppings (per serving)"}</p>
-        <ToppingEditor picks={opts.toppings} onPicks={p => onOpts({ ...opts, toppings: p })}
-          toppings={toppings} onAddTopping={onAddTopping} onDeleteTopping={onDeleteTopping} lang={lang} />
+        {tab === "toppings" && (
+          <>
+            <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">{zh ? "每份計算，可超過 1 份" : "Per serving, any number"}</p>
+            <ToppingEditor picks={opts.toppings} onPicks={p => onOpts({ ...opts, toppings: p })}
+              toppings={toppings} onAddTopping={onAddTopping} onDeleteTopping={onDeleteTopping} lang={lang} />
+          </>
+        )}
       </div>
     </div>
   );
