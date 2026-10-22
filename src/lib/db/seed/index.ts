@@ -6,7 +6,7 @@ import { RETIRED_DRINKS, SEED_DRINKS, SEED_TOPPINGS } from "./drinks";
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "18"; // 大苑子 +16 from delivery-platform labels
+const SEED_VERSION = "19"; // fixed sugar measured against each brand's plain-tea syrup
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {

@@ -65,102 +65,106 @@ interface DrinkSpec {
   water?: boolean;
 }
 
-// Fixed sugar (per cup) where the published figure includes it: fresh milk
-// ≈ 14 g lactose in a large latte (~300 ml milk), fruit/juice per its share.
+// Fixed (non-adjustable) sugar is measured from calories, not guessed: a brand's
+// plain tea is all syrup, so its full-sugar kcal ÷ 4 is the syrup in a cup. For
+// any other drink, fixed = (total sugar − toppings' sugar) − that syrup, scaled
+// to the cup. Brands without a plain tea in the list (大苑子, 茶湯會, 一沐日) keep
+// ingredient estimates. Per-brand syrup: docs/drinks-research.md §12.
 const DRINKS: DrinkSpec[] = [
   // ── 50嵐 — platform labels (Uber Eats) where available, else dietitian figures
   { name: "50嵐 四季春青茶",   name_en: "50 Lan Four Seasons Tea",      ml: 720, kcal: 183.6, sugar: 43.1, kind: "tea", water: true },
-  { name: "50嵐 檸檬綠茶",     name_en: "50 Lan Lemon Green Tea",       ml: 720, kcal: 232.6, sugar: 51.7, fixedSugar: 3, kind: "tea" },
+  { name: "50嵐 檸檬綠茶",     name_en: "50 Lan Lemon Green Tea",       ml: 720, kcal: 232.6, sugar: 51.7, fixedSugar: 9.5, kind: "tea" },
   { name: "50嵐 1號 四季春珍波椰", name_en: "50 Lan No.1 Four Seasons w/ Pearls, Boba & Coconut", ml: 720, kcal: 433.8, sugar: 65, kind: "tea", toppings: ["珍珠", "椰果"] },
-  { name: "50嵐 紅茶拿鐵",     name_en: "50 Lan Black Tea Latte",       ml: 720, kcal: 354.4, sugar: 55.1, fixedSugar: 14, kind: "milk" },
-  { name: "50嵐 珍珠奶茶",     name_en: "50 Lan Pearl Milk Tea",        ml: 700, kcal: 726.6, sugar: 56.9, kind: "creamer", toppings: ["珍珠"] },
+  { name: "50嵐 紅茶拿鐵",     name_en: "50 Lan Black Tea Latte",       ml: 720, kcal: 354.4, sugar: 55.1, fixedSugar: 12.9, kind: "milk" },
+  { name: "50嵐 珍珠奶茶",     name_en: "50 Lan Pearl Milk Tea",        ml: 700, kcal: 726.6, sugar: 56.9, fixedSugar: 0.8, kind: "creamer", toppings: ["珍珠"] },
   // 波霸奶茶: no platform label found yet — dietitian figure
   { name: "50嵐 波霸奶茶",     name_en: "50 Lan Boba Milk Tea",         ml: 700, kcal: 678,   sugar: 53,   kind: "creamer", toppings: ["波霸"] },
   { name: "50嵐 黃金烏龍",     name_en: "50 Lan Golden Oolong",         ml: 700, kcal: 171.4, sugar: 40.2, kind: "tea", water: true },
   { name: "50嵐 微檸檬青茶",   name_en: "50 Lan Light Lemon Green Tea", ml: 700, kcal: 191.3, sugar: 43.1, fixedSugar: 2, kind: "tea" },
-  { name: "50嵐 金桔檸檬",     name_en: "50 Lan Kumquat Lemon",         ml: 700, kcal: 244.3, sugar: 51.7, fixedSugar: 5, kind: "tea" },
-  { name: "50嵐 檸檬梅汁",     name_en: "50 Lan Lemon Plum Juice",      ml: 700, kcal: 326.2, sugar: 74.2, fixedSugar: 10, kind: "tea" },
+  { name: "50嵐 金桔檸檬",     name_en: "50 Lan Kumquat Lemon",         ml: 700, kcal: 244.3, sugar: 51.7, fixedSugar: 10.6, kind: "tea" },
+  { name: "50嵐 檸檬梅汁",     name_en: "50 Lan Lemon Plum Juice",      ml: 700, kcal: 326.2, sugar: 74.2, fixedSugar: 33.1, kind: "tea" },
   { name: "50嵐 波霸紅茶",     name_en: "50 Lan Boba Black Tea",        ml: 700, kcal: 472.5, sugar: 52.2, kind: "tea", toppings: ["波霸"] },
-  { name: "50嵐 波霸紅茶拿鐵", name_en: "50 Lan Boba Black Tea Latte",  ml: 700, kcal: 644.8, sugar: 65.6, fixedSugar: 14, kind: "milk", toppings: ["波霸"] },
-  { name: "50嵐 阿華田拿鐵",   name_en: "50 Lan Ovaltine Latte",        ml: 700, kcal: 524.2, sugar: 64.1, fixedSugar: 24, kind: "milk" },
-  { name: "50嵐 冰淇淋奶茶",   name_en: "50 Lan Ice Cream Milk Tea",    ml: 700, kcal: 708.6, sugar: 72.9, fixedSugar: 15, kind: "creamer" },
-  { name: "50嵐 冰淇淋阿華田", name_en: "50 Lan Ice Cream Ovaltine",    ml: 700, kcal: 762,   sugar: 79.3, fixedSugar: 25, kind: "creamer" },
+  { name: "50嵐 波霸紅茶拿鐵", name_en: "50 Lan Boba Black Tea Latte",  ml: 700, kcal: 644.8, sugar: 65.6, fixedSugar: 9.5, kind: "milk", toppings: ["波霸"] },
+  { name: "50嵐 阿華田拿鐵",   name_en: "50 Lan Ovaltine Latte",        ml: 700, kcal: 524.2, sugar: 64.1, fixedSugar: 23, kind: "milk" },
+  { name: "50嵐 冰淇淋奶茶",   name_en: "50 Lan Ice Cream Milk Tea",    ml: 700, kcal: 708.6, sugar: 72.9, fixedSugar: 31.8, kind: "creamer" },
+  { name: "50嵐 冰淇淋阿華田", name_en: "50 Lan Ice Cream Ovaltine",    ml: 700, kcal: 762,   sugar: 79.3, fixedSugar: 38.2, kind: "creamer" },
   // ── CoCo 都可 — platform labels
   { name: "CoCo 四季春",       name_en: "CoCo Four Seasons Tea",        ml: 700, kcal: 141,   sugar: 33,   kind: "tea", water: true },
   { name: "CoCo 手採紅茶",     name_en: "CoCo Hand-picked Black Tea",   ml: 700, kcal: 141,   sugar: 33,   kind: "tea", water: true },
-  { name: "CoCo 蜜香凍綠茶",   name_en: "CoCo Green Tea with Tea Jelly", ml: 700, kcal: 320,  sugar: 74,   kind: "tea", toppings: ["茶凍"] },
-  { name: "CoCo 蜜香凍紅茶",   name_en: "CoCo Black Tea with Tea Jelly", ml: 700, kcal: 320,  sugar: 74,   kind: "tea", toppings: ["茶凍"] },
-  { name: "CoCo 葡萄柚果粒茶", name_en: "CoCo Grapefruit Fruit Tea",    ml: 700, kcal: 341,   sugar: 80,   fixedSugar: 20, kind: "tea" },
+  { name: "CoCo 蜜香凍綠茶",   name_en: "CoCo Green Tea with Tea Jelly", ml: 700, kcal: 320,  sugar: 74, fixedSugar: 33,   kind: "tea", toppings: ["茶凍"] },
+  { name: "CoCo 蜜香凍紅茶",   name_en: "CoCo Black Tea with Tea Jelly", ml: 700, kcal: 320,  sugar: 74, fixedSugar: 33,   kind: "tea", toppings: ["茶凍"] },
+  { name: "CoCo 葡萄柚果粒茶", name_en: "CoCo Grapefruit Fruit Tea",    ml: 700, kcal: 341,   sugar: 80,   fixedSugar: 47, kind: "tea" },
   { name: "CoCo 奶茶三兄弟",   name_en: "CoCo Milk Tea Three Brothers", ml: 700, kcal: 622,   sugar: 61,   kind: "creamer", toppings: ["珍珠", "布丁", "仙草凍"] },
-  { name: "CoCo 百香雙響炮",   name_en: "CoCo Passion Fruit Double",    ml: 700, kcal: 472,   sugar: 82,   fixedSugar: 8, kind: "tea", toppings: ["珍珠", "椰果"] },
-  { name: "CoCo 紅柚雙響炮",   name_en: "CoCo Grapefruit Double",       ml: 700, kcal: 427,   sugar: 77,   fixedSugar: 8, kind: "tea", toppings: ["珍珠", "椰果"] },
-  { name: "CoCo 紅柚香檸美式", name_en: "CoCo Grapefruit Lemon Americano", ml: 700, kcal: 223, sugar: 51,   fixedSugar: 10, kind: "tea" },
-  { name: "CoCo 珍珠奶茶",     name_en: "CoCo Pearl Milk Tea",          ml: 700, kcal: 722,   sugar: 51,   kind: "creamer", toppings: ["珍珠"] },
-  { name: "CoCo 冬韻擂焙珍奶", name_en: "CoCo Roasted Pearl Milk Tea",  ml: 700, kcal: 749,   sugar: 59,   kind: "creamer", toppings: ["珍珠"] },
-  { name: "CoCo 英式鮮奶茶",   name_en: "CoCo English Fresh Milk Tea",  ml: 700, kcal: 401,   sugar: 59,   fixedSugar: 14, kind: "milk" },
-  { name: "CoCo 珍珠鮮奶茶",   name_en: "CoCo Pearl Fresh Milk Tea",    ml: 700, kcal: 547,   sugar: 57,   fixedSugar: 14, kind: "milk", toppings: ["珍珠"] },
+  { name: "CoCo 百香雙響炮",   name_en: "CoCo Passion Fruit Double",    ml: 700, kcal: 472,   sugar: 82,   fixedSugar: 19, kind: "tea", toppings: ["珍珠", "椰果"] },
+  { name: "CoCo 紅柚雙響炮",   name_en: "CoCo Grapefruit Double",       ml: 700, kcal: 427,   sugar: 77,   fixedSugar: 14, kind: "tea", toppings: ["珍珠", "椰果"] },
+  { name: "CoCo 紅柚香檸美式", name_en: "CoCo Grapefruit Lemon Americano", ml: 700, kcal: 223, sugar: 51,   fixedSugar: 18, kind: "tea" },
+  { name: "CoCo 珍珠奶茶",     name_en: "CoCo Pearl Milk Tea",          ml: 700, kcal: 722,   sugar: 51, fixedSugar: 3,   kind: "creamer", toppings: ["珍珠"] },
+  { name: "CoCo 冬韻擂焙珍奶", name_en: "CoCo Roasted Pearl Milk Tea",  ml: 700, kcal: 749,   sugar: 59, fixedSugar: 11,   kind: "creamer", toppings: ["珍珠"] },
+  { name: "CoCo 英式鮮奶茶",   name_en: "CoCo English Fresh Milk Tea",  ml: 700, kcal: 401,   sugar: 59,   fixedSugar: 26, kind: "milk" },
+  { name: "CoCo 珍珠鮮奶茶",   name_en: "CoCo Pearl Fresh Milk Tea",    ml: 700, kcal: 547,   sugar: 57,   fixedSugar: 9, kind: "milk", toppings: ["珍珠"] },
   // ── 清心福全 — official product pages (chingshin.tw). The site labels each drink at its
-  // highest level (少糖; 冬瓜檸檬 半糖), so the values below are converted to 全糖:
-  // adjustable sugar ÷ 0.7 (÷ 0.5), +4 kcal per added gram. Label values: docs/drinks-research.md §8.
+  // highest level (少糖; 冬瓜檸檬 半糖), so the values below are converted to 全糖. The
+  // syrup at 少糖 is 49 g (its plain teas' average) → 70 g at 全糖; sugar beyond the syrup is
+  // fixed. Adjustable sugar ÷ 0.7 (÷ 0.5), +4 kcal per added gram. Labels: docs/drinks-research.md §8.
   { name: "清心福全 烏龍綠茶", name_en: "Chingshin Oolong Green Tea",   ml: 700, kcal: 313.4, sugar: 72.9, kind: "tea", water: true },
   { name: "清心福全 極品菁茶", name_en: "Chingshin Premium Green Tea",  ml: 700, kcal: 313.4, sugar: 72.9, kind: "tea", water: true },
   { name: "清心福全 錫蘭紅茶", name_en: "Chingshin Ceylon Black Tea",   ml: 700, kcal: 293.3, sugar: 68.6, kind: "tea", water: true },
   { name: "清心福全 特選普洱", name_en: "Chingshin Pu'er Tea",          ml: 700, kcal: 280.9, sugar: 65.7, kind: "tea", water: true },
-  { name: "清心福全 梅子綠茶", name_en: "Chingshin Plum Green Tea",     ml: 700, kcal: 272.3, sugar: 63.6, fixedSugar: 5,  kind: "tea" },
-  { name: "清心福全 檸檬紅茶", name_en: "Chingshin Lemon Black Tea",    ml: 700, kcal: 286.9, sugar: 68.7, fixedSugar: 3,  kind: "tea" },
-  { name: "清心福全 冬瓜檸檬", name_en: "Chingshin Winter Melon Lemon", ml: 700, kcal: 385.0, sugar: 92.0, fixedSugar: 30, kind: "tea" },
-  { name: "清心福全 優多綠茶", name_en: "Chingshin Yakult Green Tea",   ml: 700, kcal: 426.0, sugar: 96.0, fixedSugar: 16, kind: "tea" },
-  { name: "清心福全 鮮奶茶",   name_en: "Chingshin Fresh Milk Tea",     ml: 700, kcal: 455.6, sugar: 81.1, fixedSugar: 14, kind: "milk" },
-  { name: "清心福全 珍珠鮮奶茶", name_en: "Chingshin Pearl Fresh Milk Tea", ml: 700, kcal: 685.7, sugar: 70.4, fixedSugar: 14, kind: "milk", toppings: ["珍珠"] },
-  { name: "清心福全 珍珠蜜香鮮奶普洱", name_en: "Chingshin Pearl Honey Fresh Milk Pu'er", ml: 700, kcal: 611.3, sugar: 87.6, fixedSugar: 14, kind: "milk", toppings: ["珍珠"] },
+  { name: "清心福全 梅子綠茶", name_en: "Chingshin Plum Green Tea",     ml: 700, kcal: 280.9, sugar: 65.7,  kind: "tea" },
+  { name: "清心福全 檸檬紅茶", name_en: "Chingshin Lemon Black Tea",    ml: 700, kcal: 292, sugar: 70,  kind: "tea" },
+  { name: "清心福全 冬瓜檸檬", name_en: "Chingshin Winter Melon Lemon", ml: 700, kcal: 401, sugar: 96, fixedSugar: 26, kind: "tea" },
+  { name: "清心福全 優多綠茶", name_en: "Chingshin Yakult Green Tea",   ml: 700, kcal: 414, sugar: 93, fixedSugar: 23, kind: "tea" },
+  { name: "清心福全 鮮奶茶",   name_en: "Chingshin Fresh Milk Tea",     ml: 700, kcal: 459, sugar: 82, fixedSugar: 12, kind: "milk" },
+  { name: "清心福全 珍珠鮮奶茶", name_en: "Chingshin Pearl Fresh Milk Tea", ml: 700, kcal: 709.7, sugar: 76.4, kind: "milk", toppings: ["珍珠"] },
+  { name: "清心福全 珍珠蜜香鮮奶普洱", name_en: "Chingshin Pearl Honey Fresh Milk Pu'er", ml: 700, kcal: 625, sugar: 91, fixedSugar: 6, kind: "milk", toppings: ["珍珠"] },
   { name: "清心福全 咖啡奶茶", name_en: "Chingshin Coffee Milk Tea",    ml: 700, kcal: 444.6, sugar: 67.1, kind: "creamer" },
-  { name: "清心福全 特級奶綠", name_en: "Chingshin Green Milk Tea",     ml: 700, kcal: 712.6, sugar: 77.1, kind: "creamer" },
-  { name: "清心福全 珍珠奶茶", name_en: "Chingshin Pearl Milk Tea",     ml: 700, kcal: 780.0, sugar: 65.0, kind: "creamer", toppings: ["珍珠"] },
-  { name: "清心福全 波霸奶茶", name_en: "Chingshin Boba Milk Tea",      ml: 700, kcal: 780.0, sugar: 65.0, kind: "creamer", toppings: ["波霸"] },
+  { name: "清心福全 特級奶綠", name_en: "Chingshin Green Milk Tea",     ml: 700, kcal: 704, sugar: 75, fixedSugar: 5, kind: "creamer" },
+  { name: "清心福全 珍珠奶茶", name_en: "Chingshin Pearl Milk Tea",     ml: 700, kcal: 780, sugar: 65, kind: "creamer", toppings: ["珍珠"] },
+  { name: "清心福全 波霸奶茶", name_en: "Chingshin Boba Milk Tea",      ml: 700, kcal: 780, sugar: 65, kind: "creamer", toppings: ["波霸"] },
   { name: "清心福全 粉圓奶茶", name_en: "Chingshin Mini Pearl Milk Tea", ml: 700, kcal: 749.4, sugar: 77.9, kind: "creamer", toppings: ["珍珠"] },
-  { name: "清心福全 布丁奶茶", name_en: "Chingshin Pudding Milk Tea",   ml: 700, kcal: 710.7, sugar: 94.4, kind: "creamer", toppings: ["布丁"] },
-  { name: "清心福全 蜜香奶茶", name_en: "Chingshin Honey Milk Tea",     ml: 700, kcal: 860.4, sugar: 102.9, kind: "creamer" },
-  { name: "清心福全 芝麻奶茶", name_en: "Chingshin Sesame Milk Tea",    ml: 700, kcal: 836.4, sugar: 82.9, kind: "creamer" },
-  { name: "清心福全 冰淇淋奶茶", name_en: "Chingshin Ice Cream Milk Tea", ml: 700, kcal: 846.0, sugar: 95.0, fixedSugar: 15, kind: "creamer" },
+  { name: "清心福全 布丁奶茶", name_en: "Chingshin Pudding Milk Tea",   ml: 700, kcal: 697, sugar: 91, fixedSugar: 8, kind: "creamer", toppings: ["布丁"] },
+  { name: "清心福全 蜜香奶茶", name_en: "Chingshin Honey Milk Tea",     ml: 700, kcal: 821, sugar: 93, fixedSugar: 23, kind: "creamer" },
+  { name: "清心福全 芝麻奶茶", name_en: "Chingshin Sesame Milk Tea",    ml: 700, kcal: 821, sugar: 79, fixedSugar: 9, kind: "creamer" },
+  { name: "清心福全 冰淇淋奶茶", name_en: "Chingshin Ice Cream Milk Tea", ml: 700, kcal: 834, sugar: 92, fixedSugar: 22, kind: "creamer" },
   // ── 迷客夏 — delivery-platform labels (most stores agree); 娜杯紅茶 is a dietitian figure
   { name: "迷客夏 娜杯紅茶",         name_en: "Milksha Black Tea",              ml: 700, kcal: 128, sugar: 29, kind: "tea", water: true },
-  { name: "迷客夏 青檸香茶",         name_en: "Milksha Lime Tea",               ml: 700, kcal: 209, sugar: 44, fixedSugar: 5,  kind: "tea" },
-  { name: "迷客夏 柳丁綠茶",         name_en: "Milksha Orange Green Tea",       ml: 700, kcal: 251, sugar: 52, fixedSugar: 15, kind: "tea" },
-  { name: "迷客夏 冬瓜檸檬",         name_en: "Milksha Winter Melon Lemon",     ml: 700, kcal: 364, sugar: 82, fixedSugar: 30, kind: "tea" },
-  { name: "迷客夏 焙香大麥拿鐵",     name_en: "Milksha Roasted Barley Latte",   ml: 700, kcal: 169, sugar: 25, fixedSugar: 10, kind: "milk" },
-  { name: "迷客夏 芋頭鮮奶",         name_en: "Milksha Taro Fresh Milk",        ml: 700, kcal: 343, sugar: 31, fixedSugar: 14, kind: "milk" },
-  { name: "迷客夏 大正紅茶拿鐵",     name_en: "Milksha Taisho Black Tea Latte", ml: 700, kcal: 261, sugar: 45, fixedSugar: 14, kind: "milk" },
-  { name: "迷客夏 娜杯紅茶拿鐵",     name_en: "Milksha Nabei Black Tea Latte",  ml: 700, kcal: 276, sugar: 49, fixedSugar: 14, kind: "milk" },
+  { name: "迷客夏 青檸香茶",         name_en: "Milksha Lime Tea",               ml: 700, kcal: 209, sugar: 44, fixedSugar: 15,  kind: "tea" },
+  { name: "迷客夏 柳丁綠茶",         name_en: "Milksha Orange Green Tea",       ml: 700, kcal: 251, sugar: 52, fixedSugar: 23, kind: "tea" },
+  { name: "迷客夏 冬瓜檸檬",         name_en: "Milksha Winter Melon Lemon",     ml: 700, kcal: 364, sugar: 82, fixedSugar: 53, kind: "tea" },
+  { name: "迷客夏 焙香大麥拿鐵",     name_en: "Milksha Roasted Barley Latte",   ml: 700, kcal: 169, sugar: 25, kind: "milk" },
+  { name: "迷客夏 芋頭鮮奶",         name_en: "Milksha Taro Fresh Milk",        ml: 700, kcal: 343, sugar: 31, fixedSugar: 2, kind: "milk" },
+  { name: "迷客夏 大正紅茶拿鐵",     name_en: "Milksha Taisho Black Tea Latte", ml: 700, kcal: 261, sugar: 45, fixedSugar: 16, kind: "milk" },
+  { name: "迷客夏 娜杯紅茶拿鐵",     name_en: "Milksha Nabei Black Tea Latte",  ml: 700, kcal: 276, sugar: 49, fixedSugar: 20, kind: "milk" },
   // Platforms list these without pearls — add pearls as a topping
-  { name: "迷客夏 伯爵紅茶拿鐵",     name_en: "Milksha Earl Grey Latte",        ml: 700, kcal: 236, sugar: 34, fixedSugar: 14, kind: "milk" },
+  { name: "迷客夏 伯爵紅茶拿鐵",     name_en: "Milksha Earl Grey Latte",        ml: 700, kcal: 236, sugar: 34, fixedSugar: 5, kind: "milk" },
   { name: "迷客夏 手炒黑糖鮮奶",     name_en: "Milksha Brown Sugar Fresh Milk", ml: 700, kcal: 334, sugar: 41, fixedSugar: 41, kind: "milk" },
   // ── 可不可熟成紅茶 — official ordering pages (order.ocard.co/kebuke); 胭脂紅茶 is a dietitian figure
   { name: "可不可 熟成紅茶",   name_en: "Kebuke Aged Black Tea",        ml: 700, kcal: 200,   sugar: 50,   kind: "tea", water: true },
   { name: "可不可 麗春紅茶",   name_en: "Kebuke Li-Chun Black Tea",     ml: 700, kcal: 270,   sugar: 65,   kind: "tea", water: true },
   { name: "可不可 春芽綠茶",   name_en: "Kebuke Spring Bud Green Tea",  ml: 700, kcal: 180,   sugar: 45,   kind: "tea", water: true },
   { name: "可不可 胭脂紅茶",   name_en: "Kebuke Rouge Black Tea",       ml: 700, kcal: 200,   sugar: 50,   kind: "tea", water: true },
-  { name: "可不可 熟成檸果",   name_en: "Kebuke Aged Tea with Lemon",   ml: 700, kcal: 257,   sugar: 59,   fixedSugar: 3, kind: "tea" },
-  { name: "可不可 雪花冷露",   name_en: "Kebuke Snow Cold Dew",         ml: 700, kcal: 233,   sugar: 55,   fixedSugar: 20, kind: "tea" },
-  { name: "可不可 熟成歐蕾",   name_en: "Kebuke Aged Tea Au Lait",      ml: 700, kcal: 311,   sugar: 55,   fixedSugar: 14, kind: "milk" },
-  { name: "可不可 白玉歐蕾",   name_en: "Kebuke White Pearl Au Lait",   ml: 700, kcal: 492,   sugar: 50,   fixedSugar: 14, kind: "milk", toppings: ["珍珠"] },
+  { name: "可不可 熟成檸果",   name_en: "Kebuke Aged Tea with Lemon",   ml: 700, kcal: 257,   sugar: 59,   fixedSugar: 9, kind: "tea" },
+  { name: "可不可 雪花冷露",   name_en: "Kebuke Snow Cold Dew",         ml: 700, kcal: 233,   sugar: 55,   fixedSugar: 5, kind: "tea" },
+  { name: "可不可 熟成歐蕾",   name_en: "Kebuke Aged Tea Au Lait",      ml: 700, kcal: 311,   sugar: 55,   fixedSugar: 5, kind: "milk" },
+  { name: "可不可 白玉歐蕾",   name_en: "Kebuke White Pearl Au Lait",   ml: 700, kcal: 492,   sugar: 50, kind: "milk", toppings: ["珍珠"] },
   // ── 麻古茶坊 — delivery-platform labels. Where a store lists two sugar levels, the
   // fixed sugar is solved from them (1分糖 vs 全糖: sugar(r) = fixed + adjustable × r).
   // 甜感 drinks (減低 / 提升) are labelled at 提升 with only the gap left adjustable.
-  { name: "麻古 芝芝金萱",     name_en: "Macu Cheese Foam Jin Xuan",    ml: 700, kcal: 335,   sugar: 37,   fixedSugar: 6.1, kind: "tea", toppings: ["奶蓋"] },
-  { name: "麻古 柳橙芒果果粒茶", name_en: "Macu Orange Mango Fruit Tea", ml: 700, kcal: 330,   sugar: 74,   fixedSugar: 55.1, kind: "tea" },
-  { name: "麻古 柳橙果粒茶",   name_en: "Macu Orange Fruit Tea",        ml: 700, kcal: 342,   sugar: 77,   fixedSugar: 25, kind: "tea" },
-  { name: "麻古 楊枝甘露 2.0", name_en: "Macu Mango Pomelo Sago 2.0",   ml: 700, kcal: 389,   sugar: 74,   fixedSugar: 66, kind: "milk" },
-  { name: "麻古 芝芝芒果果粒", name_en: "Macu Cheese Foam Mango",       ml: 700, kcal: 516,   sugar: 77,   fixedSugar: 57, kind: "tea", toppings: ["奶蓋"] },
+  { name: "麻古 芝芝金萱",     name_en: "Macu Cheese Foam Jin Xuan",    ml: 700, kcal: 335,   sugar: 37, kind: "tea", toppings: ["奶蓋"] },
+  { name: "麻古 柳橙芒果果粒茶", name_en: "Macu Orange Mango Fruit Tea", ml: 700, kcal: 330,   sugar: 74,   fixedSugar: 40, kind: "tea" },
+  { name: "麻古 柳橙果粒茶",   name_en: "Macu Orange Fruit Tea",        ml: 700, kcal: 342,   sugar: 77,   fixedSugar: 43, kind: "tea" },
+  { name: "麻古 楊枝甘露 2.0", name_en: "Macu Mango Pomelo Sago 2.0",   ml: 700, kcal: 389,   sugar: 74,   fixedSugar: 40, kind: "milk" },
+  { name: "麻古 芝芝芒果果粒", name_en: "Macu Cheese Foam Mango",       ml: 700, kcal: 516,   sugar: 77,   fixedSugar: 31, kind: "tea", toppings: ["奶蓋"] },
   // 波霸奶茶: no platform label found yet — older menu calorie table
-  { name: "麻古 波霸奶茶",     name_en: "Macu Boba Milk Tea",           ml: 700, kcal: 669,   sugar: 51,   kind: "creamer", toppings: ["波霸"] },
+  { name: "麻古 波霸奶茶",     name_en: "Macu Boba Milk Tea",           ml: 700, kcal: 669,   sugar: 51, fixedSugar: 2,   kind: "creamer", toppings: ["波霸"] },
   // ── 得正 — menu figures (M/L listed per drink)
   { name: "得正 春烏龍",       name_en: "Oolong Tea Project Spring Oolong", ml: 700, kcal: 268, sugar: 57.5, kind: "tea", water: true },
   { name: "得正 輕烏龍",       name_en: "Oolong Tea Project Light Oolong",  ml: 700, kcal: 268, sugar: 57.5, kind: "tea", water: true },
   { name: "得正 焙烏龍",       name_en: "Oolong Tea Project Roasted Oolong", ml: 700, kcal: 268, sugar: 57.5, kind: "tea", water: true },
   { name: "得正 芝士奶蓋春烏龍", name_en: "Oolong Tea Project Cheese Foam Spring Oolong", ml: 700, kcal: 435, sugar: 49, kind: "tea", toppings: ["奶蓋"] },
-  { name: "得正 檸檬春烏龍",   name_en: "Oolong Tea Project Lemon Spring Oolong", ml: 700, kcal: 267, sugar: 58, fixedSugar: 3, kind: "tea" },
-  { name: "得正 焙烏龍鮮奶",   name_en: "Oolong Tea Project Roasted Oolong Latte", ml: 700, kcal: 409, sugar: 72.6, fixedSugar: 14, kind: "milk" },
-  { name: "得正 焙烏龍奶茶",   name_en: "Oolong Tea Project Roasted Oolong Milk Tea", ml: 700, kcal: 575.5, sugar: 62.7, kind: "creamer" },
+  { name: "得正 檸檬春烏龍",   name_en: "Oolong Tea Project Lemon Spring Oolong", ml: 700, kcal: 267, sugar: 58, fixedSugar: 0.5, kind: "tea" },
+  { name: "得正 焙烏龍鮮奶",   name_en: "Oolong Tea Project Roasted Oolong Latte", ml: 700, kcal: 409, sugar: 72.6, fixedSugar: 15.1, kind: "milk" },
+  { name: "得正 焙烏龍奶茶",   name_en: "Oolong Tea Project Roasted Oolong Milk Tea", ml: 700, kcal: 575.5, sugar: 62.7, fixedSugar: 5.2, kind: "creamer" },
   // ── 大苑子 — delivery-platform labels (fruit juice / 冬瓜 sugar set as fixed)
   { name: "大苑子 水果茶",     name_en: "Dayungs Fruit Tea",            ml: 700, kcal: 317,   sugar: 70,   fixedSugar: 25, kind: "tea" },
   { name: "大苑子 翡翠檸檬",   name_en: "Dayungs Jade Lemon",           ml: 700, kcal: 329,   sugar: 68,   fixedSugar: 3,  kind: "tea" },
@@ -188,11 +192,11 @@ const DRINKS: DrinkSpec[] = [
   { name: "茶湯會 鐵觀音珍珠奶茶", name_en: "TP Tea Tieguanyin Pearl Milk Tea", ml: 650, kcal: 717, sugar: 42, kind: "creamer", toppings: ["珍珠"] },
   // ── 五桐號 — platform labels, large 660 ml
   { name: "五桐號 經典五桐茶", name_en: "WooTea Classic Wootong Tea",   ml: 660, kcal: 74.7,  sugar: 16.7, kind: "tea", water: true },
-  { name: "五桐號 杏仁凍五桐茶", name_en: "WooTea Almond Jelly Wootong Tea", ml: 660, kcal: 192, sugar: 36, kind: "tea" },
+  { name: "五桐號 杏仁凍五桐茶", name_en: "WooTea Almond Jelly Wootong Tea", ml: 660, kcal: 192, sugar: 36, fixedSugar: 19.3, kind: "tea" },
   // 奶霜 is lighter than the generic 奶蓋 topping (subtracting it leaves more sugar
   // than calories), so the foam stays in the drink's own figures
-  { name: "五桐號 烏龍奶霜",   name_en: "WooTea Oolong Cream Foam",     ml: 660, kcal: 303.2, sugar: 41.9, kind: "creamer" },
-  { name: "五桐號 蕎麥奶霜",   name_en: "WooTea Buckwheat Cream Foam",  ml: 660, kcal: 320.3, sugar: 46,   kind: "creamer" },
+  { name: "五桐號 烏龍奶霜",   name_en: "WooTea Oolong Cream Foam",     ml: 660, kcal: 303.2, sugar: 41.9, fixedSugar: 25.2, kind: "creamer" },
+  { name: "五桐號 蕎麥奶霜",   name_en: "WooTea Buckwheat Cream Foam",  ml: 660, kcal: 320.3, sugar: 46, fixedSugar: 29.3,   kind: "creamer" },
   // ── 一沐日 — platform labels at its one 660 ml cup, normal sweetness (the highest)
   { name: "一沐日 粉粿牡丹紅柚", name_en: "Yi Mu Ri Grapefruit with Fen Guo", ml: 660, kcal: 288, sugar: 63, fixedSugar: 10, kind: "tea" },
   { name: "一沐日 糯香檸檬茶", name_en: "Yi Mu Ri Glutinous Lemon Tea", ml: 660, kcal: 385,   sugar: 87,   fixedSugar: 5,  kind: "tea" },
@@ -202,18 +206,18 @@ const DRINKS: DrinkSpec[] = [
   { name: "一沐日 逮丸奶茶",   name_en: "Yi Mu Ri Dai Wan Milk Tea",    ml: 660, kcal: 630,   sugar: 77,   kind: "creamer" },
   // ── 龜記茗品 — platform labels, cold 660 ml
   { name: "龜記 翡翠綠茶",     name_en: "Guiji Jade Green Tea",         ml: 660, kcal: 212,   sugar: 45,   kind: "tea", water: true },
-  { name: "龜記 紅柚翡翠",     name_en: "Guiji Grapefruit Green Tea",   ml: 660, kcal: 285,   sugar: 63,   fixedSugar: 10, kind: "tea" },
+  { name: "龜記 紅柚翡翠",     name_en: "Guiji Grapefruit Green Tea",   ml: 660, kcal: 285,   sugar: 63,   fixedSugar: 18, kind: "tea" },
   { name: "龜記 阿源楊桃綠茶", name_en: "Guiji Starfruit Green Tea",    ml: 660, kcal: 250,   sugar: 60,   fixedSugar: 15, kind: "tea" },
-  { name: "龜記 楊桃雷夢",     name_en: "Guiji Starfruit Lemon",        ml: 660, kcal: 299,   sugar: 68,   fixedSugar: 15, kind: "tea" },
+  { name: "龜記 楊桃雷夢",     name_en: "Guiji Starfruit Lemon",        ml: 660, kcal: 299,   sugar: 68,   fixedSugar: 23, kind: "tea" },
   // ── 萬波島嶼紅茶 — platform labels (L)
   { name: "萬波 島嶼紅茶",     name_en: "Wanpo Island Black Tea",       ml: 700, kcal: 246,   sugar: 59,   kind: "tea", water: true },
-  { name: "萬波 島嶼檸檬茶王", name_en: "Wanpo Island Lemon Tea King",  ml: 700, kcal: 479,   sugar: 95,   fixedSugar: 5,  kind: "tea" },
+  { name: "萬波 島嶼檸檬茶王", name_en: "Wanpo Island Lemon Tea King",  ml: 700, kcal: 479,   sugar: 95,   fixedSugar: 36,  kind: "tea" },
   // ── 珍煮丹 — platform labels (L); brown-sugar syrup isn't adjusted, so it's all fixed
   { name: "珍煮丹 黑糖鮮奶",   name_en: "Truedan Brown Sugar Fresh Milk", ml: 700, kcal: 364, sugar: 42,   fixedSugar: 42, kind: "milk" },
   { name: "珍煮丹 黑糖珍珠鮮奶", name_en: "Truedan Brown Sugar Pearl Fresh Milk", ml: 700, kcal: 619, sugar: 70, fixedSugar: 70, kind: "milk", toppings: ["珍珠"] },
   // ── 鶴茶樓 — platform labels (one store, L)
   { name: "鶴茶樓 鶴頂紅茶",   name_en: "Hechalou Crane Black Tea",     ml: 660, kcal: 174,   sugar: 41,   kind: "tea", water: true },
-  { name: "鶴茶樓 鶴頂那堤",   name_en: "Hechalou Crane Latte",         ml: 660, kcal: 290,   sugar: 49,   fixedSugar: 14, kind: "milk" },
+  { name: "鶴茶樓 鶴頂那堤",   name_en: "Hechalou Crane Latte",         ml: 660, kcal: 290,   sugar: 49,   fixedSugar: 8, kind: "milk" },
 ];
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
