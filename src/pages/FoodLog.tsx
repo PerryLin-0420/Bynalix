@@ -32,6 +32,7 @@ interface FoodItem {
   counts_as_water: number; // 1 = auto-sync ml quantity to water_log
   // Advanced drinks (see lib/drink.ts)
   drink_advanced: number; sugar_g: number | null; sugar_fixed_g: number; default_toppings: string | null;
+  brand: string | null;
 }
 
 interface BasketItem {
@@ -76,7 +77,9 @@ const LABEL_TO_KEY: Record<string, string> = {
 // Normalize any DB variant (English key or Chinese) → canonical Chinese label
 const toZhLabel = (mt: string): string => KEY_TO_LABEL[mt] ?? mt;
 
-const CATEGORY_FILTERS = ["全部", "澱粉", "蛋白質", "油質", "我的最愛"] as const;
+const CATEGORY_FILTERS = ["全部", "澱粉", "蛋白質", "油質", "飲料", "我的最愛"] as const;
+/** The category whose chip also opens a brand row (drink-shop chains). */
+const DRINK_CATEGORY = "飲料";
 type CatFilter = string;
 
 /** Results per page for category/aggregated-tag browsing and text search. */
@@ -151,6 +154,7 @@ export function FoodLog() {
     const map: Record<string, string> = {
       "全部": t("food.catAll"), "澱粉": t("food.catCarb"),
       "蛋白質": t("food.catProtein"), "油質": t("food.catFat"),
+      "飲料": lang === "en" ? "Drinks" : "飲料",
       "我的最愛": t("food.catFavorite"),
     };
     return map[cat] ?? cat;
@@ -205,6 +209,9 @@ export function FoodLog() {
   // Food search inside sheet
   const [query, setQuery]               = useState("");
   const [catFilter, setCatFilter]       = useState<CatFilter>("全部");
+  /** Brand chosen under 飲料; null = all drinks. */
+  const [brandFilter, setBrandFilter]   = useState<string | null>(null);
+  const [drinkBrands, setDrinkBrands]   = useState<string[]>([]);
   const [results, setResults]           = useState<FoodItem[]>([]);
   const [page, setPage]                 = useState(0);
   const [hasMore, setHasMore]           = useState(false);
@@ -227,6 +234,7 @@ export function FoodLog() {
     quantity: "100", unit: "g", category: "", addToFav: true,
     // Advanced drink: nutrition above is at full sugar; sugar fields per the same amount
     drinkAdvanced: false, sugar: "", sugarFixed: "",
+    brand: "",
   };
   const [cf, setCf] = useState(CF_EMPTY);
   const cfIsDrink = cf.category === "飲料";
@@ -391,7 +399,7 @@ export function FoodLog() {
 
   // ── Food search ──────────────────────────────────────────────────────────────
 
-  const doSearch = useCallback(async (q: string, filter: CatFilter, pg: number) => {
+  const doSearch = useCallback(async (q: string, filter: CatFilter, pg: number, brand: string | null = null) => {
     if (!profile) return;
     try {
       const db = await getDb();
@@ -418,10 +426,12 @@ export function FoodLog() {
              AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT ? OFFSET ?`,
             [...cats, q, likeQ, likeQ, limit, offset]);
         } else {
+          // Under 飲料 a chosen brand narrows to that chain's drinks
+          const byBrand = filter === DRINK_CATEGORY && brand;
           rows = await db.select<FoodItem[]>(
-            `SELECT * FROM food_database WHERE category = ?
+            `SELECT * FROM food_database WHERE category = ?${byBrand ? " AND brand = ?" : ""}
              AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT ? OFFSET ?`,
-            [filter, q, likeQ, likeQ, limit, offset]);
+            [filter, ...(byBrand ? [brand] : []), q, likeQ, likeQ, limit, offset]);
         }
       } else if (q.trim()) {
         // Prefix match outranks "contains anywhere" so searching「雞胸」surfaces
@@ -450,13 +460,27 @@ export function FoodLog() {
 
   // A new query or filter always starts back at page 1 — otherwise switching
   // categories could land on a page past the new list's end.
-  useEffect(() => { setPage(0); }, [query, catFilter]);
+  useEffect(() => { setPage(0); }, [query, catFilter, brandFilter]);
+
+  // Leaving 飲料 drops the brand; entering it loads the brands that have drinks
+  useEffect(() => {
+    if (catFilter !== DRINK_CATEGORY) { setBrandFilter(null); return; }
+    (async () => {
+      try {
+        const db = await getDb();
+        const rows = await db.select<{ brand: string }[]>(
+          `SELECT brand FROM food_database WHERE category = ? AND brand IS NOT NULL AND brand <> ''
+           GROUP BY brand ORDER BY COUNT(*) DESC, brand`, [DRINK_CATEGORY]);
+        setDrinkBrands(rows.map(r => r.brand));
+      } catch (e) { logError("FoodLog.loadDrinkBrands", e); }
+    })();
+  }, [catFilter]);
 
   useEffect(() => {
     if (!sheetOpen) return;
-    const t = setTimeout(() => doSearch(query, catFilter, page), 250);
+    const t = setTimeout(() => doSearch(query, catFilter, page, brandFilter), 250);
     return () => clearTimeout(t);
-  }, [query, catFilter, page, sheetOpen, doSearch]);
+  }, [query, catFilter, brandFilter, page, sheetOpen, doSearch]);
 
   // A new page (or a new search) is a new list: keep it scrolled to its own
   // first row instead of inheriting however far down the previous one was.
@@ -663,7 +687,7 @@ export function FoodLog() {
       setFavIds(s => { const n = new Set(s); n.delete(food.food_id); return n; });
       if (pickedFood?.food_id === food.food_id) setPickedFood(null);
       setPage(0);
-      doSearch(query, catFilter, 0);
+      doSearch(query, catFilter, 0, brandFilter);
     } catch (e) {
       logError("FoodLog.deleteCustomFood", e);
       showToast(lang === "zh" ? "刪除失敗" : "Delete failed", "error");
@@ -685,6 +709,7 @@ export function FoodLog() {
       drinkAdvanced: isAdvancedDrink(food),
       sugar:      food.sugar_g != null ? String(food.sugar_g) : "",
       sugarFixed: food.sugar_fixed_g ? String(food.sugar_fixed_g) : "",
+      brand:      food.brand ?? "",
     });
     setCustomFoodErr(null);
     setShowCustomFood(true);
@@ -713,18 +738,19 @@ export function FoodLog() {
       const unit = adv ? "ml" : (cf.unit || "g");
       const sugar = adv ? Math.min(parseFloat(cf.sugar) || 0, parseFloat(cf.carb) || 0) : null;
       const sugarFixed = adv ? Math.min(parseFloat(cf.sugarFixed) || 0, sugar ?? 0) : 0;
+      const brand = cfIsDrink ? (cf.brand.trim() || null) : null;
       if (cfEditId !== null) {
         await db.execute(
           `UPDATE food_database SET
              food_name=?, name_en=?, protein_g=?, carbohydrates_g=?, fat_g=?, calories_kcal=?,
              base_quantity=?, base_unit=?, category=?,
-             drink_advanced=?, sugar_g=?, sugar_fixed_g=?
+             drink_advanced=?, sugar_g=?, sugar_fixed_g=?, brand=?
            WHERE food_id=? AND source_type='custom'`,
           [cf.name, cf.name_en.trim() || null,
            parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
            parseFloat(cf.fat)||0, cfCalories,
            parseFloat(cf.quantity)||100, unit,
-           cf.category||null, adv ? 1 : 0, sugar, sugarFixed, cfEditId]);
+           cf.category||null, adv ? 1 : 0, sugar, sugarFixed, brand, cfEditId]);
         if (profile) {
           if (cf.addToFav) {
             await db.execute(
@@ -743,14 +769,14 @@ export function FoodLog() {
           `INSERT INTO food_database
              (food_name, name_en, protein_g, carbohydrates_g, fat_g, calories_kcal,
               base_quantity, base_unit, category, source_type, created_by,
-              drink_advanced, sugar_g, sugar_fixed_g)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              drink_advanced, sugar_g, sugar_fixed_g, brand)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [cf.name, cf.name_en.trim() || null,
            parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
            parseFloat(cf.fat)||0, cfCalories,
            parseFloat(cf.quantity)||100, unit,
            cf.category||null, "custom", profile?.user_id??null,
-           adv ? 1 : 0, sugar, sugarFixed]);
+           adv ? 1 : 0, sugar, sugarFixed, brand]);
         if (cf.addToFav && profile) {
           await db.execute(
             "INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?,?,?)",
@@ -760,7 +786,7 @@ export function FoodLog() {
       }
       closeCustomFoodModal();
       setPage(0);
-      doSearch(query, catFilter, 0);
+      doSearch(query, catFilter, 0, brandFilter);
     } catch (e) {
       logError("FoodLog.saveCustomFood", e);
       showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
@@ -1118,7 +1144,7 @@ export function FoodLog() {
                       {f === "我的最愛" ? `⭐ ${t("food.catFavorite")}` : getCatLabel(f)}
                     </button>
                   ))}
-                  {extraFilters.map(f => (
+                  {extraFilters.filter(f => f !== DRINK_CATEGORY).map(f => (
                     <button key={f} onClick={() => setCatFilter(f)}
                       className={clsx("px-2.5 py-1 rounded-full text-xs font-medium transition-all",
                         catFilter === f ? "bg-[var(--color-secondary)] text-white" : "bg-[var(--surface-container-low)] text-[var(--text-accent-mid)] hover:bg-[var(--surface-container)]")}>
@@ -1139,7 +1165,7 @@ export function FoodLog() {
                             {lang === "en" ? "Add quick filter" : "新增快篩"}
                           </p>
                           <div className="space-y-0.5 max-h-48 overflow-y-auto">
-                            {Object.keys(CAT_EN).filter(c => !extraFilters.includes(c)).map(cat => (
+                            {Object.keys(CAT_EN).filter(c => !extraFilters.includes(c) && c !== DRINK_CATEGORY).map(cat => (
                               <button key={cat} onClick={() => addExtraFilter(cat)}
                                 className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors">
                                 {getCatOptionLabel(cat)}
@@ -1165,6 +1191,21 @@ export function FoodLog() {
                     )}
                   </div>
                 </div>
+
+                {/* Brand row — only under 飲料 */}
+                {catFilter === DRINK_CATEGORY && drinkBrands.length > 0 && (
+                  <div className="flex gap-micro.5 mb-3 overflow-x-auto pb-1 -mx-1 px-1">
+                    {[null, ...drinkBrands].map(b => (
+                      <button key={b ?? "__all"} onClick={() => setBrandFilter(b)}
+                        className={clsx("shrink-0 px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
+                          brandFilter === b
+                            ? "bg-[var(--color-secondary)] text-white border-[var(--color-secondary)]"
+                            : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--color-outline)]")}>
+                        {b ?? (lang === "zh" ? "全部品牌" : "All brands")}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Results */}
                 <div ref={resultsRef} className="space-y-0.5 max-h-44 overflow-y-auto">
@@ -1434,6 +1475,12 @@ export function FoodLog() {
                   {t("food.catFavorite")}
                 </button>
               </div>
+
+              {cfIsDrink && (
+                <input className="input-base"
+                  placeholder={lang === "zh" ? "品牌（選填，例如：50嵐）" : "Brand (optional, e.g. 50嵐)"}
+                  value={cf.brand} onChange={e => setCf(f => ({ ...f, brand: e.target.value }))} />
+              )}
 
               {cfIsDrink && (
                 <div className="rounded-xl border border-[var(--surface-border)] px-3 py-2.5 space-y-2">

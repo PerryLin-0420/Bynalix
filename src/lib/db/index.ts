@@ -78,7 +78,8 @@ CREATE TABLE IF NOT EXISTS food_database (
   drink_advanced INTEGER NOT NULL DEFAULT 0,
   sugar_g REAL,
   sugar_fixed_g REAL NOT NULL DEFAULT 0,
-  default_toppings TEXT
+  default_toppings TEXT,
+  brand TEXT
 );
 
 CREATE TABLE IF NOT EXISTS drink_topping (
@@ -385,6 +386,8 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   { v: 48, sql: "ALTER TABLE meal_template_items ADD COLUMN drink_opts TEXT" },
   // v49 was used by a v1.8.0 pre-release build (food_database.sugar_max_level, since
   // dropped in favour of storing full-sugar values) — don't reuse the number.
+  // Shop / brand of a drink-shop drink, for the brand filter under 飲料
+  { v: 50, sql: "ALTER TABLE food_database ADD COLUMN brand TEXT" },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

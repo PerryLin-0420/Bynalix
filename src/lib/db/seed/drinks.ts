@@ -251,6 +251,8 @@ export const RETIRED_DRINKS = [
 ];
 
 export interface SeedDrink extends SeedFood {
+  /** Chain the drink is from — every drink name is "<brand> <item>". */
+  brand: string;
   sugar_g: number;
   sugar_fixed_g: number;
   /** Topping names; resolved to ids when seeding. */
@@ -267,7 +269,7 @@ export const SEED_DRINKS: SeedDrink[] = DRINKS.map(d => {
   const sugar = Math.max(0, d.sugar - tops.reduce((s, t) => s + t.sugar_g, 0));
   const m = estimateMacros(kcal, sugar, d.kind);
   return {
-    food_name: d.name, name_en: d.name_en,
+    food_name: d.name, name_en: d.name_en, brand: d.name.split(" ")[0],
     protein_g: r1(m.p), carbohydrates_g: r1(m.c), fat_g: r1(m.f), calories_kcal: r1(kcal),
     base_quantity: d.ml, base_unit: "ml", category: "飲料",
     counts_as_water: d.water ?? false,

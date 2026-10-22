@@ -13,6 +13,7 @@ see the [README](./README.md).
 - **First drink-shop list** — 132 drinks from 15 chains (50嵐, CoCo, 清心福全, 迷客夏, 可不可, 麻古, 得正, 大苑子, 茶湯會, 五桐號, 一沐日, 龜記, 萬波, 珍煮丹, 鶴茶樓) — 清心福全 and 可不可 from their own product / ordering pages, most others from the sugar and calorie labels on delivery platforms, a few from dietitian round-ups. 清心福全 labels its drinks at 少糖 (its highest level), so those figures are converted to full sugar before storing — at the shops' published total kcal and sugar per large cup. Each is stored as its base plus its usual toppings, so removing the pearls from a pearl milk tea actually removes them instead of double counting. Figures come from delivery-platform labels and dietitian round-ups and are still to be checked against each brand's own site (docs/drinks-research.md)
 - **Custom drinks can use the advanced menu** — a custom food in the Drinks category has an "Advanced drink" switch; with it on, you enter its full-sugar values plus total and fixed sugar, and logging it later uses the same cup / sugar / toppings block
 - **Drinks count as water only when plain** — a drink-shop tea counts toward the day's water only when ordered sugar-free with no toppings; milk teas never do. Plain foods keep their existing water setting
+- **Drinks filter with a brand row** — 飲料 is now a fixed filter in food search; choosing it opens a scrollable row of chains (most drinks first) that narrows the list to one brand. Custom drinks can be given a brand too
 - Templates and favourite meals keep each drink's sugar level and toppings
 
 ### v1.7.1
