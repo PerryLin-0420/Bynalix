@@ -569,3 +569,32 @@ CoCo 芋頭西谷米牛乳（中杯和大杯同一組數字）、CoCo 西谷米�
 - 大苑子：[台中精誠店](https://www.foodpanda.com.tw/restaurant/z0xb/da-yuan-zi-tai-zhong-jing-cheng-dian)、[龍井中央店](https://www.foodpanda.com.tw/restaurant/m7ol/da-yuan-zi-long-jing-zhong-yang-dian)、[台北景美店](https://www.ubereats.com/tw/store/%E5%A4%A7%E8%8B%91%E5%AD%90-%E5%8F%B0%E5%8C%97%E6%99%AF%E7%BE%8E%E5%BA%97/DzEgx9n0QEeInFw_svAunw)、[向心南店](https://www.ubereats.com/tw/store/%E5%A4%A7%E8%8B%91%E5%AD%90-%E5%90%91%E5%BF%83%E5%8D%97%E5%BA%97/KmYDmg35SVqsRm469DE-KQ)
 - 茶湯會：[台中西屯店](https://www.foodpanda.com.tw/en/restaurant/q8ly/cha-tang-hui-tai-zhong-xi-tun-dian)、[花蓮民國店](https://www.foodpanda.com.tw/restaurant/b4ye/cha-tang-hui-hua-lian-min-guo-dian)
 - 一沐日：[內湖江南店](https://www.ubereats.com/tw-en/store/%E4%B8%80%E6%B2%90%E6%97%A5-%E5%85%A7%E6%B9%96%E6%B1%9F%E5%8D%97%E5%BA%97/-K98kNgaThSQ0A91liUrgg)、[桃園中正店](https://www.ubereats.com/tw-en/store/%E4%B8%80%E6%B2%90%E6%97%A5-%E6%A1%83%E5%9C%92%E4%B8%AD%E6%AD%A3%E5%BA%97/1Q3XLgW5XwCS3TKrvmBHSQ)、[板橋三民店](https://www.ubereats.com/tw-en/store/%E4%B8%80%E6%B2%90%E6%97%A5-%E6%9D%BF%E6%A9%8B%E4%B8%89%E6%B0%91%E5%BA%97/hGioo7kkRCqaMjdw9C0rIg)
+
+
+---
+
+## 十四、各品牌杯型容量（seed v22）
+
+記錄內建飲品時，杯量快捷鍵改用該品牌自己的容量；只有一種杯型的品牌只顯示那一個。
+店家標示的是大杯，所以**大杯容量同時就是該品牌飲品的基準毫升數**。這次把幾個原本暫填 700 ml 的品牌改成實際大杯：
+清心福全 650、迷客夏 600、CoCo 640、得正 660、珍煮丹 650。大杯整杯的熱量、糖量不變，改的是換成中杯或自訂毫升數時的換算比例。
+
+| 品牌 | 中杯 | 大杯 | 特大杯／瓶 | 備註 |
+|---|---|---|---|---|
+| 50嵐 | 500 | 700 | | 另有愛心杯 350；部分平台品項標 720 ml，維持該品項自己的標示 |
+| CoCo | 500 | 640 | | 大杯 640 為單一來源 |
+| 清心福全 | 420 | 650 | | 來源寫中杯 420–500、大杯 650–700；官網舊表為大杯 650 ml，官網中杯熱量比例（149／226）也對應約 430 ml |
+| 迷客夏 | 460 | 600 | | 多份來源一致 |
+| 可不可 | 500 | 700 | | |
+| 麻古 | — | 700 | 960（瓶裝） | |
+| 得正 | 480 | 660 | | 另一來源 650 |
+| 大苑子 | 500 | 700 | | 分享瓶容量未查到 |
+| 茶湯會 | 470（16 oz） | 650（22 oz） | | 平台標示冷飲 22 oz |
+| 五桐號 | 500 | 660 | | 容量整理寫 700，但平台熱量標示多為「大杯約 660 ml」，與資料一致採 660 |
+| 一沐日 | — | 660 | | 只有一種冰飲杯（溫熱杯 600） |
+| 龜記 | 500（溫熱） | 660（冰） | | |
+| 萬波 | 500 | 700 | | |
+| 珍煮丹 | 500 | 650 | | 原本暫用 700，已修正 |
+| 鶴茶樓 | 500 | 660 | | |
+
+來源：[Threads 各家容量整理](https://www.threads.com/@chirp._.25/post/DT4CUTGEuPS)、[Threads 容量整理](https://www.threads.com/@gozenbo/post/C-uW29nJTGS)、[Dcard 手搖杯容量](https://www.dcard.tw/f/boba/p/239544106)、[好康情報誌](https://info.talk.tw/drink-cup-capacity/)、[小資女的優惠雷達](https://smartsavebella.com/hand-shaken-drink-cup-size/)、[IKUK](https://www.ikuk.com.tw/blogs/column/2026-summer-bubble-tea-new-drinks-top10-guide)
