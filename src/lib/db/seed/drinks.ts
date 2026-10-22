@@ -68,8 +68,8 @@ interface DrinkSpec {
 // Fixed (non-adjustable) sugar is measured from calories, not guessed: a brand's
 // plain tea is all syrup, so its full-sugar kcal ÷ 4 is the syrup in a cup. For
 // any other drink, fixed = (total sugar − toppings' sugar) − that syrup, scaled
-// to the cup. Brands without a plain tea in the list (大苑子, 茶湯會, 一沐日) keep
-// ingredient estimates. Per-brand syrup: docs/drinks-research.md §12.
+// to the cup. 大苑子 uses its green tea for fruit / green drinks and its black tea
+// for milk teas, since the two differ. Per-brand syrup: docs/drinks-research.md §12–13.
 const DRINKS: DrinkSpec[] = [
   // ── 50嵐 — platform labels (Uber Eats) where available, else dietitian figures
   { name: "50嵐 四季春青茶",   name_en: "50 Lan Four Seasons Tea",      ml: 720, kcal: 183.6, sugar: 43.1, kind: "tea", water: true },
@@ -165,30 +165,38 @@ const DRINKS: DrinkSpec[] = [
   { name: "得正 檸檬春烏龍",   name_en: "Oolong Tea Project Lemon Spring Oolong", ml: 700, kcal: 267, sugar: 58, fixedSugar: 0.5, kind: "tea" },
   { name: "得正 焙烏龍鮮奶",   name_en: "Oolong Tea Project Roasted Oolong Latte", ml: 700, kcal: 409, sugar: 72.6, fixedSugar: 15.1, kind: "milk" },
   { name: "得正 焙烏龍奶茶",   name_en: "Oolong Tea Project Roasted Oolong Milk Tea", ml: 700, kcal: 575.5, sugar: 62.7, fixedSugar: 5.2, kind: "creamer" },
-  // ── 大苑子 — delivery-platform labels (fruit juice / 冬瓜 sugar set as fixed)
-  { name: "大苑子 水果茶",     name_en: "Dayungs Fruit Tea",            ml: 700, kcal: 317,   sugar: 70,   fixedSugar: 25, kind: "tea" },
-  { name: "大苑子 翡翠檸檬",   name_en: "Dayungs Jade Lemon",           ml: 700, kcal: 329,   sugar: 68,   fixedSugar: 3,  kind: "tea" },
-  { name: "大苑子 愛文芒果冰沙", name_en: "Dayungs Irwin Mango Smoothie", ml: 700, kcal: 393,  sugar: 81,   fixedSugar: 30, kind: "tea" },
-  { name: "大苑子 芭樂檸檬",   name_en: "Dayungs Guava Lemon",          ml: 700, kcal: 271,   sugar: 58,   fixedSugar: 20, kind: "tea" },
-  { name: "大苑子 芭樂甘草",   name_en: "Dayungs Guava Licorice",       ml: 700, kcal: 205,   sugar: 42,   fixedSugar: 15, kind: "tea" },
-  { name: "大苑子 芭樂梅",     name_en: "Dayungs Guava Plum",           ml: 700, kcal: 221,   sugar: 44,   fixedSugar: 15, kind: "tea" },
-  { name: "大苑子 春熙柳丁翡翠", name_en: "Dayungs Orange Jade Tea",     ml: 700, kcal: 280,  sugar: 62,   fixedSugar: 15, kind: "tea" },
-  { name: "大苑子 甜橙火龍果", name_en: "Dayungs Orange Dragon Fruit",  ml: 700, kcal: 265,   sugar: 59,   fixedSugar: 20, kind: "tea" },
-  { name: "大苑子 鳳梨冰茶",   name_en: "Dayungs Pineapple Iced Tea",   ml: 700, kcal: 311,   sugar: 68,   fixedSugar: 20, kind: "tea" },
-  { name: "大苑子 埔里百香果綠", name_en: "Dayungs Puli Passion Fruit Green Tea", ml: 700, kcal: 260, sugar: 55, fixedSugar: 8, kind: "tea" },
-  { name: "大苑子 百香愛玉",   name_en: "Dayungs Passion Fruit Aiyu",   ml: 700, kcal: 229,   sugar: 49,   fixedSugar: 8,  kind: "tea", toppings: ["愛玉"] },
-  { name: "大苑子 蜂蜜檸檬",   name_en: "Dayungs Honey Lemon",          ml: 700, kcal: 313,   sugar: 67,   fixedSugar: 3,  kind: "tea" },
-  { name: "大苑子 蜂蜜檸檬奇亞籽", name_en: "Dayungs Honey Lemon Chia",  ml: 700, kcal: 282,   sugar: 54,   fixedSugar: 3,  kind: "tea" },
-  { name: "大苑子 百變火龍冰沙", name_en: "Dayungs Dragon Fruit Smoothie", ml: 700, kcal: 364, sugar: 77,   fixedSugar: 30, kind: "tea" },
-  { name: "大苑子 巨峰葡萄雪沙", name_en: "Dayungs Kyoho Grape Slush",   ml: 700, kcal: 344,   sugar: 79,   fixedSugar: 30, kind: "tea" },
-  { name: "大苑子 奶茶",       name_en: "Dayungs Milk Tea",             ml: 700, kcal: 545,   sugar: 68,   kind: "creamer" },
-  { name: "大苑子 珍珠奶茶",   name_en: "Dayungs Pearl Milk Tea",       ml: 700, kcal: 712,   sugar: 77,   kind: "creamer", toppings: ["珍珠"] },
-  { name: "大苑子 許慶良鮮奶茶", name_en: "Dayungs Hsu Ching-Liang Fresh Milk Tea", ml: 700, kcal: 409, sugar: 72, fixedSugar: 14, kind: "milk" },
-  { name: "大苑子 許慶良鮮奶冬瓜", name_en: "Dayungs Hsu Ching-Liang Fresh Milk Winter Melon", ml: 700, kcal: 542, sugar: 92, fixedSugar: 44, kind: "milk" },
+  // ── 大苑子 — delivery-platform labels
+  { name: "大苑子 水果茶",     name_en: "Dayungs Fruit Tea",            ml: 700, kcal: 317,   sugar: 70,   fixedSugar: 35, kind: "tea" },
+  { name: "大苑子 翡翠檸檬",   name_en: "Dayungs Jade Lemon",           ml: 700, kcal: 329,   sugar: 68,   fixedSugar: 33,  kind: "tea" },
+  { name: "大苑子 愛文芒果冰沙", name_en: "Dayungs Irwin Mango Smoothie", ml: 700, kcal: 393,  sugar: 81,   fixedSugar: 46, kind: "tea" },
+  { name: "大苑子 芭樂檸檬",   name_en: "Dayungs Guava Lemon",          ml: 700, kcal: 271,   sugar: 58,   fixedSugar: 23, kind: "tea" },
+  { name: "大苑子 芭樂甘草",   name_en: "Dayungs Guava Licorice",       ml: 700, kcal: 205,   sugar: 42,   fixedSugar: 7, kind: "tea" },
+  { name: "大苑子 芭樂梅",     name_en: "Dayungs Guava Plum",           ml: 700, kcal: 221,   sugar: 44,   fixedSugar: 9, kind: "tea" },
+  { name: "大苑子 春熙柳丁翡翠", name_en: "Dayungs Orange Jade Tea",     ml: 700, kcal: 280,  sugar: 62,   fixedSugar: 27, kind: "tea" },
+  { name: "大苑子 甜橙火龍果", name_en: "Dayungs Orange Dragon Fruit",  ml: 700, kcal: 265,   sugar: 59,   fixedSugar: 24, kind: "tea" },
+  { name: "大苑子 鳳梨冰茶",   name_en: "Dayungs Pineapple Iced Tea",   ml: 700, kcal: 311,   sugar: 68,   fixedSugar: 33, kind: "tea" },
+  { name: "大苑子 埔里百香果綠", name_en: "Dayungs Puli Passion Fruit Green Tea", ml: 700, kcal: 260, sugar: 55, fixedSugar: 20, kind: "tea" },
+  { name: "大苑子 百香愛玉",   name_en: "Dayungs Passion Fruit Aiyu",   ml: 700, kcal: 229,   sugar: 49,   fixedSugar: 4,  kind: "tea", toppings: ["愛玉"] },
+  { name: "大苑子 蜂蜜檸檬",   name_en: "Dayungs Honey Lemon",          ml: 700, kcal: 313,   sugar: 67,   fixedSugar: 32,  kind: "tea" },
+  { name: "大苑子 蜂蜜檸檬奇亞籽", name_en: "Dayungs Honey Lemon Chia",  ml: 700, kcal: 282,   sugar: 54,   fixedSugar: 19,  kind: "tea" },
+  { name: "大苑子 百變火龍冰沙", name_en: "Dayungs Dragon Fruit Smoothie", ml: 700, kcal: 364, sugar: 77,   fixedSugar: 42, kind: "tea" },
+  { name: "大苑子 巨峰葡萄雪沙", name_en: "Dayungs Kyoho Grape Slush",   ml: 700, kcal: 344,   sugar: 79,   fixedSugar: 44, kind: "tea" },
+  { name: "大苑子 奶茶",       name_en: "Dayungs Milk Tea",             ml: 700, kcal: 545,   sugar: 68, fixedSugar: 12,   kind: "creamer" },
+  { name: "大苑子 珍珠奶茶",   name_en: "Dayungs Pearl Milk Tea",       ml: 700, kcal: 712,   sugar: 77, fixedSugar: 6,   kind: "creamer", toppings: ["珍珠"] },
+  { name: "大苑子 許慶良鮮奶茶", name_en: "Dayungs Hsu Ching-Liang Fresh Milk Tea", ml: 700, kcal: 409, sugar: 72, fixedSugar: 16, kind: "milk" },
+  { name: "大苑子 許慶良鮮奶冬瓜", name_en: "Dayungs Hsu Ching-Liang Fresh Milk Winter Melon", ml: 700, kcal: 542, sugar: 92, fixedSugar: 36, kind: "milk" },
+  { name: "大苑子 纖活綠茶",   name_en: "Dayungs Green Tea",            ml: 700, kcal: 154,   sugar: 35,   kind: "tea", water: true },
+  { name: "大苑子 古城錫蘭紅茶", name_en: "Dayungs Ceylon Black Tea",    ml: 700, kcal: 264,   sugar: 56,   kind: "tea", water: true },
+  { name: "大苑子 愛文翡翠",   name_en: "Dayungs Irwin Mango Jade Tea", ml: 700, kcal: 290,   sugar: 65, fixedSugar: 30,   kind: "tea" },
+  { name: "大苑子 火龍果翡翠", name_en: "Dayungs Dragon Fruit Jade Tea", ml: 700, kcal: 248,   sugar: 53, fixedSugar: 8,   kind: "tea", toppings: ["愛玉"] },
   // ── 茶湯會 — platform labels, large = 22 oz cold (~650 ml)
-  { name: "茶湯會 翡翠檸檬",   name_en: "TP Tea Jade Lemon",            ml: 650, kcal: 334,   sugar: 73,   fixedSugar: 3,  kind: "tea" },
-  { name: "茶湯會 觀音拿鐵",   name_en: "TP Tea Tieguanyin Latte",      ml: 650, kcal: 297,   sugar: 49,   fixedSugar: 14, kind: "milk" },
-  { name: "茶湯會 鐵觀音奶茶", name_en: "TP Tea Tieguanyin Milk Tea",   ml: 650, kcal: 581,   sugar: 47,   kind: "creamer" },
+  { name: "茶湯會 四季春",     name_en: "TP Tea Four Seasons Tea",      ml: 650, kcal: 157,   sugar: 36,   kind: "tea", water: true },
+  { name: "茶湯會 碳燒鐵觀音", name_en: "TP Tea Charcoal Tieguanyin",   ml: 650, kcal: 178,   sugar: 41,   kind: "tea", water: true },
+  { name: "茶湯會 特級翡翠綠", name_en: "TP Tea Premium Jade Green Tea", ml: 650, kcal: 177,  sugar: 41,   kind: "tea", water: true },
+  { name: "茶湯會 翡翠拿鐵",   name_en: "TP Tea Jade Latte",            ml: 650, kcal: 295,   sugar: 49, fixedSugar: 8,   kind: "milk" },
+  { name: "茶湯會 翡翠檸檬",   name_en: "TP Tea Jade Lemon",            ml: 650, kcal: 334,   sugar: 73,   fixedSugar: 32,  kind: "tea" },
+  { name: "茶湯會 觀音拿鐵",   name_en: "TP Tea Tieguanyin Latte",      ml: 650, kcal: 297,   sugar: 49,   fixedSugar: 8, kind: "milk" },
+  { name: "茶湯會 鐵觀音奶茶", name_en: "TP Tea Tieguanyin Milk Tea",   ml: 650, kcal: 581,   sugar: 47, fixedSugar: 6,   kind: "creamer" },
   { name: "茶湯會 鐵觀音珍珠奶茶", name_en: "TP Tea Tieguanyin Pearl Milk Tea", ml: 650, kcal: 717, sugar: 42, kind: "creamer", toppings: ["珍珠"] },
   // ── 五桐號 — platform labels, large 660 ml
   { name: "五桐號 經典五桐茶", name_en: "WooTea Classic Wootong Tea",   ml: 660, kcal: 74.7,  sugar: 16.7, kind: "tea", water: true },
@@ -198,12 +206,14 @@ const DRINKS: DrinkSpec[] = [
   { name: "五桐號 烏龍奶霜",   name_en: "WooTea Oolong Cream Foam",     ml: 660, kcal: 303.2, sugar: 41.9, fixedSugar: 25.2, kind: "creamer" },
   { name: "五桐號 蕎麥奶霜",   name_en: "WooTea Buckwheat Cream Foam",  ml: 660, kcal: 320.3, sugar: 46, fixedSugar: 29.3,   kind: "creamer" },
   // ── 一沐日 — platform labels at its one 660 ml cup, normal sweetness (the highest)
-  { name: "一沐日 粉粿牡丹紅柚", name_en: "Yi Mu Ri Grapefruit with Fen Guo", ml: 660, kcal: 288, sugar: 63, fixedSugar: 10, kind: "tea" },
-  { name: "一沐日 糯香檸檬茶", name_en: "Yi Mu Ri Glutinous Lemon Tea", ml: 660, kcal: 385,   sugar: 87,   fixedSugar: 5,  kind: "tea" },
+  { name: "一沐日 島韻紅茶",   name_en: "Yi Mu Ri Island Black Tea",    ml: 660, kcal: 200,   sugar: 48,   kind: "tea", water: true },
+  { name: "一沐日 糯米香茶",   name_en: "Yi Mu Ri Glutinous Rice Green Tea", ml: 660, kcal: 200, sugar: 48, kind: "tea", water: true },
+  { name: "一沐日 粉粿牡丹紅柚", name_en: "Yi Mu Ri Grapefruit with Fen Guo", ml: 660, kcal: 288, sugar: 63, fixedSugar: 15, kind: "tea" },
+  { name: "一沐日 糯香檸檬茶", name_en: "Yi Mu Ri Glutinous Lemon Tea", ml: 660, kcal: 385,   sugar: 87,   fixedSugar: 39,  kind: "tea" },
   { name: "一沐日 粉粿桂花檸檬", name_en: "Yi Mu Ri Osmanthus Lemon with Fen Guo", ml: 660, kcal: 359, sugar: 76, fixedSugar: 76, kind: "tea" },
   { name: "一沐日 奶蓋島韻紅", name_en: "Yi Mu Ri Milk Foam Island Black Tea", ml: 660, kcal: 426, sugar: 38, kind: "tea", toppings: ["奶蓋"] },
-  { name: "一沐日 蕎麥鮮奶茶", name_en: "Yi Mu Ri Buckwheat Fresh Milk Tea", ml: 660, kcal: 304, sugar: 50, fixedSugar: 14, kind: "milk" },
-  { name: "一沐日 逮丸奶茶",   name_en: "Yi Mu Ri Dai Wan Milk Tea",    ml: 660, kcal: 630,   sugar: 77,   kind: "creamer" },
+  { name: "一沐日 蕎麥鮮奶茶", name_en: "Yi Mu Ri Buckwheat Fresh Milk Tea", ml: 660, kcal: 304, sugar: 50, fixedSugar: 2, kind: "milk" },
+  { name: "一沐日 逮丸奶茶",   name_en: "Yi Mu Ri Dai Wan Milk Tea",    ml: 660, kcal: 630,   sugar: 77, fixedSugar: 29,   kind: "creamer" },
   // ── 龜記茗品 — platform labels, cold 660 ml
   { name: "龜記 翡翠綠茶",     name_en: "Guiji Jade Green Tea",         ml: 660, kcal: 212,   sugar: 45,   kind: "tea", water: true },
   { name: "龜記 紅柚翡翠",     name_en: "Guiji Grapefruit Green Tea",   ml: 660, kcal: 285,   sugar: 63,   fixedSugar: 18, kind: "tea" },
