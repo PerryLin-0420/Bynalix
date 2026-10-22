@@ -22,12 +22,6 @@ export interface DrinkFoodFields {
   sugar_fixed_g: number;
   counts_as_water: number;
   default_toppings: string | null;
-  /**
-   * Highest sugar level the shop sells, as a share of full sugar (1 = 全糖,
-   * 0.7 = 少糖…). The stored sugar is at THIS level — it's what the label
-   * shows — and anything ordered above it is made at it.
-   */
-  sugar_max_level: number;
 }
 
 export interface Topping {
@@ -95,20 +89,11 @@ export function parseDrinkOpts(json: string | null | undefined): DrinkOpts | nul
   } catch { return null; }
 }
 
-export function maxSugarLevel(food: Pick<DrinkFoodFields, "sugar_max_level">): number {
-  const m = food.sugar_max_level;
-  return m > 0 && m <= 1 ? m : 1;
-}
-
-/** Share of the stored (label) adjustable sugar a chosen level keeps. */
-export function sugarShare(food: Pick<DrinkFoodFields, "sugar_max_level">, level: number): number {
-  const max = maxSugarLevel(food);
-  return Math.min(Math.max(level, 0), max) / max;
-}
-
 export function defaultDrinkOpts(food: DrinkFoodFields): DrinkOpts {
-  return { sugar: maxSugarLevel(food), toppings: parseToppings(food.default_toppings) };
+  return { sugar: 1, toppings: parseToppings(food.default_toppings) };
 }
+
+const clampRatio = (v: number) => Math.min(1, Math.max(0, v));
 
 /** Sugar per base_quantity that the sugar level acts on. */
 export function adjustableSugar(food: DrinkFoodFields): number {
@@ -126,7 +111,7 @@ export function drinkAdjustment(
   toppings: Map<number, Topping>,
 ): Macro {
   const r = food.base_quantity > 0 ? qty / food.base_quantity : 0;
-  const removedSugar = adjustableSugar(food) * r * (1 - sugarShare(food, opts.sugar));
+  const removedSugar = adjustableSugar(food) * r * (1 - clampRatio(opts.sugar));
   const adj: Macro = { kcal: -removedSugar * KCAL_PER_G_SUGAR, p: 0, c: -removedSugar, f: 0 };
   for (const pick of opts.toppings) {
     const t = toppings.get(pick.id);
@@ -144,7 +129,7 @@ export function drinkSugar(
   food: DrinkFoodFields, qty: number, opts: DrinkOpts, toppings: Map<number, Topping>,
 ): number {
   const r = food.base_quantity > 0 ? qty / food.base_quantity : 0;
-  const liquid = ((food.sugar_fixed_g ?? 0) + adjustableSugar(food) * sugarShare(food, opts.sugar)) * r;
+  const liquid = ((food.sugar_fixed_g ?? 0) + adjustableSugar(food) * clampRatio(opts.sugar)) * r;
   return opts.toppings.reduce((s, p) => s + (toppings.get(p.id)?.sugar_g ?? 0) * p.qty, liquid);
 }
 

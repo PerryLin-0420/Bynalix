@@ -271,8 +271,9 @@
 
 **重要**：清心官網註明「本產品之最高糖分設定為『少糖』，若點『全糖』，門市調製時將視同『少糖』」，
 冬瓜檸檬最高為「半糖」，蜜香奶茶最高為「少蜜」。**官網標示值是在最高甜度下**。
-App 因此新增每款飲品的「最高甜度」欄位：清心的標示值對應少糖（70%），選半糖時只保留 0.5／0.7 的可調糖，
-高於最高甜度的選項不顯示，並註明「此店最高為少糖」。
+App 的甜度一律以全糖為 100% 按比例計算，所以清心的數值**直接換算成全糖**再寫進內建資料：
+全糖糖量 ＝ 不可調的糖 ＋ 配料的糖 ＋（標示的可調糖 ÷ 0.7）；冬瓜檸檬 ÷ 0.5；每多 1 g 糖加 4 kcal。
+換算後在 App 選「少糖」（冬瓜檸檬選「半糖」）會剛好回到官網標示值。下表是官網原始標示，換算後的全糖值見程式內的資料。
 
 | 品項 | 大杯糖 g | 大杯熱量 | 中杯糖 g | 中杯熱量 | 最高甜度 | 備註 |
 |---|---|---|---|---|---|---|
@@ -328,3 +329,86 @@ App 因此新增每款飲品的「最高甜度」欄位：清心的標示值對�
 - 麻古：[飲料喝喝（含熱量表下載）](https://www.macutea.com.tw/drink.php)
 - 茶湯會：[茶品糖量產地標示](https://tp-tea.com/sugar/index.php?index_id=41)
 - 大苑子：[鮮榨產品頁](https://www.dayungs.com/home/product/fresh/?lang=en)
+
+
+---
+
+## 九、外送平台標示（seed v16）
+
+外送平台（Uber Eats、foodpanda）上的菜單依法也要標示總糖量與總熱量，這批改從這裡補。收錄原則：
+**兩家以上分店數字一致**，或單一來源的熱量與糖量成對、且熱量不低於糖量 × 4。
+
+### 清心福全：改存全糖值
+上一節清心的官網值是少糖（冬瓜檸檬為半糖）的標示，現在直接換算成全糖存進內建資料，App 不再需要額外的「最高甜度」設定。
+例：烏龍綠茶 226 kcal／51 g（少糖）→ 全糖 313.4 kcal／72.9 g；珍珠奶茶 720／50 → 780／65（珍珠的 15 g 糖不換算）。
+
+### 新增品項（大杯、全糖或店家最高甜度）
+
+| 品牌 | 品項 | 杯量 ml | 熱量 kcal | 總糖 g | 備註 |
+|---|---|---|---|---|---|
+| 50嵐 | 黃金烏龍 | 700 | 171.4 | 40.2 | 樂業店；通化店 170／40 |
+| 50嵐 | 微檸檬青茶 | 700 | 191.3 | 43.1 | 藍昌店 |
+| 50嵐 | 金桔檸檬 | 700 | 244.3 | 51.7 | 藍昌店 |
+| 50嵐 | 檸檬梅汁 | 700 | 326.2 | 74.2 | 藍昌店 |
+| 50嵐 | 波霸紅茶 | 700 | 472.5 | 52.2 | |
+| 50嵐 | 波霸紅茶拿鐵 | 700 | 644.8 | 65.6 | |
+| 50嵐 | 阿華田拿鐵 | 700 | 524.2 | 64.1 | 平鎮南豐店；阿華田粉的糖設為不可調 |
+| 50嵐 | 冰淇淋奶茶 | 700 | 708.6 | 72.9 | |
+| 50嵐 | 冰淇淋阿華田 | 700 | 762 | 79.3 | |
+| CoCo | 手採紅茶 | 700 | 141 | 33 | 彰化伸港 |
+| CoCo | 蜜香凍綠茶／紅茶 | 700 | 320 | 74 | 預設配料：茶凍 |
+| CoCo | 葡萄柚果粒茶 | 700 | 341 | 80 | |
+| CoCo | 奶茶三兄弟 | 700 | 622 | 61 | 預設配料：珍珠、布丁、仙草凍 |
+| 迷客夏 | 大正紅茶拿鐵 | 700 | 261 | 45 | 臺南大同、南崁忠孝西兩店一致（北醫店 211／34） |
+| 迷客夏 | 娜杯紅茶拿鐵 | 700 | 276 | 49 | 臺南大同店 |
+| 麻古 | 芝芝金萱 | 700 | 335 | 37 | 同頁有一分糖 261／20 → 解出不可調糖 6.1 g（扣奶蓋後） |
+| 麻古 | 柳橙芒果果粒茶 | 700 | 330 | 74 | 一分糖 256／57 → 不可調 55.1 g（果粒） |
+| 麻古 | 楊枝甘露 2.0 | 700 | 389 | 74 | 改為「甜感提升」最高值；甜感減低 353／66 |
+| 麻古 | 芝芝芒果果粒 | 700 | 516 | 77 | 改為「甜感提升」最高值；甜感減低 479／69 |
+| 得正 | 焙烏龍 | 700 | 268 | 57.5 | |
+| 得正 | 芝士奶蓋春烏龍 | 700 | 435 | 49 | 全糖少冰 |
+| 大苑子 | 翡翠檸檬 | 700 | 329 | 68 | |
+| 大苑子 | 愛文芒果冰沙 | 700 | 393 | 81 | |
+| 茶湯會 | 翡翠檸檬 | 650 | 334 | 73 | 大杯 22 oz |
+| 茶湯會 | 觀音拿鐵 | 650 | 297 | 49 | |
+| 茶湯會 | 鐵觀音奶茶 | 650 | 581 | 47 | |
+| 茶湯會 | 鐵觀音珍珠奶茶 | 650 | 717 | 42 | 多平台一致 |
+| 五桐號 | 經典五桐茶 | 660 | 74.7 | 16.7 | 多店一致 |
+| 五桐號 | 杏仁凍五桐茶 | 660 | 192 | 36 | 崛江店（樹林店 700 ml：293／51） |
+| 五桐號 | 烏龍奶霜 | 660 | 303.2 | 41.9 | 奶霜比內建「奶蓋」輕，扣掉會讓茶底糖多於熱量，所以奶霜保留在飲品本身，不拆成配料 |
+| 五桐號 | 蕎麥奶霜 | 660 | 320.3 | 46 | 同上 |
+| 一沐日 | 粉粿牡丹紅柚 | 660 | 288 | 63 | 一沐日只有 660 ml 一種杯量 |
+| 一沐日 | 糯香檸檬茶 | 660 | 385 | 87 | |
+| 一沐日 | 粉粿桂花檸檬 | 660 | 359 | 76 | 甜度固定 → 全部設為不可調 |
+| 一沐日 | 奶蓋島韻紅 | 660 | 426 | 38 | |
+| 一沐日 | 蕎麥鮮奶茶 | 660 | 304 | 50 | |
+| 一沐日 | 逮丸奶茶 | 660 | 630 | 77 | 草仔粿不在配料表，未拆 |
+| 龜記 | 翡翠綠茶 | 660 | 212 | 45 | |
+| 龜記 | 紅柚翡翠 | 660 | 285 | 63 | |
+| 龜記 | 阿源楊桃綠茶 | 660 | 250 | 60 | |
+| 龜記 | 楊桃雷夢 | 660 | 299 | 68 | |
+| 萬波 | 島嶼紅茶 | 700 | 246 | 59 | 衡陽、美村南兩店一致 |
+| 萬波 | 島嶼檸檬茶王 | 700 | 479 | 95 | |
+| 珍煮丹 | 黑糖鮮奶 | 700 | 364 | 42 | 黑糖不可調；大杯 ml 未標示，暫用 700 |
+| 珍煮丹 | 黑糖珍珠鮮奶 | 700 | 619 | 70 | 同上；中杯 489／56 |
+| 鶴茶樓 | 鶴頂紅茶 | 660 | 174 | 41 | 只有內湖店一家的資料 |
+| 鶴茶樓 | 鶴頂那堤 | 660 | 290 | 49 | 同上 |
+
+**這批沒收的**：茶湯會珍珠奶茶（兩個平台 793 與 204 kcal，差太多）、迷客夏珍寶鮮奶（扣掉珍珠後鮮奶的乳糖不夠，數字不合）、
+CoCo 芋頭西谷米牛乳（中杯和大杯同一組數字）、CoCo 西谷米奶茶與 50嵐 冰淇淋麵茶紅茶（配料表沒有西谷米、麵茶）、
+大苑子 春熙柳丁翡翠（杯型不明）、萬波黑糖珍珠鮮奶（只有中杯）。
+
+### 平台來源
+- 50嵐：[foodpanda 藍昌店](https://www.foodpanda.com.tw/restaurant/cpop/50lan-lan-chang-dian)、[foodpanda 通化店](https://www.foodpanda.com.tw/restaurant/e4wh/50lan-tong-hua-dian)、[foodpanda 平鎮南豐店](https://www.foodpanda.com.tw/restaurant/wmb4/50lan-ping-zhen-nan-feng-dian)、[Uber Eats 樂業店](https://www.ubereats.com/tw/store/50%E5%B5%90-%E6%A8%82%E6%A5%AD%E5%BA%97/eLpuvY2OTSyeZsIyy1rloA)、[foodpanda 建工店](https://www.foodpanda.com.tw/restaurant/cwsp/50lan-jian-gong-dian)
+- CoCo：[內湖店](https://www.ubereats.com/tw/store/coco%E9%83%BD%E5%8F%AF-%E5%85%A7%E6%B9%96%E5%BA%97/YIrVQkuZThCgCzuh-DZusQ)、[永康自強](https://www.ubereats.com/tw/store/coco%E9%83%BD%E5%8F%AF-%E6%B0%B8%E5%BA%B7%E8%87%AA%E5%BC%B7/ld-tE-5uVRegVk4RDcF8PA)、[新豐尚仁](https://www.ubereats.com/tw/store/coco%E9%83%BD%E5%8F%AF-%E6%96%B0%E8%B1%90%E5%B0%9A%E4%BB%81/W2P0TkJIXwas3K9ceWLsFA)、[彰化伸港](https://www.ubereats.com/tw-en/store/coco%E9%83%BD%E5%8F%AF-%E5%BD%B0%E5%8C%96%E4%BC%B8%E6%B8%AF/yxI5uh0WWO-01P-UTMvxPA)
+- 迷客夏：[臺南大同店](https://www.ubereats.com/tw/store/%E8%BF%B7%E5%AE%A2%E5%A4%8F-milksha-%E8%87%BA%E5%8D%97%E5%A4%A7%E5%90%8C%E5%BA%97/mzFbyLvAVU2TCS8t5lmzrg)、[南崁忠孝西店](https://www.foodpanda.com.tw/restaurant/cqda/mi-ke-xia-milksha-nan-kan-zhong-xiao-xi-dian)、[北醫店](https://www.foodpanda.com.tw/restaurant/ue2y/mi-ke-xia-milksha-tai-bei-bei-yi-dian)
+- 麻古：[中山南店](https://www.foodpanda.com.tw/restaurant/wddp/ma-gu-cha-fang-zhong-shan-nan-dian)、[宜蘭中山店](https://www.foodpanda.com.tw/restaurant/hnmt/ma-gu-cha-fang-yi-lan-zhong-shan-dian)、[彰化二林店](https://www.foodpanda.com.tw/restaurant/n8mw/ma-gu-cha-fang-zhang-hua-er-lin-dian)、[屏東廣東店](https://www.foodpanda.com.tw/restaurant/zfsk/ma-gu-cha-fang-ping-dong-guang-dong-dian)
+- 得正：[科技大樓計劃](https://www.foodpanda.com.tw/restaurant/ufyy/de-zheng-oolong-tea-project-ke-ji-da-lou-ji-hua)、[高雄十全計劃](https://www.foodpanda.com.tw/restaurant/oqzd/de-zheng-oolong-tea-project-gao-xiong-shi-quan-ji-hua)
+- 大苑子：[大村店](https://www.ubereats.com/tw/store/%E5%A4%A7%E8%8B%91%E5%AD%90-%E5%A4%A7%E6%9D%91%E5%BA%97/G_P8XkdxWdC-LFx0sf-npw)、[龍井中央店](https://www.foodpanda.com.tw/restaurant/m7ol/da-yuan-zi-long-jing-zhong-yang-dian)
+- 茶湯會：[花蓮民國店](https://www.foodpanda.com.tw/restaurant/b4ye/cha-tang-hui-hua-lian-min-guo-dian)、[台中西屯店](https://www.foodpanda.com.tw/en/restaurant/q8ly/cha-tang-hui-tai-zhong-xi-tun-dian)、[Uber Eats 富國店](https://www.ubereats.com/tw-en/store/%E8%8C%B6%E6%B9%AF%E6%9C%83tp-tea-%E5%AF%8C%E5%9C%8B%E5%BA%97/Q3eg1NVPT5OHeARzfNbWRg)
+- 五桐號：[中壢SOGO店](https://www.foodpanda.com.tw/restaurant/ptb9/wu-tong-hao-wootea-zhong-li-sogodian)、[高雄崛江店](https://www.ubereats.com/tw/store/%E4%BA%94%E6%A1%90%E8%99%9Fwootea-%E9%AB%98%E9%9B%84%E5%B4%9B%E6%B1%9F%E5%BA%97/HpunMmI4XlyQ5OGzHEVmLA)、[樹林站前店](https://www.ubereats.com/tw/store/%E4%BA%94%E6%A1%90%E8%99%9Fwootea-%E6%A8%B9%E6%9E%97%E7%AB%99%E5%89%8D%E5%BA%97/czL7pmrRWTaPQIpXf5mTqA)
+- 一沐日：[台北安居店](https://www.ubereats.com/tw/store/%E4%B8%80%E6%B2%90%E6%97%A5-%E5%8F%B0%E5%8C%97%E5%AE%89%E5%B1%85%E5%BA%97/Zmmme00JXdGIuANaB_Kwmw)、[台北永康店](https://www.ubereats.com/tw/store/%E4%B8%80%E6%B2%90%E6%97%A5-%E5%8F%B0%E5%8C%97%E6%B0%B8%E5%BA%B7%E5%BA%97/GqttOvfFXOeDl2oGHSyivQ)
+- 龜記：[天母芝山店](https://ubereats.com/tw/taipei/food-delivery/%E9%BE%9C%E8%A8%98%E8%8C%97%E5%93%81-%E5%A4%A9%E6%AF%8D%E8%8A%9D%E5%B1%B1%E5%BA%97/_MA9jjvUSeePhEr2LZ9_Jg)、[新竹清大店](https://www.ubereats.com/tw/store/%E9%BE%9C%E8%A8%98%E8%8C%97%E5%93%81-%E6%96%B0%E7%AB%B9%E6%B8%85%E5%A4%A7%E5%BA%97/tHyNmazQVH-BqkqU7ZObiA)
+- 萬波：[台北衡陽店](https://www.foodpanda.com.tw/restaurant/ri3h/wan-bo-dao-yu-hong-cha-tai-bei-heng-yang-dian)、[台中美村南店](https://www.foodpanda.com.tw/restaurant/ehm1/wan-bo-dao-yu-hong-cha-tai-zhong-mei-cun-nan-dian)
+- 珍煮丹：[台中昌平店](https://www.foodpanda.com.tw/restaurant/fz45/zhen-zhu-dan-tai-zhong-chang-ping-dian)、[中和連城店](https://www.ubereats.com/tw/store/%E7%8F%8D%E7%85%AE%E4%B8%B9-%E4%B8%AD%E5%92%8C%E9%80%A3%E5%9F%8E%E5%BA%97/C0hycwcPVgmfFPN5GhSfww)
+- 鶴茶樓：[台北內湖店](https://www.foodpanda.com.tw/restaurant/bsc7/he-cha-lou-tai-bei-nei-hu-dian)

@@ -78,8 +78,7 @@ CREATE TABLE IF NOT EXISTS food_database (
   drink_advanced INTEGER NOT NULL DEFAULT 0,
   sugar_g REAL,
   sugar_fixed_g REAL NOT NULL DEFAULT 0,
-  default_toppings TEXT,
-  sugar_max_level REAL NOT NULL DEFAULT 1
+  default_toppings TEXT
 );
 
 CREATE TABLE IF NOT EXISTS drink_topping (
@@ -384,8 +383,8 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   { v: 46, sql: "ALTER TABLE meal_log ADD COLUMN adj_carb REAL NOT NULL DEFAULT 0" },
   { v: 47, sql: "ALTER TABLE meal_log ADD COLUMN adj_fat REAL NOT NULL DEFAULT 0" },
   { v: 48, sql: "ALTER TABLE meal_template_items ADD COLUMN drink_opts TEXT" },
-  // Highest sugar level the shop sells (清心福全 tops out at 少糖); the label is at this level
-  { v: 49, sql: "ALTER TABLE food_database ADD COLUMN sugar_max_level REAL NOT NULL DEFAULT 1" },
+  // v49 was used by a v1.8.0 pre-release build (food_database.sugar_max_level, since
+  // dropped in favour of storing full-sugar values) — don't reuse the number.
 ];
 
 // Compute & store calories for running_session rows missing them, using the

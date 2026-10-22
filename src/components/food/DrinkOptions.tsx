@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Minus, Plus, Trash2, X } from "lucide-react";
 import { clsx } from "clsx";
 import {
-  CUP_PRESETS, SUGAR_LEVELS, TOPPING_STEP, adjustableSugar, maxSugarLevel, sugarLabel,
+  CUP_PRESETS, SUGAR_LEVELS, TOPPING_STEP, adjustableSugar,
   type DrinkFoodFields, type DrinkOpts, type Topping,
 } from "@/lib/drink";
 
@@ -91,17 +91,11 @@ export function DrinkOptions({ food, qty, onQty, opts, onOpts, toppings, onAddTo
         <p className={label}>{zh ? "甜度" : "Sugar"}</p>
         {sugarAdjustable ? (
           <div className="flex flex-wrap gap-1.5">
-            {/* Levels above what the shop sells are made at its highest level, so they aren't offered */}
-            {SUGAR_LEVELS.filter(l => l.ratio <= maxSugarLevel(food) + 1e-9).map(l => (
+            {SUGAR_LEVELS.map(l => (
               <button key={l.ratio} onClick={() => onOpts({ ...opts, sugar: l.ratio })} className={chip(opts.sugar === l.ratio)}>
                 {zh ? l.zh : l.en}
               </button>
             ))}
-            {maxSugarLevel(food) < 1 && (
-              <span className="self-center text-10 text-[var(--text-on-surface-muted)]">
-                {zh ? `此店最高為${sugarLabel(maxSugarLevel(food), true)}` : `Shop's highest: ${sugarLabel(maxSugarLevel(food), false)}`}
-              </span>
-            )}
           </div>
         ) : (
           <p className="text-xs text-[var(--text-on-surface-muted)]">{zh ? "這杯的糖無法調整" : "Sugar can't be adjusted for this drink"}</p>
