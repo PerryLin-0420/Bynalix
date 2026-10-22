@@ -74,7 +74,24 @@ CREATE TABLE IF NOT EXISTS food_database (
   counts_as_water INTEGER NOT NULL DEFAULT 0,
   source_type TEXT NOT NULL DEFAULT 'builtin',
   created_by INTEGER,
-  created_date TEXT DEFAULT (datetime('now','localtime'))
+  created_date TEXT DEFAULT (datetime('now','localtime')),
+  drink_advanced INTEGER NOT NULL DEFAULT 0,
+  sugar_g REAL,
+  sugar_fixed_g REAL NOT NULL DEFAULT 0,
+  default_toppings TEXT
+);
+
+CREATE TABLE IF NOT EXISTS drink_topping (
+  topping_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  name_en TEXT,
+  calories_kcal REAL NOT NULL,
+  protein_g REAL NOT NULL DEFAULT 0,
+  carbohydrates_g REAL NOT NULL DEFAULT 0,
+  fat_g REAL NOT NULL DEFAULT 0,
+  sugar_g REAL NOT NULL DEFAULT 0,
+  source_type TEXT NOT NULL DEFAULT 'builtin',
+  created_by INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS meal_template (
@@ -90,6 +107,7 @@ CREATE TABLE IF NOT EXISTS meal_template_items (
   food_id INTEGER NOT NULL,
   quantity REAL NOT NULL,
   unit TEXT NOT NULL,
+  drink_opts TEXT,
   FOREIGN KEY (template_id) REFERENCES meal_template(template_id) ON DELETE CASCADE,
   FOREIGN KEY (food_id) REFERENCES food_database(food_id) ON DELETE CASCADE
 );
@@ -161,6 +179,11 @@ CREATE TABLE IF NOT EXISTS meal_log (
   meal_type TEXT,
   log_date TEXT NOT NULL DEFAULT (DATE('now','localtime')),
   log_time TEXT DEFAULT (time('now','localtime')),
+  drink_opts TEXT,
+  adj_kcal REAL NOT NULL DEFAULT 0,
+  adj_protein REAL NOT NULL DEFAULT 0,
+  adj_carb REAL NOT NULL DEFAULT 0,
+  adj_fat REAL NOT NULL DEFAULT 0,
   FOREIGN KEY (food_id) REFERENCES food_database(food_id) ON DELETE CASCADE
 );
 
@@ -348,6 +371,18 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   { v: 37, sql: "ALTER TABLE strength_set ADD COLUMN logged_at TEXT" },
   // Push-up sets: added load on top of the body-weight share (weight_kg holds the total)
   { v: 38, sql: "ALTER TABLE strength_set ADD COLUMN extra_kg REAL" },
+  // Advanced drinks: per-drink sugar data, logged sugar level / toppings, and the
+  // nutrition delta they cause (meal_log.adj_* is added on top of the scaled food)
+  { v: 39, sql: "ALTER TABLE food_database ADD COLUMN drink_advanced INTEGER NOT NULL DEFAULT 0" },
+  { v: 40, sql: "ALTER TABLE food_database ADD COLUMN sugar_g REAL" },
+  { v: 41, sql: "ALTER TABLE food_database ADD COLUMN sugar_fixed_g REAL NOT NULL DEFAULT 0" },
+  { v: 42, sql: "ALTER TABLE food_database ADD COLUMN default_toppings TEXT" },
+  { v: 43, sql: "ALTER TABLE meal_log ADD COLUMN drink_opts TEXT" },
+  { v: 44, sql: "ALTER TABLE meal_log ADD COLUMN adj_kcal REAL NOT NULL DEFAULT 0" },
+  { v: 45, sql: "ALTER TABLE meal_log ADD COLUMN adj_protein REAL NOT NULL DEFAULT 0" },
+  { v: 46, sql: "ALTER TABLE meal_log ADD COLUMN adj_carb REAL NOT NULL DEFAULT 0" },
+  { v: 47, sql: "ALTER TABLE meal_log ADD COLUMN adj_fat REAL NOT NULL DEFAULT 0" },
+  { v: 48, sql: "ALTER TABLE meal_template_items ADD COLUMN drink_opts TEXT" },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

@@ -64,7 +64,7 @@ export function FoodHistoryDrawer({ open, userId, onClose, onSelectDate }: Props
       const rows = await db.select<DaySummary[]>(`
         SELECT ml.log_date,
           COUNT(ml.meal_log_id) as meal_count,
-          ROUND(SUM(fd.calories_kcal * ml.quantity / fd.base_quantity), 0) as total_cal
+          ROUND(SUM(fd.calories_kcal * ml.quantity / fd.base_quantity + ml.adj_kcal), 0) as total_cal
         FROM meal_log ml
         JOIN food_database fd ON fd.food_id = ml.food_id
         WHERE ml.user_id = ?
@@ -85,7 +85,7 @@ export function FoodHistoryDrawer({ open, userId, onClose, onSelectDate }: Props
         const db = await getDb();
         const rows = await db.select<MealItemRaw[]>(`
           SELECT ml.meal_type,
-            ROUND(fd.calories_kcal * ml.quantity / fd.base_quantity, 0) as cal
+            ROUND(fd.calories_kcal * ml.quantity / fd.base_quantity + ml.adj_kcal, 0) as cal
           FROM meal_log ml
           JOIN food_database fd ON fd.food_id = ml.food_id
           WHERE ml.user_id = ? AND ml.log_date = ?

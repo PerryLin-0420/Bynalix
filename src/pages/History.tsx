@@ -337,10 +337,10 @@ export function History() {
           GROUP BY log_date ORDER BY log_date`, [profile.user_id, from, to]);
         const cRows = await db.select<{ log_date: string; calories: number; protein: number; carb: number; fat: number }[]>(`
           SELECT ml.log_date,
-            ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal), 0) as calories,
-            ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g), 0) as protein,
-            ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g), 0) as carb,
-            ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g), 0) as fat
+            ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal + ml.adj_kcal), 0) as calories,
+            ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g + ml.adj_protein), 0) as protein,
+            ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g + ml.adj_carb), 0) as carb,
+            ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g + ml.adj_fat), 0) as fat
           FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
           WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
           GROUP BY ml.log_date`, [profile.user_id, from, to]);
