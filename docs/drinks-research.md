@@ -446,3 +446,34 @@ CoCo 芋頭西谷米牛乳（中杯和大杯同一組數字）、CoCo 西谷米�
 - 可不可：[台北長春店](https://www.ubereats.com/tw/taipei/food-delivery/可不可熟成紅茶-台北長春店/sUTUba4xQXaTwCW8WyKVpg)、[中和民樂店](https://www.ubereats.com/tw/store/%E5%8F%AF%E4%B8%8D%E5%8F%AF%E7%86%9F%E6%88%90%E7%B4%85%E8%8C%B6-%E4%B8%AD%E5%92%8C%E6%B0%91%E6%A8%82%E5%BA%97/-4KruzWXTRmUe4fBtwKtOg)
 - CoCo：[汐止福德店](https://www.foodpanda.com.tw/restaurant/ok50/cocodu-ke-xi-zhi-fu-de-dian)
 - 得正：[高雄十全計劃](https://www.foodpanda.com.tw/restaurant/oqzd/de-zheng-oolong-tea-project-gao-xiong-shi-quan-ji-hua)、[台北科技大樓計劃](https://www.ubereats.com/tw/store/%E5%BE%97%E6%AD%A3-oolong-tea-project-%E5%8F%B0%E5%8C%97%E7%A7%91%E6%8A%80%E5%A4%A7%E6%A8%93%E8%A8%88%E5%8A%83/IuEzUunIVd-Ku168YpbN6w)
+
+
+---
+
+## 十一、大苑子補齊（seed v18）
+
+大苑子原本只有 3 款，改從外送平台補 16 款（共 19 款）。水果類的果汁糖、冬瓜糖設為不可調（估計值）。
+
+| 品項 | 熱量 kcal | 總糖 g | 備註 |
+|---|---|---|---|
+| 芭樂檸檬 | 271 | 58 | 大安也思店 |
+| 芭樂甘草 | 205 | 42 | |
+| 芭樂梅 | 221 | 44 | 豐原店 |
+| 春熙柳丁翡翠 | 280 | 62 | 向心南店（價目表整理 281／63） |
+| 甜橙火龍果 | 265 | 59 | |
+| 鳳梨冰茶 | 311 | 68 | 價目表整理 315／69 |
+| 埔里百香果綠 | 260 | 55 | |
+| 百香愛玉 | 229 | 49 | 預設配料：愛玉 |
+| 蜂蜜檸檬 | 313 | 67 | |
+| 蜂蜜檸檬奇亞籽 | 282 | 54 | |
+| 百變火龍冰沙 | 364 | 77 | |
+| 巨峰葡萄雪沙 | 344 | 79 | 大安也思店 |
+| 奶茶 | 545 | 68 | |
+| 珍珠奶茶 | 712 | 77 | 另一店 704／69，取最高值 |
+| 許慶良鮮奶茶 | 409 | 72 | |
+| 許慶良鮮奶冬瓜 | 542 | 92 | |
+
+**沒收**：鳳梨艾波（品名對應不確定）；翡翠檸檬另有一店標 224／49（說明含葡萄柚汁），與現有 329／68 差太多，維持原值待確認。
+
+### 來源
+[foodpanda 台中精誠店](https://www.foodpanda.com.tw/restaurant/z0xb/da-yuan-zi-tai-zhong-jing-cheng-dian)、[foodpanda 龍井中央店](https://www.foodpanda.com.tw/restaurant/m7ol/da-yuan-zi-long-jing-zhong-yang-dian)、[foodpanda 台中清水店](https://www.foodpanda.com.tw/restaurant/b6mx/da-yuan-zi-tai-zhong-qing-shui-dian)、[foodpanda 土城中央店](https://www.foodpanda.com.tw/restaurant/z6gj/da-yuan-zi-tu-cheng-zhong-yang-dian)、[foodpanda 台北南昌店](https://www.foodpanda.com.tw/restaurant/z0yd/da-yuan-zi-tai-bei-nan-chang-dian)、[Uber Eats 大安也思店](https://www.ubereats.com/tw/store/%E5%A4%A7%E8%8B%91%E5%AD%90-%E5%8F%B0%E5%8C%97%E5%A4%A7%E5%AE%89%E4%B9%9F%E6%80%9D%E5%BA%97/4KXUq9ypXIGsBgrqgMGbmA)、[Uber Eats 向心南店](https://www.ubereats.com/tw/store/%E5%A4%A7%E8%8B%91%E5%AD%90-%E5%90%91%E5%BF%83%E5%8D%97%E5%BA%97/KmYDmg35SVqsRm469DE-KQ)、[Uber Eats 豐原](https://www.ubereats.com/tw/brand-city/fengyuan-txg/dayungs)、[baliman 價目表](https://baliman.tw/blog/post/dayunzi-menu)
