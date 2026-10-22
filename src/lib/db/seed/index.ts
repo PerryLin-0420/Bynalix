@@ -1,11 +1,12 @@
 import type Database from "@tauri-apps/plugin-sql";
 import { SEED_FOODS } from "./foods";
 import { SEED_EXERCISES } from "./exercises";
+import { RETIRED_DRINKS, SEED_DRINKS, SEED_TOPPINGS } from "./drinks";
 
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "12"; // split 伏地挺身 into 標準/跪姿/上斜/下斜
+const SEED_VERSION = "22"; // per-chain cup volumes; base ml = the chain's large cup
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {
@@ -80,6 +81,53 @@ export async function seedBuiltins(db: Database): Promise<void> {
         );
       }
     }
+  }
+
+  // ── Drink toppings + advanced drinks ──────────────────────────────────────
+  // Upserted by name so a re-seed also corrects values; custom rows untouched.
+  for (const t of SEED_TOPPINGS) {
+    await db.execute(
+      `INSERT OR IGNORE INTO drink_topping
+         (name, name_en, calories_kcal, protein_g, carbohydrates_g, fat_g, sugar_g, source_type)
+       VALUES (?,?,?,?,?,?,?,'builtin')`,
+      [t.name, t.name_en, t.calories_kcal, t.protein_g, t.carbohydrates_g, t.fat_g, t.sugar_g]);
+    await db.execute(
+      `UPDATE drink_topping SET name_en=?, calories_kcal=?, protein_g=?, carbohydrates_g=?, fat_g=?, sugar_g=?
+       WHERE name=? AND source_type='builtin'`,
+      [t.name_en, t.calories_kcal, t.protein_g, t.carbohydrates_g, t.fat_g, t.sugar_g, t.name]);
+  }
+  const toppingRows = await db.select<{ topping_id: number; name: string }[]>(
+    "SELECT topping_id, name FROM drink_topping");
+  const toppingId = new Map(toppingRows.map(r => [r.name, r.topping_id]));
+
+  for (const d of SEED_DRINKS) {
+    const defaults = JSON.stringify(d.default_toppings
+      .map(n => toppingId.get(n)).filter((id): id is number => id != null)
+      .map(id => ({ id, qty: 1 })));
+    await db.execute(
+      `INSERT OR IGNORE INTO food_database
+         (food_name, name_en, protein_g, carbohydrates_g, fat_g, calories_kcal,
+          base_quantity, base_unit, category, counts_as_water, source_type)
+       VALUES (?,?,?,?,?,?,?,?,?,?,'builtin')`,
+      [d.food_name, d.name_en ?? null, d.protein_g, d.carbohydrates_g, d.fat_g, d.calories_kcal,
+       d.base_quantity, d.base_unit, d.category, d.counts_as_water ? 1 : 0]);
+    await db.execute(
+      `UPDATE food_database SET
+         name_en=?, protein_g=?, carbohydrates_g=?, fat_g=?, calories_kcal=?,
+         base_quantity=?, base_unit=?, category=?, counts_as_water=?,
+         drink_advanced=1, sugar_g=?, sugar_fixed_g=?, default_toppings=?, brand=?, cup_sizes=?
+       WHERE food_name=? AND source_type='builtin'`,
+      [d.name_en ?? null, d.protein_g, d.carbohydrates_g, d.fat_g, d.calories_kcal,
+       d.base_quantity, d.base_unit, d.category, d.counts_as_water ? 1 : 0,
+       d.sugar_g, d.sugar_fixed_g, defaults, d.brand, d.cup_sizes, d.food_name]);
+  }
+
+  // A retired builtin drink goes only if no log or template still points at it
+  for (const name of RETIRED_DRINKS) {
+    await db.execute(
+      `DELETE FROM food_database WHERE source_type='builtin' AND food_name=?
+         AND food_id NOT IN (SELECT food_id FROM meal_log)
+         AND food_id NOT IN (SELECT food_id FROM meal_template_items)`, [name]);
   }
 
   // ── Exercises: DELETE builtin then bulk INSERT ────────────────────────────

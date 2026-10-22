@@ -96,10 +96,10 @@ export async function getDailyStatsRecords(
       GROUP BY log_date`, [userId, from, to]),
     db.select<{ log_date: string; calories: number; protein_g: number; carb_g: number; fat_g: number }[]>(`
       SELECT ml.log_date,
-        ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal), 1) as calories,
-        ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g), 1) as protein_g,
-        ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g), 1) as carb_g,
-        ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g), 1) as fat_g
+        ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal + ml.adj_kcal), 1) as calories,
+        ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g + ml.adj_protein), 1) as protein_g,
+        ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g + ml.adj_carb), 1) as carb_g,
+        ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g + ml.adj_fat), 1) as fat_g
       FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
       WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
       GROUP BY ml.log_date`, [userId, from, to]),
@@ -296,10 +296,10 @@ export async function getCalorieHistory(userId: number, days = 30, targetKcal: n
   const dates = dateRange(days);
   const rows = await db.select<{ log_date: string; calories: number; protein: number; carb: number; fat: number }[]>(`
     SELECT ml.log_date,
-      ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal), 0) as calories,
-      ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g), 0) as protein,
-      ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g), 0) as carb,
-      ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g), 0) as fat
+      ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal + ml.adj_kcal), 0) as calories,
+      ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g + ml.adj_protein), 0) as protein,
+      ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g + ml.adj_carb), 0) as carb,
+      ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g + ml.adj_fat), 0) as fat
     FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
     WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
     GROUP BY ml.log_date`, [userId, dates[0], dates[dates.length - 1]]);
@@ -327,7 +327,7 @@ export async function getMealCountHistory(userId: number, days = 30): Promise<{ 
       JOIN food_database fd ON fd.food_id = ml.food_id
       WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
       GROUP BY ml.log_date, ml.meal_type
-      HAVING SUM(fd.calories_kcal * ml.quantity / fd.base_quantity) >= 20
+      HAVING SUM(fd.calories_kcal * ml.quantity / fd.base_quantity + ml.adj_kcal) >= 20
     )
     GROUP BY log_date`, [userId, dates[0], dates[dates.length - 1]]);
   const map = new Map(rows.map(r => [r.log_date, r.meals]));

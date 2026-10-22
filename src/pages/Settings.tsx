@@ -95,7 +95,7 @@ export function Settings() {
     "user_profile", "weight_log", "meal_log", "exercise_log",
     "water_log", "strength_session", "strength_set",
     "running_session", "running_interval",
-    "body_composition_log", "sleep_log", "food_database",
+    "body_composition_log", "sleep_log", "food_database", "drink_topping",
   ];
 
   useEffect(() => {
@@ -555,6 +555,7 @@ const loadPinStatus = async () => {
         "weight_log", "body_composition_log",
         "sleep_log",
         "user_favorites",
+        "drink_topping", // builtins come back with the re-seed below (_seed_meta is cleared)
         "mode_settings",
         "user_profile",
         "app_settings",

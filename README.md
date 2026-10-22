@@ -63,8 +63,11 @@ but deeper personal understanding through self-owned data.
 
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
-**Latest — v1.7.1**
-- Stability is scored against a physical allowed range per metric (e.g. weight ±0.5 kg, sleep ±45 min): within it is full marks, each further range halves the score
+**Latest — v1.8.0**
+- Drink-shop drinks with cup size, proportional sugar level and toppings (14 built in, add your own, any number of servings)
+- First list of 132 drinks from 15 Taiwanese chains, stored as base + usual toppings so toppings never double count
+- Each chain's real cup sizes, and a brand row under the 飲料 filter
+- Custom drinks get the same menu plus a brand, their own cup volumes and default toppings; only plain, sugar-free teas count toward water
 
 ---
 

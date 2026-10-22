@@ -16,6 +16,11 @@ import { NoProfile } from "@/components/common/NoProfile";
 import { DateNavHeader } from "@/components/layout/DateNavHeader";
 import { FoodHistoryDrawer } from "@/components/food/FoodHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
+import { DrinkOptions, SummaryTabs, ToppingEditor, type NewTopping } from "@/components/food/DrinkOptions";
+import {
+  CUP_PRESETS, defaultDrinkOpts, drinkAdjustment, drinkCountsAsWater, drinkOptsSummary, isAdvancedDrink,
+  parseCupSizes, parseDrinkOpts, parseToppings, round1, type DrinkOpts, type Topping, type ToppingPick,
+} from "@/lib/drink";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,18 +30,25 @@ interface FoodItem {
   base_quantity: number; base_unit: string;
   category: string | null; source_type: string;
   counts_as_water: number; // 1 = auto-sync ml quantity to water_log
+  // Advanced drinks (see lib/drink.ts)
+  drink_advanced: number; sugar_g: number | null; sugar_fixed_g: number; default_toppings: string | null;
+  brand: string | null;
+  cup_sizes: string | null;
 }
 
 interface BasketItem {
   food: FoodItem; quantity: number;
   cal: number; p: number; c: number; f: number;
   qtyInput?: string; // raw text while the quantity is being edited in the meal list
+  /** Sugar level + toppings, for advanced drinks only. */
+  drinkOpts?: DrinkOpts;
 }
 
 interface MealEntry {
   meal_log_id: number; food_id: number; food_name: string; name_en: string | null;
   quantity: number; unit: string; meal_type: string; log_time: string;
   calories: number; protein: number; carb: number; fat: number;
+  drink_opts: string | null;
 }
 
 interface MealGroup {
@@ -47,7 +59,7 @@ interface MealGroup {
 
 interface MealTemplate {
   template_id: number; template_name: string;
-  items: { food_id: number; food_name: string; quantity: number; unit: string; calories: number }[];
+  items: { food_id: number; food_name: string; quantity: number; unit: string; calories: number; drink_opts: string | null }[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -66,7 +78,9 @@ const LABEL_TO_KEY: Record<string, string> = {
 // Normalize any DB variant (English key or Chinese) → canonical Chinese label
 const toZhLabel = (mt: string): string => KEY_TO_LABEL[mt] ?? mt;
 
-const CATEGORY_FILTERS = ["全部", "澱粉", "蛋白質", "油質", "我的最愛"] as const;
+const CATEGORY_FILTERS = ["全部", "澱粉", "蛋白質", "油質", "飲料", "我的最愛"] as const;
+/** The category whose chip also opens a brand row (drink-shop chains). */
+const DRINK_CATEGORY = "飲料";
 type CatFilter = string;
 
 /** Results per page for category/aggregated-tag browsing and text search. */
@@ -110,6 +124,17 @@ function calcNutri(food: FoodItem, qty: number) {
   };
 }
 
+/** Nutrition of a logged amount, including an advanced drink's sugar level and toppings. */
+function calcItem(food: FoodItem, qty: number, opts: DrinkOpts | undefined, toppings: Map<number, Topping>) {
+  const base = calcNutri(food, qty);
+  if (!opts || !isAdvancedDrink(food)) return base;
+  const adj = drinkAdjustment(food, qty, opts, toppings);
+  return {
+    cal: Math.round(food.calories_kcal * qty / food.base_quantity + adj.kcal),
+    p: round1(base.p + adj.p), c: round1(base.c + adj.c), f: round1(base.f + adj.f),
+  };
+}
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export function FoodLog() {
@@ -130,6 +155,7 @@ export function FoodLog() {
     const map: Record<string, string> = {
       "全部": t("food.catAll"), "澱粉": t("food.catCarb"),
       "蛋白質": t("food.catProtein"), "油質": t("food.catFat"),
+      "飲料": lang === "en" ? "Drinks" : "飲料",
       "我的最愛": t("food.catFavorite"),
     };
     return map[cat] ?? cat;
@@ -184,6 +210,9 @@ export function FoodLog() {
   // Food search inside sheet
   const [query, setQuery]               = useState("");
   const [catFilter, setCatFilter]       = useState<CatFilter>("全部");
+  /** Brand chosen under 飲料; null = all drinks. */
+  const [brandFilter, setBrandFilter]   = useState<string | null>(null);
+  const [drinkBrands, setDrinkBrands]   = useState<string[]>([]);
   const [results, setResults]           = useState<FoodItem[]>([]);
   const [page, setPage]                 = useState(0);
   const [hasMore, setHasMore]           = useState(false);
@@ -191,15 +220,32 @@ export function FoodLog() {
   const resultsRef                      = useRef<HTMLDivElement>(null);
   const [pickedFood, setPickedFood]     = useState<FoodItem | null>(null);
   const [pickedQty, setPickedQty]       = useState("100");
+  const [pickedDrink, setPickedDrink]   = useState<DrinkOpts | null>(null);
+
+  // Drink toppings (shared table, builtin + custom)
+  const [toppings, setToppings]         = useState<Topping[]>([]);
+  const toppingMap = new Map(toppings.map(t => [t.topping_id, t]));
 
   // Custom food modal
   const [showCustomFood, setShowCustomFood] = useState(false);
   const [customFoodErr, setCustomFoodErr]   = useState<string | null>(null);
   const [cfEditId, setCfEditId]             = useState<number | null>(null);
-  const [cf, setCf] = useState({
+  const CF_EMPTY = {
     name: "", name_en: "", protein: "", carb: "", fat: "",
     quantity: "100", unit: "g", category: "", addToFav: true,
-  });
+    // Advanced drink: nutrition above is at full sugar; sugar fields per the same amount
+    drinkAdvanced: false, sugar: "", sugarFixed: "",
+    brand: "",
+    // Advanced drink: its own cup volumes (blank = not offered; all blank = defaults)
+    cups: { M: "", L: "", XL: "" } as Record<"M" | "L" | "XL", string>,
+    defaultToppings: [] as ToppingPick[],
+  };
+  const [cf, setCf] = useState(CF_EMPTY);
+  const cfIsDrink = cf.category === "飲料";
+  // An advanced drink's form is split into tabs; any other food stays one page
+  const [cfTab, setCfTab] = useState<"basic" | "sugar" | "toppings">("basic");
+  const cfTabbed = cfIsDrink && cf.drinkAdvanced;
+  const cfView = cfTabbed ? cfTab : "basic";
   const cfCalories = Math.round(
     (parseFloat(cf.protein) || 0) * 4 +
     (parseFloat(cf.carb)    || 0) * 4 +
@@ -207,7 +253,7 @@ export function FoodLog() {
   );
 
   useEffect(() => {
-    if (profile) { loadLog(); loadFavIds(); loadTemplates(); loadKnownTypes(); loadExtraFilters(); }
+    if (profile) { loadLog(); loadFavIds(); loadTemplates(); loadKnownTypes(); loadExtraFilters(); loadToppings(); }
   }, [profile, selectedDate]);
 
   // ── Loaders ─────────────────────────────────────────────────────────────────
@@ -217,11 +263,11 @@ export function FoodLog() {
       const db = await getDb();
       const rows = await db.select<MealEntry[]>(`
         SELECT ml.meal_log_id, ml.food_id, fd.food_name, fd.name_en, ml.quantity, ml.unit,
-          ml.meal_type, ml.log_time,
-          ROUND(ml.quantity / fd.base_quantity * fd.calories_kcal, 1)     as calories,
-          ROUND(ml.quantity / fd.base_quantity * fd.protein_g, 1)         as protein,
-          ROUND(ml.quantity / fd.base_quantity * fd.carbohydrates_g, 1)   as carb,
-          ROUND(ml.quantity / fd.base_quantity * fd.fat_g, 1)             as fat
+          ml.meal_type, ml.log_time, ml.drink_opts,
+          ROUND(ml.quantity / fd.base_quantity * fd.calories_kcal + ml.adj_kcal, 1)     as calories,
+          ROUND(ml.quantity / fd.base_quantity * fd.protein_g + ml.adj_protein, 1)         as protein,
+          ROUND(ml.quantity / fd.base_quantity * fd.carbohydrates_g + ml.adj_carb, 1)   as carb,
+          ROUND(ml.quantity / fd.base_quantity * fd.fat_g + ml.adj_fat, 1)             as fat
         FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
         WHERE ml.user_id = ? AND ml.log_date = ?
         ORDER BY ml.log_time ASC`, [profile!.user_id, selectedDate]);
@@ -264,13 +310,17 @@ export function FoodLog() {
       const tmps = await db.select<{ template_id: number; template_name: string }[]>(
         "SELECT template_id, template_name FROM meal_template WHERE user_id=? ORDER BY created_date DESC",
         [profile!.user_id]);
+      const tops = new Map((await db.select<Topping[]>("SELECT * FROM drink_topping")).map(x => [x.topping_id, x]));
       const result: MealTemplate[] = [];
       for (const t of tmps) {
-        const items = await db.select<any[]>(`
-          SELECT mti.food_id, fd.food_name, mti.quantity, mti.unit,
-            ROUND(mti.quantity / fd.base_quantity * fd.calories_kcal) as calories
+        const rows = await db.select<(FoodItem & { quantity: number; unit: string; drink_opts: string | null })[]>(`
+          SELECT fd.*, mti.quantity, mti.unit, mti.drink_opts
           FROM meal_template_items mti JOIN food_database fd ON mti.food_id = fd.food_id
           WHERE mti.template_id = ?`, [t.template_id]);
+        const items = rows.map(r => ({
+          food_id: r.food_id, food_name: r.food_name, quantity: r.quantity, unit: r.unit, drink_opts: r.drink_opts,
+          calories: calcItem(r, r.quantity, parseDrinkOpts(r.drink_opts) ?? undefined, tops).cal,
+        }));
         result.push({ ...t, items });
       }
       setTemplates(result);
@@ -295,6 +345,41 @@ export function FoodLog() {
         "SELECT value FROM app_settings WHERE key='food_quick_filters'");
       if (row?.value) setExtraFilters(JSON.parse(row.value));
     } catch (e) { logError("FoodLog", e); }
+  };
+
+  const loadToppings = async () => {
+    try {
+      const db = await getDb();
+      setToppings(await db.select<Topping[]>(
+        "SELECT * FROM drink_topping ORDER BY source_type, calories_kcal DESC, name"));
+    } catch (e) { logError("FoodLog.loadToppings", e); }
+  };
+
+  const addCustomTopping = async (t: NewTopping) => {
+    try {
+      const db = await getDb();
+      const kcal = Math.round(t.protein_g * 4 + t.carbohydrates_g * 4 + t.fat_g * 9);
+      await db.execute(
+        `INSERT INTO drink_topping (name, calories_kcal, protein_g, carbohydrates_g, fat_g, sugar_g, source_type, created_by)
+         VALUES (?,?,?,?,?,?,'custom',?)`,
+        [t.name, kcal, t.protein_g, t.carbohydrates_g, t.fat_g, t.sugar_g, profile?.user_id ?? null]);
+      await loadToppings();
+    } catch (e) {
+      logError("FoodLog.addCustomTopping", e);
+      showToast(lang === "zh" ? "新增失敗（名稱可能重複）" : "Couldn't add (name may already exist)", "error");
+    }
+  };
+
+  // Logged drinks keep their own adj_* totals, so deleting a topping only drops
+  // it from future picks; the in-progress pick loses it too.
+  const deleteCustomTopping = async (t: Topping) => {
+    if (t.source_type !== "custom") return;
+    try {
+      const db = await getDb();
+      await db.execute("DELETE FROM drink_topping WHERE topping_id=? AND source_type='custom'", [t.topping_id]);
+      setPickedDrink(o => o && { ...o, toppings: o.toppings.filter(p => p.id !== t.topping_id) });
+      await loadToppings();
+    } catch (e) { logError("FoodLog.deleteCustomTopping", e); }
   };
 
   const saveExtraFilters = async (filters: string[]) => {
@@ -322,7 +407,7 @@ export function FoodLog() {
 
   // ── Food search ──────────────────────────────────────────────────────────────
 
-  const doSearch = useCallback(async (q: string, filter: CatFilter, pg: number) => {
+  const doSearch = useCallback(async (q: string, filter: CatFilter, pg: number, brand: string | null = null) => {
     if (!profile) return;
     try {
       const db = await getDb();
@@ -349,10 +434,12 @@ export function FoodLog() {
              AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT ? OFFSET ?`,
             [...cats, q, likeQ, likeQ, limit, offset]);
         } else {
+          // Under 飲料 a chosen brand narrows to that chain's drinks
+          const byBrand = filter === DRINK_CATEGORY && brand;
           rows = await db.select<FoodItem[]>(
-            `SELECT * FROM food_database WHERE category = ?
+            `SELECT * FROM food_database WHERE category = ?${byBrand ? " AND brand = ?" : ""}
              AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT ? OFFSET ?`,
-            [filter, q, likeQ, likeQ, limit, offset]);
+            [filter, ...(byBrand ? [brand] : []), q, likeQ, likeQ, limit, offset]);
         }
       } else if (q.trim()) {
         // Prefix match outranks "contains anywhere" so searching「雞胸」surfaces
@@ -381,13 +468,32 @@ export function FoodLog() {
 
   // A new query or filter always starts back at page 1 — otherwise switching
   // categories could land on a page past the new list's end.
-  useEffect(() => { setPage(0); }, [query, catFilter]);
+  useEffect(() => { setPage(0); }, [query, catFilter, brandFilter]);
+
+  const loadDrinkBrands = async () => {
+    try {
+      const db = await getDb();
+      const rows = await db.select<{ brand: string }[]>(
+        `SELECT brand FROM food_database WHERE category = ? AND brand IS NOT NULL AND brand <> ''
+         GROUP BY brand ORDER BY COUNT(*) DESC, brand`, [DRINK_CATEGORY]);
+      setDrinkBrands(rows.map(r => r.brand));
+    } catch (e) { logError("FoodLog.loadDrinkBrands", e); }
+  };
+
+  // Leaving 飲料 drops the brand; entering it loads the brands that have drinks
+  useEffect(() => {
+    if (catFilter !== DRINK_CATEGORY) { setBrandFilter(null); return; }
+    loadDrinkBrands();
+  }, [catFilter]);
+
+  // The custom-food brand field offers the known brands
+  useEffect(() => { if (showCustomFood) loadDrinkBrands(); }, [showCustomFood]);
 
   useEffect(() => {
     if (!sheetOpen) return;
-    const t = setTimeout(() => doSearch(query, catFilter, page), 250);
+    const t = setTimeout(() => doSearch(query, catFilter, page, brandFilter), 250);
     return () => clearTimeout(t);
-  }, [query, catFilter, page, sheetOpen, doSearch]);
+  }, [query, catFilter, brandFilter, page, sheetOpen, doSearch]);
 
   // A new page (or a new search) is a new list: keep it scrolled to its own
   // first row instead of inheriting however far down the previous one was.
@@ -398,14 +504,17 @@ export function FoodLog() {
   const pickFood = (food: FoodItem) => {
     setPickedFood(food);
     setPickedQty(String(food.base_quantity));
+    setPickedDrink(isAdvancedDrink(food) ? defaultDrinkOpts(food) : null);
   };
 
   const addToBasket = () => {
     if (!pickedFood) return;
     const qty = parseFloat(pickedQty);
     if (!qty || qty <= 0) return;
-    setBasket(b => [...b, { food: pickedFood, quantity: qty, ...calcNutri(pickedFood, qty) }]);
+    const drinkOpts = pickedDrink ?? undefined;
+    setBasket(b => [...b, { food: pickedFood, quantity: qty, drinkOpts, ...calcItem(pickedFood, qty, drinkOpts, toppingMap) }]);
     setPickedFood(null);
+    setPickedDrink(null);
     setPickedQty("100");
   };
 
@@ -415,7 +524,7 @@ export function FoodLog() {
       if (i !== idx) return item;
       const qty = parseFloat(raw);
       return qty > 0
-        ? { ...item, qtyInput: raw, quantity: qty, ...calcNutri(item.food, qty) }
+        ? { ...item, qtyInput: raw, quantity: qty, ...calcItem(item.food, qty, item.drinkOpts, toppingMap) }
         : { ...item, qtyInput: raw };
     }));
   };
@@ -427,7 +536,8 @@ export function FoodLog() {
       for (const item of t.items) {
         const [food] = await db.select<FoodItem[]>(
           "SELECT * FROM food_database WHERE food_id=?", [item.food_id]);
-        if (food) items.push({ food, quantity: item.quantity, ...calcNutri(food, item.quantity) });
+        const drinkOpts = (food && isAdvancedDrink(food) ? parseDrinkOpts(item.drink_opts) ?? defaultDrinkOpts(food) : null) ?? undefined;
+        if (food) items.push({ food, quantity: item.quantity, drinkOpts, ...calcItem(food, item.quantity, drinkOpts, toppingMap) });
       }
       setBasket(items);
       setTplName(t.template_name);
@@ -457,11 +567,16 @@ export function FoodLog() {
       }
 
       for (const item of basket) {
+        const opts = item.drinkOpts && isAdvancedDrink(item.food) ? item.drinkOpts : null;
+        const adj = opts ? drinkAdjustment(item.food, item.quantity, opts, toppingMap) : { kcal: 0, p: 0, c: 0, f: 0 };
         const mealRes = await db.execute(
-          "INSERT INTO meal_log (user_id, food_id, quantity, unit, meal_type, log_date, log_time) VALUES (?,?,?,?,?,?,?)",
-          [profile.user_id, item.food.food_id, item.quantity, item.food.base_unit, finalType, selectedDate, time]);
-        // Auto-sync to water_log if this drink counts as water (unit must be ml)
-        if (item.food.counts_as_water && item.food.base_unit === "ml") {
+          `INSERT INTO meal_log (user_id, food_id, quantity, unit, meal_type, log_date, log_time,
+             drink_opts, adj_kcal, adj_protein, adj_carb, adj_fat) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [profile.user_id, item.food.food_id, item.quantity, item.food.base_unit, finalType, selectedDate, time,
+           opts ? JSON.stringify(opts) : null, adj.kcal, adj.p, adj.c, adj.f]);
+        // Auto-sync to water_log if this drink counts as water (unit must be ml);
+        // an advanced drink only when ordered sugar-free with nothing added
+        if (drinkCountsAsWater(item.food, opts) && item.food.base_unit === "ml") {
           await db.execute(
             "INSERT INTO water_log (user_id, amount_ml, log_date, log_time, meal_log_id) VALUES (?,?,?,?,?)",
             [profile.user_id, Math.round(item.quantity), selectedDate, time, mealRes.lastInsertId]);
@@ -475,8 +590,9 @@ export function FoodLog() {
           [profile.user_id, tplName.trim()]);
         for (const item of basket) {
           await db.execute(
-            "INSERT INTO meal_template_items (template_id, food_id, quantity, unit) VALUES (?,?,?,?)",
-            [res.lastInsertId, item.food.food_id, item.quantity, item.food.base_unit]);
+            "INSERT INTO meal_template_items (template_id, food_id, quantity, unit, drink_opts) VALUES (?,?,?,?,?)",
+            [res.lastInsertId, item.food.food_id, item.quantity, item.food.base_unit,
+             item.drinkOpts ? JSON.stringify(item.drinkOpts) : null]);
         }
         loadTemplates();
       }
@@ -532,6 +648,17 @@ export function FoodLog() {
         "UPDATE meal_log SET quantity=?, meal_type=? WHERE meal_log_id=?",
         [qty, mealKey, editEntry.meal_log_id]
       );
+      // A drink's sugar adjustment scales with the amount; toppings don't
+      const [row] = await db.select<(FoodItem & { drink_opts: string | null })[]>(
+        "SELECT fd.*, ml.drink_opts FROM meal_log ml JOIN food_database fd ON ml.food_id=fd.food_id WHERE ml.meal_log_id=?",
+        [editEntry.meal_log_id]);
+      const opts = row ? parseDrinkOpts(row.drink_opts) : null;
+      if (row && opts && isAdvancedDrink(row)) {
+        const adj = drinkAdjustment(row, qty, opts, toppingMap);
+        await db.execute(
+          "UPDATE meal_log SET adj_kcal=?, adj_protein=?, adj_carb=?, adj_fat=? WHERE meal_log_id=?",
+          [adj.kcal, adj.p, adj.c, adj.f, editEntry.meal_log_id]);
+      }
       setEditEntry(null);
       loadLog();
     } catch (e) {
@@ -573,7 +700,7 @@ export function FoodLog() {
       setFavIds(s => { const n = new Set(s); n.delete(food.food_id); return n; });
       if (pickedFood?.food_id === food.food_id) setPickedFood(null);
       setPage(0);
-      doSearch(query, catFilter, 0);
+      doSearch(query, catFilter, 0, brandFilter);
     } catch (e) {
       logError("FoodLog.deleteCustomFood", e);
       showToast(lang === "zh" ? "刪除失敗" : "Delete failed", "error");
@@ -592,8 +719,18 @@ export function FoodLog() {
       unit:     food.base_unit,
       category: food.category ?? "",
       addToFav: favIds.has(food.food_id),
+      drinkAdvanced: isAdvancedDrink(food),
+      sugar:      food.sugar_g != null ? String(food.sugar_g) : "",
+      sugarFixed: food.sugar_fixed_g ? String(food.sugar_fixed_g) : "",
+      brand:      food.brand ?? "",
+      cups: (() => {
+        const own = parseCupSizes(food.cup_sizes);
+        return { M: own?.M ? String(own.M) : "", L: own?.L ? String(own.L) : "", XL: own?.XL ? String(own.XL) : "" };
+      })(),
+      defaultToppings: parseToppings(food.default_toppings),
     });
     setCustomFoodErr(null);
+    setCfTab("basic");
     setShowCustomFood(true);
   };
 
@@ -601,7 +738,8 @@ export function FoodLog() {
     setShowCustomFood(false);
     setCfEditId(null);
     setCustomFoodErr(null);
-    setCf({ name:"", name_en:"", protein:"", carb:"", fat:"", quantity:"100", unit:"g", category:"", addToFav:true });
+    setCf(CF_EMPTY);
+    setCfTab("basic");
   };
 
   const saveCustomFood = async () => {
@@ -614,17 +752,30 @@ export function FoodLog() {
     if (cfErr) { setCustomFoodErr(cfErr); return; }
     try {
       const db = await getDb();
+      // Advanced drinks are measured in ml; the sugar level only acts on sugar
+      // above the fixed part, capped at the carbohydrate it came from
+      const adv = cfIsDrink && cf.drinkAdvanced;
+      const unit = adv ? "ml" : (cf.unit || "g");
+      const sugar = adv ? Math.min(parseFloat(cf.sugar) || 0, parseFloat(cf.carb) || 0) : null;
+      const sugarFixed = adv ? Math.min(parseFloat(cf.sugarFixed) || 0, sugar ?? 0) : 0;
+      const brand = cfIsDrink ? (cf.brand.trim() || null) : null;
+      const cupEntries = adv ? CUP_PRESETS
+        .map(c => [c.key, parseFloat(cf.cups[c.key])] as const)
+        .filter(([, ml]) => ml > 0) : [];
+      const cupSizes = cupEntries.length ? JSON.stringify(Object.fromEntries(cupEntries)) : null;
+      const defaultToppings = adv && cf.defaultToppings.length ? JSON.stringify(cf.defaultToppings) : null;
       if (cfEditId !== null) {
         await db.execute(
           `UPDATE food_database SET
              food_name=?, name_en=?, protein_g=?, carbohydrates_g=?, fat_g=?, calories_kcal=?,
-             base_quantity=?, base_unit=?, category=?
+             base_quantity=?, base_unit=?, category=?,
+             drink_advanced=?, sugar_g=?, sugar_fixed_g=?, brand=?, cup_sizes=?, default_toppings=?
            WHERE food_id=? AND source_type='custom'`,
           [cf.name, cf.name_en.trim() || null,
            parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
            parseFloat(cf.fat)||0, cfCalories,
-           parseFloat(cf.quantity)||100, cf.unit||"g",
-           cf.category||null, cfEditId]);
+           parseFloat(cf.quantity)||100, unit,
+           cf.category||null, adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings, cfEditId]);
         if (profile) {
           if (cf.addToFav) {
             await db.execute(
@@ -642,13 +793,15 @@ export function FoodLog() {
         const res = await db.execute(
           `INSERT INTO food_database
              (food_name, name_en, protein_g, carbohydrates_g, fat_g, calories_kcal,
-              base_quantity, base_unit, category, source_type, created_by)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+              base_quantity, base_unit, category, source_type, created_by,
+              drink_advanced, sugar_g, sugar_fixed_g, brand, cup_sizes, default_toppings)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [cf.name, cf.name_en.trim() || null,
            parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
            parseFloat(cf.fat)||0, cfCalories,
-           parseFloat(cf.quantity)||100, cf.unit||"g",
-           cf.category||null, "custom", profile?.user_id??null]);
+           parseFloat(cf.quantity)||100, unit,
+           cf.category||null, "custom", profile?.user_id??null,
+           adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings]);
         if (cf.addToFav && profile) {
           await db.execute(
             "INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?,?,?)",
@@ -658,7 +811,7 @@ export function FoodLog() {
       }
       closeCustomFoodModal();
       setPage(0);
-      doSearch(query, catFilter, 0);
+      doSearch(query, catFilter, 0, brandFilter);
     } catch (e) {
       logError("FoodLog.saveCustomFood", e);
       showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
@@ -685,7 +838,8 @@ export function FoodLog() {
       for (const entry of group.entries) {
         const rows = await db.select<FoodItem[]>("SELECT * FROM food_database WHERE food_id=?", [entry.food_id]);
         const food = rows[0];
-        if (food) items.push({ food, quantity: entry.quantity, ...calcNutri(food, entry.quantity) });
+        const drinkOpts = (food && isAdvancedDrink(food) ? parseDrinkOpts(entry.drink_opts) ?? defaultDrinkOpts(food) : null) ?? undefined;
+        if (food) items.push({ food, quantity: entry.quantity, drinkOpts, ...calcItem(food, entry.quantity, drinkOpts, toppingMap) });
       }
       setEditingMealGroup(group.meal_type);
       setMealType(group.meal_type); // already a display label (e.g. "早餐")
@@ -711,6 +865,7 @@ export function FoodLog() {
     setEditingMealGroup(null);
     setBasket([]);
     setPickedFood(null);
+    setPickedDrink(null);
     setQuery("");
     setCatFilter("全部");
     setSaveAsTpl(false);
@@ -730,8 +885,8 @@ export function FoodLog() {
         [profile.user_id, favMealName.trim()]);
       for (const e of group.entries) {
         await db.execute(
-          "INSERT INTO meal_template_items (template_id, food_id, quantity, unit) VALUES (?,?,?,?)",
-          [res.lastInsertId, e.food_id, e.quantity, e.unit]);
+          "INSERT INTO meal_template_items (template_id, food_id, quantity, unit, drink_opts) VALUES (?,?,?,?,?)",
+          [res.lastInsertId, e.food_id, e.quantity, e.unit, e.drink_opts]);
       }
       await loadTemplates();
       setFavMealDialogGroup(null);
@@ -867,7 +1022,10 @@ export function FoodLog() {
                         <>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-[var(--text-on-surface)] truncate">{foodName(e)}</p>
-                            <p className="text-xs text-[var(--text-on-surface-muted)]">{e.quantity} {e.unit}</p>
+                            <p className="text-xs text-[var(--text-on-surface-muted)] truncate">
+                              {e.quantity} {e.unit}
+                              {(() => { const o = parseDrinkOpts(e.drink_opts); return o ? ` · ${drinkOptsSummary(o, toppingMap, lang === "zh")}` : ""; })()}
+                            </p>
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-sm font-semibold text-[var(--text-on-surface-sub)]">{e.calories} kcal</p>
@@ -1011,7 +1169,7 @@ export function FoodLog() {
                       {f === "我的最愛" ? `⭐ ${t("food.catFavorite")}` : getCatLabel(f)}
                     </button>
                   ))}
-                  {extraFilters.map(f => (
+                  {extraFilters.filter(f => f !== DRINK_CATEGORY).map(f => (
                     <button key={f} onClick={() => setCatFilter(f)}
                       className={clsx("px-2.5 py-1 rounded-full text-xs font-medium transition-all",
                         catFilter === f ? "bg-[var(--color-secondary)] text-white" : "bg-[var(--surface-container-low)] text-[var(--text-accent-mid)] hover:bg-[var(--surface-container)]")}>
@@ -1032,7 +1190,7 @@ export function FoodLog() {
                             {lang === "en" ? "Add quick filter" : "新增快篩"}
                           </p>
                           <div className="space-y-0.5 max-h-48 overflow-y-auto">
-                            {Object.keys(CAT_EN).filter(c => !extraFilters.includes(c)).map(cat => (
+                            {Object.keys(CAT_EN).filter(c => !extraFilters.includes(c) && c !== DRINK_CATEGORY).map(cat => (
                               <button key={cat} onClick={() => addExtraFilter(cat)}
                                 className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors">
                                 {getCatOptionLabel(cat)}
@@ -1058,6 +1216,21 @@ export function FoodLog() {
                     )}
                   </div>
                 </div>
+
+                {/* Brand row — only under 飲料 */}
+                {catFilter === DRINK_CATEGORY && drinkBrands.length > 0 && (
+                  <div className="flex gap-micro.5 mb-3 overflow-x-auto pb-1 -mx-1 px-1">
+                    {[null, ...drinkBrands].map(b => (
+                      <button key={b ?? "__all"} onClick={() => setBrandFilter(b)}
+                        className={clsx("shrink-0 px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
+                          brandFilter === b
+                            ? "bg-[var(--color-secondary)] text-white border-[var(--color-secondary)]"
+                            : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--color-outline)]")}>
+                        {b ?? (lang === "zh" ? "全部品牌" : "All brands")}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Results */}
                 <div ref={resultsRef} className="space-y-0.5 max-h-44 overflow-y-auto">
@@ -1145,7 +1318,7 @@ export function FoodLog() {
                       <div>
                         <p className="text-sm font-semibold text-[var(--text-on-surface)]">{foodName(pickedFood)}</p>
                         {(() => {
-                          const n = calcNutri(pickedFood, parseFloat(pickedQty) || 0);
+                          const n = calcItem(pickedFood, parseFloat(pickedQty) || 0, pickedDrink ?? undefined, toppingMap);
                           return (
                             <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5">
                               {n.cal} kcal · <span className="font-bold text-[var(--text-on-surface)]">P</span>{n.p.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">C</span>{n.c.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">F</span>{n.f.toFixed(1)} g
@@ -1153,10 +1326,18 @@ export function FoodLog() {
                           );
                         })()}
                       </div>
-                      <button onClick={() => setPickedFood(null)} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] mt-0.5">
+                      <button onClick={() => { setPickedFood(null); setPickedDrink(null); }} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] mt-0.5">
                         <X size={14} />
                       </button>
                     </div>
+                    {pickedDrink && isAdvancedDrink(pickedFood) ? (
+                      <>
+                        <DrinkOptions food={pickedFood} qty={pickedQty} onQty={setPickedQty}
+                          opts={pickedDrink} onOpts={setPickedDrink} toppings={toppings}
+                          onAddTopping={addCustomTopping} onDeleteTopping={deleteCustomTopping} lang={lang} />
+                        <button onClick={addToBasket} className="btn-primary w-full mt-3 py-2 text-sm">{t("food.addBtn")}</button>
+                      </>
+                    ) : (
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <input className="input-base pr-10" type="number" inputMode="decimal" value={pickedQty}
@@ -1171,6 +1352,7 @@ export function FoodLog() {
                         {t("food.addBtn")}
                       </button>
                     </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1197,6 +1379,9 @@ export function FoodLog() {
                         className="flex items-end gap-2 px-3 py-2.5 bg-[var(--surface-container-low)] rounded-xl">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-[var(--text-on-surface)] truncate">{foodName(item.food)}</p>
+                          {item.drinkOpts && (
+                            <p className="text-10 text-[var(--text-on-surface-muted)] truncate">{drinkOptsSummary(item.drinkOpts, toppingMap, lang === "zh")}</p>
+                          )}
                           <div className="flex items-center gap-1.5 mt-1 text-xs text-[var(--text-on-surface-muted)]">
                             <div className="relative w-24">
                               <input className="input-base py-1 pr-8 text-xs" type="number" inputMode="decimal"
@@ -1264,7 +1449,22 @@ export function FoodLog() {
               </button>
             </div>
 
-            <div className="space-y-3">
+            {cfTabbed && (
+              <SummaryTabs active={cfView} onSelect={setCfTab} tabs={[
+                { key: "basic", title: lang === "zh" ? "基本" : "Basics",
+                  value: cf.name.trim() || (lang === "zh" ? "未命名" : "Untitled") },
+                { key: "sugar", title: lang === "zh" ? "糖量與杯型" : "Sugar & cups",
+                  value: `${parseFloat(cf.sugar) || 0} g · ${
+                    CUP_PRESETS.filter(c => parseFloat(cf.cups[c.key]) > 0).map(c => cf.cups[c.key]).join("/") ||
+                    (lang === "zh" ? "預設杯型" : "default cups")}` },
+                { key: "toppings", title: lang === "zh" ? "預設配料" : "Toppings",
+                  value: cf.defaultToppings.length
+                    ? (lang === "zh" ? `${cf.defaultToppings.reduce((n, p) => n + p.qty, 0)} 份` : `${cf.defaultToppings.reduce((n, p) => n + p.qty, 0)}`)
+                    : (lang === "zh" ? "無" : "None") },
+              ]} />
+            )}
+
+            {cfView === "basic" && <div className="space-y-3">
               <div className="flex gap-2">
                 <input className="input-base flex-1"
                   placeholder={lang === "en" ? "Food name *" : "食物名稱 *"}
@@ -1315,7 +1515,79 @@ export function FoodLog() {
                   {t("food.catFavorite")}
                 </button>
               </div>
-            </div>
+
+              {cfIsDrink && (
+                <>
+                  <input className="input-base" list="drink-brand-options"
+                    placeholder={lang === "zh" ? "品牌（選填，可選既有品牌或自行輸入）" : "Brand (optional — pick one or type a new one)"}
+                    value={cf.brand} onChange={e => setCf(f => ({ ...f, brand: e.target.value }))} />
+                  <datalist id="drink-brand-options">
+                    {drinkBrands.map(b => <option key={b} value={b} />)}
+                  </datalist>
+                </>
+              )}
+
+              {cfIsDrink && (
+                <div className="rounded-xl border border-[var(--surface-border)] px-3 py-2.5 space-y-2">
+                  <label className="flex items-center justify-between gap-2 cursor-pointer">
+                    <span>
+                      <span className="block text-sm font-medium text-[var(--text-on-surface)]">{lang === "zh" ? "進階飲料設定" : "Advanced drink"}</span>
+                      <span className="block text-10 text-[var(--text-on-surface-muted)]">
+                        {lang === "zh" ? "記錄時可選杯量、甜度與配料；上方數值請填全糖、不含配料" : "Pick cup size, sugar and toppings when logging; enter full-sugar values without toppings above"}
+                      </span>
+                    </span>
+                    <input type="checkbox" className="w-5 h-5 accent-[var(--color-primary)]" checked={cf.drinkAdvanced}
+                      onChange={e => setCf(f => ({ ...f, drinkAdvanced: e.target.checked, unit: e.target.checked ? "ml" : f.unit }))} />
+                  </label>
+                </div>
+              )}
+            </div>}
+
+            {cfView === "sugar" && (
+              <div className="grid grid-cols-2 gap-2">
+                {([["sugar", lang === "zh" ? "全糖總糖量" : "Sugar (full)"], ["sugarFixed", lang === "zh" ? "不可調的糖" : "Fixed sugar"]] as const).map(([k, ph]) => (
+                  <div key={k}>
+                    <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">{ph}</p>
+                    <div className="relative">
+                      <input className="input-base pr-6" type="number" inputMode="decimal" placeholder="0"
+                        value={cf[k]} onChange={e => setCf(f => ({ ...f, [k]: e.target.value }))} />
+                      <span className="absolute right-2 top-2 text-xs text-[var(--text-on-surface-muted)]">g</span>
+                    </div>
+                  </div>
+                ))}
+                <p className="col-span-2 text-10 text-[var(--text-on-surface-muted)]">
+                  {lang === "zh" ? `以上皆為每 ${cf.quantity || 100} ml、不含配料；不可調的糖如鮮奶乳糖、果汁的糖` : `Per ${cf.quantity || 100} ml without toppings; fixed sugar is e.g. milk lactose or juice`}
+                </p>
+
+                {/* Cup volumes */}
+                <div className="col-span-2">
+                  <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">
+                    {lang === "zh" ? "杯型容量（留空＝不提供；全部留空用預設 500／700／1000）" : "Cup volumes (blank = not offered; all blank = default 500 / 700 / 1000)"}
+                  </p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {CUP_PRESETS.map(c => (
+                      <label key={c.key} className="block">
+                        <span className="block text-10 text-[var(--text-on-surface-sub)] mb-0.5">{lang === "zh" ? c.zh : c.en}（ml）</span>
+                        <input className="input-base text-sm" type="number" inputMode="decimal" placeholder={String(c.ml)}
+                          value={cf.cups[c.key]}
+                          onChange={e => setCf(f => ({ ...f, cups: { ...f.cups, [c.key]: e.target.value } }))} />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cfView === "toppings" && (
+              <div>
+                <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">
+                  {lang === "zh" ? "預設配料（記錄時自動帶入，可再增減）" : "Default toppings (pre-filled when logging, still editable)"}
+                </p>
+                <ToppingEditor picks={cf.defaultToppings}
+                  onPicks={p => setCf(f => ({ ...f, defaultToppings: p }))}
+                  toppings={toppings} onAddTopping={addCustomTopping} onDeleteTopping={deleteCustomTopping} lang={lang} />
+              </div>
+            )}
 
             {customFoodErr && (
               <p className="text-xs text-red-500 flex items-center gap-micro pt-1">

@@ -1,0 +1,240 @@
+import { useState } from "react";
+import { Minus, Plus, Trash2, X } from "lucide-react";
+import { clsx } from "clsx";
+import {
+  SUGAR_LEVELS, TOPPING_STEP, adjustableSugar, cupSizesFor, sugarLabel,
+  type DrinkFoodFields, type DrinkOpts, type Topping, type ToppingPick,
+} from "@/lib/drink";
+
+export interface NewTopping {
+  name: string; protein_g: number; carbohydrates_g: number; fat_g: number; sugar_g: number;
+}
+
+interface Props {
+  food: DrinkFoodFields;
+  qty: string;
+  onQty: (v: string) => void;
+  opts: DrinkOpts;
+  onOpts: (o: DrinkOpts) => void;
+  toppings: Topping[];
+  onAddTopping: (t: NewTopping) => Promise<void>;
+  onDeleteTopping: (t: Topping) => Promise<void>;
+  lang: string;
+}
+
+const chip = (active: boolean) => clsx(
+  "px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
+  active
+    ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)]"
+    : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--color-outline)]");
+
+/**
+ * The advanced-drink block under a picked drink, as three small tabs — cup
+ * size (shortcuts + ml), sugar level, toppings — each showing its current
+ * choice so the whole order stays readable from the tab row.
+ */
+export function DrinkOptions({ food, qty, onQty, opts, onOpts, toppings, onAddTopping, onDeleteTopping, lang }: Props) {
+  const zh = lang === "zh";
+  const [tab, setTab] = useState<"cup" | "sugar" | "toppings">("cup");
+  const sugarAdjustable = adjustableSugar(food) > 0;
+  const qtyNum = parseFloat(qty) || 0;
+  const cups = cupSizesFor(food);
+  const cupName = cups.find(c => c.ml === qtyNum);
+  const toppingCount = opts.toppings.reduce((n, p) => n + p.qty, 0);
+
+  // Each tab carries its current choice, so the whole order reads off the tab row
+  const tabs = [
+    { key: "cup" as const,      title: zh ? "杯量" : "Cup",
+      value: `${cupName ? `${zh ? cupName.zh : cupName.en} ` : ""}${qtyNum || "—"} ml` },
+    { key: "sugar" as const,    title: zh ? "甜度" : "Sugar",
+      value: sugarAdjustable ? sugarLabel(opts.sugar, zh) : (zh ? "固定" : "Fixed") },
+    { key: "toppings" as const, title: zh ? "配料" : "Toppings",
+      value: toppingCount ? (zh ? `${toppingCount} 份` : `${toppingCount}`) : (zh ? "無" : "None") },
+  ];
+
+  return (
+    <div className="mt-3">
+      <SummaryTabs tabs={tabs} active={tab} onSelect={setTab} />
+
+      <div className="pt-3" role="tabpanel">
+        {tab === "cup" && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {cups.map(c => (
+              <button key={c.key} onClick={() => onQty(String(c.ml))} className={chip(qtyNum === c.ml)}>
+                {zh ? c.zh : c.en} <span className="opacity-70">{c.ml}</span>
+              </button>
+            ))}
+            <span className="inline-flex items-center gap-1">
+              <input className="input-base w-24 text-sm" type="number" inputMode="decimal"
+                value={qty} onChange={e => onQty(e.target.value)} />
+              <span className="text-xs text-[var(--text-on-surface-muted)]">ml</span>
+            </span>
+          </div>
+        )}
+
+        {tab === "sugar" && (sugarAdjustable ? (
+          <div className="flex flex-wrap gap-1.5">
+            {SUGAR_LEVELS.map(l => (
+              <button key={l.ratio} onClick={() => onOpts({ ...opts, sugar: l.ratio })} className={chip(opts.sugar === l.ratio)}>
+                {zh ? l.zh : l.en}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--text-on-surface-muted)]">{zh ? "這杯的糖無法調整" : "Sugar can't be adjusted for this drink"}</p>
+        ))}
+
+        {tab === "toppings" && (
+          <>
+            <p className="text-10 text-[var(--text-on-surface-muted)] mb-1">{zh ? "每份計算，可超過 1 份" : "Per serving, any number"}</p>
+            <ToppingEditor picks={opts.toppings} onPicks={p => onOpts({ ...opts, toppings: p })}
+              toppings={toppings} onAddTopping={onAddTopping} onDeleteTopping={onDeleteTopping} lang={lang} />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A row of small tabs, each showing a title over its current value. */
+export function SummaryTabs<K extends string>({ tabs, active, onSelect }: {
+  tabs: { key: K; title: string; value: string }[];
+  active: K;
+  onSelect: (k: K) => void;
+}) {
+  return (
+    <div className="grid gap-1 p-1 rounded-xl bg-[var(--surface-container)]" role="tablist"
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+      {tabs.map(t => (
+        <button key={t.key} role="tab" aria-selected={active === t.key} onClick={() => onSelect(t.key)}
+          className={clsx("rounded-lg px-2 py-1.5 text-left transition-all min-w-0",
+            active === t.key ? "bg-[var(--surface)] shadow-sm" : "hover:bg-[var(--surface-container-low)]")}>
+          <span className="block text-10 text-[var(--text-on-surface-muted)]">{t.title}</span>
+          <span className={clsx("block text-xs font-semibold truncate",
+            active === t.key ? "text-[var(--text-accent)]" : "text-[var(--text-on-surface-sub)]")}>{t.value}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Picked toppings with ± serving steps, plus the picker to add any topping
+ * (and create / delete custom ones). Used when logging a drink and for a
+ * custom drink's default toppings.
+ */
+export function ToppingEditor({ picks, onPicks, toppings, onAddTopping, onDeleteTopping, lang }: {
+  picks: ToppingPick[];
+  onPicks: (p: ToppingPick[]) => void;
+  toppings: Topping[];
+  onAddTopping: (t: NewTopping) => Promise<void>;
+  onDeleteTopping: (t: Topping) => Promise<void>;
+  lang: string;
+}) {
+  const zh = lang === "zh";
+  const [picking, setPicking] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState({ name: "", p: "", c: "", f: "", sugar: "" });
+
+  const tName = (t: Topping) => (!zh && t.name_en) ? t.name_en : t.name;
+  const byId = new Map(toppings.map(t => [t.topping_id, t]));
+
+  const setToppingQty = (id: number, q: number) => {
+    onPicks(q <= 0
+      ? picks.filter(p => p.id !== id)
+      : picks.some(p => p.id === id)
+        ? picks.map(p => p.id === id ? { ...p, qty: q } : p)
+        : [...picks, { id, qty: q }]);
+  };
+
+  const draftKcal = Math.round((parseFloat(draft.p) || 0) * 4 + (parseFloat(draft.c) || 0) * 4 + (parseFloat(draft.f) || 0) * 9);
+
+  const saveDraft = async () => {
+    if (!draft.name.trim()) return;
+    await onAddTopping({
+      name: draft.name.trim(),
+      protein_g: parseFloat(draft.p) || 0, carbohydrates_g: parseFloat(draft.c) || 0,
+      fat_g: parseFloat(draft.f) || 0, sugar_g: parseFloat(draft.sugar) || 0,
+    });
+    setDraft({ name: "", p: "", c: "", f: "", sugar: "" });
+    setCreating(false);
+  };
+
+  return (
+    <>
+      <div className="space-y-1">
+        {picks.map(p => {
+          const t = byId.get(p.id);
+          if (!t) return null;
+          return (
+            <div key={p.id} className="flex items-center gap-2">
+              <span className="flex-1 min-w-0 text-xs text-[var(--text-on-surface)] truncate">
+                {tName(t)} <span className="text-[var(--text-on-surface-muted)]">· {Math.round(t.calories_kcal * p.qty)} kcal</span>
+              </span>
+              <button onClick={() => setToppingQty(p.id, p.qty - TOPPING_STEP)}
+                className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><Minus size={14} /></button>
+              <span className="w-8 text-center text-xs font-mono font-semibold tabular-nums text-[var(--text-on-surface)]">{p.qty}</span>
+              <button onClick={() => setToppingQty(p.id, p.qty + TOPPING_STEP)}
+                className="icon-btn text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><Plus size={14} /></button>
+            </div>
+          );
+        })}
+      </div>
+      <button onClick={() => setPicking(v => !v)}
+        className="mt-1.5 flex items-center gap-micro text-xs text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]">
+        <Plus size={12} /> {zh ? "加配料" : "Add topping"}
+      </button>
+
+      {picking && (
+        <div className="mt-2 rounded-xl border border-[var(--surface-border)] bg-[var(--surface)] p-2 space-y-1">
+          <div className="flex flex-wrap gap-1.5">
+            {toppings.map(t => {
+              const picked = picks.some(p => p.id === t.topping_id);
+              return (
+                <span key={t.topping_id} className="inline-flex items-center">
+                  <button onClick={() => setToppingQty(t.topping_id, (picks.find(p => p.id === t.topping_id)?.qty ?? 0) + 1)}
+                    className={chip(picked)}>
+                    {tName(t)} <span className="opacity-70">{Math.round(t.calories_kcal)}</span>
+                  </button>
+                  {t.source_type === "custom" && (
+                    <button onClick={() => onDeleteTopping(t)} title={zh ? "刪除自訂配料" : "Delete custom topping"}
+                      className="p-1 text-red-400 hover:text-red-500"><Trash2 size={12} /></button>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+          {!creating ? (
+            <button onClick={() => setCreating(true)}
+              className="flex items-center gap-micro text-xs text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] pt-1">
+              <Plus size={12} /> {zh ? "自訂配料" : "Custom topping"}
+            </button>
+          ) : (
+            <div className="pt-1 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <input className="input-base text-sm flex-1" placeholder={zh ? "配料名稱" : "Topping name"}
+                  value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
+                <button onClick={() => setCreating(false)} className="icon-btn text-[var(--text-on-surface-muted)]"><X size={14} /></button>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {([["p", zh ? "蛋白質" : "Protein"], ["c", zh ? "碳水" : "Carbs"], ["f", zh ? "脂肪" : "Fat"], ["sugar", zh ? "其中糖" : "of which sugar"]] as const).map(([k, ph]) => (
+                  <label key={k} className="flex items-center gap-1.5">
+                    <span className="w-12 shrink-0 text-10 text-[var(--text-on-surface-muted)]">{ph}</span>
+                    <input className="input-base text-sm min-w-0" type="number" inputMode="decimal" placeholder="0"
+                      value={draft[k]} onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))} />
+                    <span className="text-10 text-[var(--text-on-surface-muted)]">g</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-10 text-[var(--text-on-surface-muted)]">{zh ? "每份" : "Per serving"} · {draftKcal} kcal</span>
+                <button onClick={saveDraft} disabled={!draft.name.trim()}
+                  className="btn-primary px-3 py-1 text-xs disabled:opacity-40">{zh ? "新增" : "Add"}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}

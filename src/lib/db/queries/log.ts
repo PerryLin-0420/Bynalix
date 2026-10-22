@@ -13,10 +13,10 @@ export async function getDashboardTotals(userId: number, date: string, bodyWeigh
   const [meals, water, exercise, runCal, strengthCal, weight] = await Promise.all([
     db.select<{ calories: number; protein: number; carb: number; fat: number }[]>(`
       SELECT
-        ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal), 1) as calories,
-        ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g), 1) as protein,
-        ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g), 1) as carb,
-        ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g), 1) as fat
+        ROUND(SUM(ml.quantity / fd.base_quantity * fd.calories_kcal + ml.adj_kcal), 1) as calories,
+        ROUND(SUM(ml.quantity / fd.base_quantity * fd.protein_g + ml.adj_protein), 1) as protein,
+        ROUND(SUM(ml.quantity / fd.base_quantity * fd.carbohydrates_g + ml.adj_carb), 1) as carb,
+        ROUND(SUM(ml.quantity / fd.base_quantity * fd.fat_g + ml.adj_fat), 1) as fat
       FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
       WHERE ml.user_id = ? AND ml.log_date = ?`, [userId, date]),
     db.select<{ total: number }[]>(

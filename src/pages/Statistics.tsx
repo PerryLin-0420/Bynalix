@@ -650,15 +650,16 @@ export function Statistics() {
             [profile.user_id, from, to]);
         }
       } else if (cfg.type === "diet") {
-        const colMap: Record<string, string> = {
-          total_calories: "fd.calories_kcal",
-          carbs_g:        "fd.carbohydrates_g",
-          protein_g:      "fd.protein_g",
-          fat_g:          "fd.fat_g",
+        // [food column, meal_log drink adjustment column]
+        const colMap: Record<string, [string, string]> = {
+          total_calories: ["fd.calories_kcal",   "ml.adj_kcal"],
+          carbs_g:        ["fd.carbohydrates_g", "ml.adj_carb"],
+          protein_g:      ["fd.protein_g",       "ml.adj_protein"],
+          fat_g:          ["fd.fat_g",           "ml.adj_fat"],
         };
-        const col = colMap[cfg.metric] ?? "fd.calories_kcal";
+        const [col, adj] = colMap[cfg.metric] ?? colMap.total_calories;
         return await db.select(
-          `SELECT ml.log_date as date, ROUND(SUM(ml.quantity / fd.base_quantity * ${col}), 1) as value
+          `SELECT ml.log_date as date, ROUND(SUM(ml.quantity / fd.base_quantity * ${col} + ${adj}), 1) as value
            FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
            WHERE ml.user_id=? AND ml.log_date BETWEEN ? AND ?
            GROUP BY ml.log_date ORDER BY ml.log_date`,
