@@ -64,8 +64,8 @@ but deeper personal understanding through self-owned data.
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
 **Latest — v1.8.0**
-- Drink-shop drinks with cup size, proportional sugar level and toppings (13 built in, add your own, any number of servings)
-- First list of 19 drinks from seven Taiwanese chains, stored as base + usual toppings so toppings never double count
+- Drink-shop drinks with cup size, proportional sugar level and toppings (14 built in, add your own, any number of servings)
+- First list of 46 drinks from eight Taiwanese chains, stored as base + usual toppings so toppings never double count
 - Custom drinks can switch on the same advanced menu; only plain, sugar-free teas count toward water
 
 ---

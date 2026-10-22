@@ -1,12 +1,12 @@
 import type Database from "@tauri-apps/plugin-sql";
 import { SEED_FOODS } from "./foods";
 import { SEED_EXERCISES } from "./exercises";
-import { SEED_DRINKS, SEED_TOPPINGS } from "./drinks";
+import { RETIRED_DRINKS, SEED_DRINKS, SEED_TOPPINGS } from "./drinks";
 
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "13"; // drink-shop drinks + toppings (advanced drinks)
+const SEED_VERSION = "14"; // more drink-shop drinks, 茶凍 topping, 得正 紅茶 → 春烏龍
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {
@@ -120,6 +120,14 @@ export async function seedBuiltins(db: Database): Promise<void> {
       [d.name_en ?? null, d.protein_g, d.carbohydrates_g, d.fat_g, d.calories_kcal,
        d.base_quantity, d.base_unit, d.category, d.counts_as_water ? 1 : 0,
        d.sugar_g, d.sugar_fixed_g, defaults, d.food_name]);
+  }
+
+  // A retired builtin drink goes only if no log or template still points at it
+  for (const name of RETIRED_DRINKS) {
+    await db.execute(
+      `DELETE FROM food_database WHERE source_type='builtin' AND food_name=?
+         AND food_id NOT IN (SELECT food_id FROM meal_log)
+         AND food_id NOT IN (SELECT food_id FROM meal_template_items)`, [name]);
   }
 
   // ── Exercises: DELETE builtin then bulk INSERT ────────────────────────────

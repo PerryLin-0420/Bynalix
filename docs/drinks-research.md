@@ -209,3 +209,53 @@
 - 杯型容量：[Threads 容量整理](https://www.threads.com/@gozenbo/post/C-uW29nJTGS)、[IKUK](https://www.ikuk.com.tw/blogs/column/2026-summer-bubble-tea-new-drinks-top10-guide)
 - 甜度：[ETtoday](https://www.ettoday.net/news/20260605/3178186.htm)、[UpToGo](https://uptogo.com.tw/%E7%BE%8E%E9%A3%9F/%E9%A3%B2%E6%96%99/%E5%8D%8A%E7%B3%96%E8%B7%9F%E5%BE%AE%E7%B3%96%E5%93%AA%E5%80%8B%E6%AF%94%E8%BC%83%E7%94%9C%EF%BC%9F/)、[北教大](https://dsanew.ntue.edu.tw/p/406-1042-47767,r1711.php?Lang=zh-tw)
 - 配料：[TVBS 營養好食](https://health.tvbs.com.tw/nutrition/336819)、[自由健康網](https://health.ltn.com.tw/article/breakingnews/3453050)、[天下雜誌](https://www.cw.com.tw/article/5122001)、[良醫健康網](https://health.businessweekly.com.tw/article/ARTL003010006)、[ETtoday 健康](https://health.ettoday.net/news/2286618)
+
+
+---
+
+## 七、第二批（seed v14，已寫入 App）
+
+第一批之外再補 27 款，並修正一筆命名。原則：**同一來源同時有熱量與總糖量、且數字前後一致**才收；只有熱量或來源互相矛盾的不收。
+
+| 品牌 | 品項 | 熱量 kcal | 總糖 g | 來源 | 備註 |
+|---|---|---|---|---|---|
+| 50嵐 | 1號 四季春珍波椰 | 433.8 | 65 | 平台 | 預設配料以珍珠＋椰果拆分（三種料各一份會超過標示值，推測組合份量較小） |
+| 50嵐 | 紅茶拿鐵 | 354.4 | 55.1 | 平台 | 鮮奶 |
+| CoCo | 四季春 | 141 | 33 | 平台 | |
+| CoCo | 紅柚雙響炮 | 427 | 77 | 平台 | 含珍珠、椰果 |
+| CoCo | 紅柚香檸美式 | 223 | 51 | 圖鑑 | |
+| CoCo | 冬韻擂焙珍奶 | 749 | 59 | 平台 | |
+| CoCo | 英式鮮奶茶 | 401 | 59 | 平台（南四店） | 另一店 376 / 51，取最高值 |
+| 清心福全 | 鮮奶茶 | 375 | 61 | 營養師（引官網） | |
+| 清心福全 | 波霸奶茶 | 720 | 50 | 營養師 | 與珍珠奶茶同標示 |
+| 迷客夏 | 青檸香茶 | 258 | 59 | 營養師 | |
+| 迷客夏 | 柳丁綠茶 | 297 | 66 | 營養師 | |
+| 迷客夏 | 冬瓜檸檬 | 364 | 82 | 營養師 | 冬瓜露本身含糖，設 30 g 不可調 |
+| 迷客夏 | 芋頭鮮奶 | 463 | 41 | 營養師 | 另一來源 470 / 42 |
+| 可不可 | 胭脂紅茶 | 200 | 50 | 營養師 | |
+| 可不可 | 雪花冷露 | 247 | 37 | 2022 報導 | |
+| 可不可 | 熟成歐蕾 | 311 | 55 | 2022 報導 | |
+| 可不可 | 白玉歐蕾 | 443 | 45 | 2022 報導 | 白玉以珍珠估算 |
+| 麻古 | 柳橙果粒茶 | 342 | 76 | 營養師（2026） | |
+| 麻古 | 楊枝甘露 2.0 | 373 | 66 | 舊版熱量表 | 新版熱量 357，糖量未知，暫用舊版成對數值 |
+| 麻古 | 芝芝芒果果粒 | 480 | 70 | 舊版熱量表 | 芝芝以奶蓋估算 |
+| 麻古 | 波霸奶茶 | 669 | 51 | 舊版熱量表 | 另一來源 697 |
+| 得正 | 春烏龍 | 268 | 57.5 | 菜單整理 | **原「得正 紅茶」即此數字，已更名** |
+| 得正 | 輕烏龍 | 268 | 57.5 | 菜單整理 | 與春烏龍同標示 |
+| 得正 | 檸檬春烏龍 | 267 | 58 | 菜單整理 | |
+| 得正 | 焙烏龍鮮奶 | 409 | 72.6 | 菜單整理 | 單一來源 |
+| 得正 | 焙烏龍奶茶 | 575.5 | 62.7 | 菜單整理 | |
+
+新增配料：**茶凍** 40 kcal／份（迷客夏綠茶凍數字）。另有迷客夏標示珍珠一份 163 kcal（約 80 g），與內建 156 相近，維持 156。
+
+**這批沒收的**：50嵐 黃金烏龍（搜尋結果的數字與四季春完全相同，疑似誤植）、50嵐 波霸綠茶（品項名稱不確定是綠茶還是綠奶茶）、50嵐 阿華田（只有舊的中杯半糖）、可不可 春芽綠茶（熱量 180 與糖 50 g 不一致）、麻古 金萱雙Q（扣掉配料後茶底熱量低於糖的熱量）、珍煮丹／萬波 黑糖珍珠鮮奶（只有熱量、沒有糖量）、一沐日、鶴茶樓、茶湯會、龜記（沒有數據）。
+
+### 第二批來源
+- 50嵐：[Uber Eats 瑞隆店](https://www.ubereats.com/tw/store/50%E5%B5%90-%E7%91%9E%E9%9A%86%E5%BA%97/eQa_jp6oRT-N1ZwmsctJqg)、[Uber Eats 十全店](https://www.ubereats.com/tw/store/50%E5%B5%90-%E5%8D%81%E5%85%A8%E5%BA%97/kGCFCao2T0avaaYq6seX-g)
+- CoCo：[Uber Eats 昌吉](https://www.ubereats.com/tw/store/coco%E9%83%BD%E5%8F%AF-%E6%98%8C%E5%90%89/NC9kjlkXVLaqxmTf7N1uVA)、[Uber Eats 南四店](https://www.ubereats.com/tw/store/coco%E9%83%BD%E5%8F%AF-%E5%8D%97%E5%9B%9B%E5%BA%97/I8hzrNOKQaKNdEZY6KUNCA)、[Uber Eats 寶橋店](https://www.ubereats.com/tw-en/store/coco%E9%83%BD%E5%8F%AF-%E6%96%B0%E5%BA%97%E5%AF%B6%E6%A9%8B%E5%BA%97/bKIqmACGWVubdnBtSQW_3g)、[dailydietitian CoCo](https://dailydietitian.com.tw/coco%E7%86%B1%E9%87%8F%E5%9C%96%E9%91%91/)
+- 清心福全：[漁人生醫](https://www.fmbiomed.com.tw/zh-TW/blogs/healthy-learning/121047)、[trykabao](https://trykabao.com/boba/b/chingshin/)
+- 迷客夏：[fitopts](https://fitopts.com/milksha/)、[Threads 營養整理](https://www.threads.com/@gary_nutri365/post/DUxldacjx6H)、[foodpanda 北醫店](https://www.foodpanda.com.tw/restaurant/ue2y/mi-ke-xia-milksha-tai-bei-bei-yi-dian)
+- 可不可：[官方點餐頁](https://order.ocard.co/kebuke/KoA1RQ)、[三立](https://health.setn.com/news/913772)、[nutrition168](https://nutrition168.com/2025/04/11/kebuke_bubble-_tea/)
+- 麻古：[麻古熱量表](https://fitdietinformation.weebly.com/magu.html)、[漁人生醫 麻古](https://www.fmbiomed.com.tw/zh-TW/blogs/healthy-learning/114641)、[dailydietitian 麻古](https://dailydietitian.com.tw/%E9%BA%BB%E5%8F%A4%E7%86%B1%E9%87%8F%E5%9C%96%E9%91%91/)
+- 得正：[食尚玩家](https://supertaste.tvbs.com.tw/pack/350077)、[Yahoo 得正熱量圖鑑](https://tw.news.yahoo.com/%E5%BF%85%E5%96%9D%E7%83%8F%E9%BE%8D%E8%8C%B6-%E5%BE%97%E6%AD%A3-%E6%89%8B%E6%90%96%E9%A3%B2%E7%86%B1%E9%87%8F%E5%9C%96%E9%91%91-%E8%A6%BD%E8%A1%A8-074931569.html)、[foodpanda 十全計劃](https://www.foodpanda.com.tw/restaurant/oqzd/de-zheng-oolong-tea-project-gao-xiong-shi-quan-ji-hua)
+- 黑糖珍珠鮮奶（未收）：[韓奕](https://www.hanyitea.tw/single-post/calories/)、[三立](https://health.setn.com/news/1023001)
