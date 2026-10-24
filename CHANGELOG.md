@@ -7,6 +7,9 @@ see the [README](./README.md).
 
 ---
 
+### v1.8.1
+- **Drinks open on "No brand"** — choosing 飲料 now lists drinks without a brand first (water, plain teas, juice, coffee) instead of every chain's menu at once. The brand row reads No brand / All / each chain, so a chain is still one tap away
+
 ### v1.8.0
 - **Advanced drinks: cup size, sugar level and toppings** — picking a drink-shop drink opens a block under it, split into three small tabs that each show the current choice ("L 600 ml · Half · 1 serving"), with cup-size shortcuts (M 500 / L 700 / XL 1000 ml, or any ml), sugar level (full / less / half / light / 10% / none, strictly proportional to full sugar) and toppings. Only the adjustable part of the sugar scales — milk lactose, fruit, Yakult and brown-sugar syrup stay — and a drink whose sugar can't be adjusted says so. The calories and macros shown, logged and used everywhere else (Overview, History, Statistics) include the sugar removed and the toppings added
 - **Toppings are their own table** — 14 built in (pearls, boba, nata de coco, pudding, grass jelly, aiyu, agar, aloe, starch noodles, taro balls, milk foam, konjac, OREO crumbs, tea jelly), and you can add or delete your own. Each topping is counted per serving in half steps with no upper limit, and ignores cup size and sugar level since toppings come pre-soaked in syrup

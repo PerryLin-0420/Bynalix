@@ -63,7 +63,10 @@ but deeper personal understanding through self-owned data.
 
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
-**Latest — v1.8.0**
+**Latest — v1.8.1**
+- Choosing 飲料 opens on drinks without a brand; chains are one tap away in the brand row
+
+**v1.8.0**
 - Drink-shop drinks with cup size, proportional sugar level and toppings (14 built in, add your own, any number of servings)
 - First list of 132 drinks from 15 Taiwanese chains, stored as base + usual toppings so toppings never double count
 - Each chain's real cup sizes, and a brand row under the 飲料 filter

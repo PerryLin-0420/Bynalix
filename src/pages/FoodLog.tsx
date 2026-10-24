@@ -81,6 +81,12 @@ const toZhLabel = (mt: string): string => KEY_TO_LABEL[mt] ?? mt;
 const CATEGORY_FILTERS = ["全部", "澱粉", "蛋白質", "油質", "飲料", "我的最愛"] as const;
 /** The category whose chip also opens a brand row (drink-shop chains). */
 const DRINK_CATEGORY = "飲料";
+/**
+ * Brand filter value for drinks without a brand (water, plain tea, juice…).
+ * It's the default under 飲料, so the list doesn't open on every chain's menu;
+ * null means every drink, any other string one brand.
+ */
+const NO_BRAND = "";
 type CatFilter = string;
 
 /** Results per page for category/aggregated-tag browsing and text search. */
@@ -210,8 +216,8 @@ export function FoodLog() {
   // Food search inside sheet
   const [query, setQuery]               = useState("");
   const [catFilter, setCatFilter]       = useState<CatFilter>("全部");
-  /** Brand chosen under 飲料; null = all drinks. */
-  const [brandFilter, setBrandFilter]   = useState<string | null>(null);
+  /** Brand chosen under 飲料: NO_BRAND (default), null = all drinks, or a brand. */
+  const [brandFilter, setBrandFilter]   = useState<string | null>(NO_BRAND);
   const [drinkBrands, setDrinkBrands]   = useState<string[]>([]);
   const [results, setResults]           = useState<FoodItem[]>([]);
   const [page, setPage]                 = useState(0);
@@ -434,12 +440,14 @@ export function FoodLog() {
              AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT ? OFFSET ?`,
             [...cats, q, likeQ, likeQ, limit, offset]);
         } else {
-          // Under 飲料 a chosen brand narrows to that chain's drinks
-          const byBrand = filter === DRINK_CATEGORY && brand;
+          // Under 飲料 the brand row narrows the list: unbranded drinks, one chain, or all
+          const drinks = filter === DRINK_CATEGORY;
+          const brandSql = !drinks || brand === null ? ""
+            : brand === NO_BRAND ? " AND (brand IS NULL OR brand = '')" : " AND brand = ?";
           rows = await db.select<FoodItem[]>(
-            `SELECT * FROM food_database WHERE category = ?${byBrand ? " AND brand = ?" : ""}
+            `SELECT * FROM food_database WHERE category = ?${brandSql}
              AND (? = '' OR food_name LIKE ? OR name_en LIKE ?) ORDER BY food_name LIMIT ? OFFSET ?`,
-            [filter, ...(byBrand ? [brand] : []), q, likeQ, likeQ, limit, offset]);
+            [filter, ...(brandSql.includes("?") ? [brand] : []), q, likeQ, likeQ, limit, offset]);
         }
       } else if (q.trim()) {
         // Prefix match outranks "contains anywhere" so searching「雞胸」surfaces
@@ -482,7 +490,7 @@ export function FoodLog() {
 
   // Leaving 飲料 drops the brand; entering it loads the brands that have drinks
   useEffect(() => {
-    if (catFilter !== DRINK_CATEGORY) { setBrandFilter(null); return; }
+    if (catFilter !== DRINK_CATEGORY) { setBrandFilter(NO_BRAND); return; }
     loadDrinkBrands();
   }, [catFilter]);
 
@@ -1220,13 +1228,14 @@ export function FoodLog() {
                 {/* Brand row — only under 飲料 */}
                 {catFilter === DRINK_CATEGORY && drinkBrands.length > 0 && (
                   <div className="flex gap-micro.5 mb-3 overflow-x-auto pb-1 -mx-1 px-1">
-                    {[null, ...drinkBrands].map(b => (
+                    {[NO_BRAND, null, ...drinkBrands].map(b => (
                       <button key={b ?? "__all"} onClick={() => setBrandFilter(b)}
                         className={clsx("shrink-0 px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
                           brandFilter === b
                             ? "bg-[var(--color-secondary)] text-white border-[var(--color-secondary)]"
                             : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--color-outline)]")}>
-                        {b ?? (lang === "zh" ? "全部品牌" : "All brands")}
+                        {b === NO_BRAND ? (lang === "zh" ? "無品牌" : "No brand")
+                          : b ?? (lang === "zh" ? "全部" : "All")}
                       </button>
                     ))}
                   </div>
