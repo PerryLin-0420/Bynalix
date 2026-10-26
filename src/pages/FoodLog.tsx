@@ -212,6 +212,10 @@ export function FoodLog() {
 
   // Edit existing meal group
   const [editingMealGroup, setEditingMealGroup] = useState<string | null>(null);
+  // Edit a saved favourite meal (template) in the same sheet; its id while editing
+  const [editingTemplate, setEditingTemplate] = useState<number | null>(null);
+  /** Template whose delete button was tapped once — a second tap deletes. */
+  const [pendingTplDelete, setPendingTplDelete] = useState<number | null>(null);
 
   // Food search inside sheet
   const [query, setQuery]               = useState("");
@@ -537,20 +541,92 @@ export function FoodLog() {
     }));
   };
 
+  const templateBasket = async (t: MealTemplate): Promise<BasketItem[]> => {
+    const db = await getDb();
+    const items: BasketItem[] = [];
+    for (const item of t.items) {
+      const [food] = await db.select<FoodItem[]>(
+        "SELECT * FROM food_database WHERE food_id=?", [item.food_id]);
+      const drinkOpts = (food && isAdvancedDrink(food) ? parseDrinkOpts(item.drink_opts) ?? defaultDrinkOpts(food) : null) ?? undefined;
+      if (food) items.push({ food, quantity: item.quantity, drinkOpts, ...calcItem(food, item.quantity, drinkOpts, toppingMap) });
+    }
+    return items;
+  };
+
   const applyTemplate = async (t: MealTemplate) => {
     try {
-      const db = await getDb();
-      const items: BasketItem[] = [];
-      for (const item of t.items) {
-        const [food] = await db.select<FoodItem[]>(
-          "SELECT * FROM food_database WHERE food_id=?", [item.food_id]);
-        const drinkOpts = (food && isAdvancedDrink(food) ? parseDrinkOpts(item.drink_opts) ?? defaultDrinkOpts(food) : null) ?? undefined;
-        if (food) items.push({ food, quantity: item.quantity, drinkOpts, ...calcItem(food, item.quantity, drinkOpts, toppingMap) });
-      }
-      setBasket(items);
+      setBasket(await templateBasket(t));
       setTplName(t.template_name);
       setShowTplPicker(false);
     } catch (e) { logError("FoodLog", e); }
+  };
+
+  /** Load a saved favourite meal into the sheet to change its name and contents. */
+  const openTemplateEdit = async (t: MealTemplate) => {
+    try {
+      setBasket(await templateBasket(t));
+      setTplName(t.template_name);
+      setEditingTemplate(t.template_id);
+      setEditingMealGroup(null);
+      setSaveAsTpl(false);
+      setPickedFood(null);
+      setPickedDrink(null);
+      setShowTplPicker(false);
+    } catch (e) { logError("FoodLog.openTemplateEdit", e); }
+  };
+
+  const leaveTemplateEdit = () => {
+    setEditingTemplate(null);
+    setBasket([]);
+    setTplName("");
+    setPickedFood(null);
+    setPickedDrink(null);
+  };
+
+  const saveTemplateEdit = async () => {
+    if (editingTemplate === null || !tplName.trim() || basket.length === 0) return;
+    try {
+      const db = await getDb();
+      await db.execute("UPDATE meal_template SET template_name=? WHERE template_id=?", [tplName.trim(), editingTemplate]);
+      await db.execute("DELETE FROM meal_template_items WHERE template_id=?", [editingTemplate]);
+      for (const item of basket) {
+        await db.execute(
+          "INSERT INTO meal_template_items (template_id, food_id, quantity, unit, drink_opts) VALUES (?,?,?,?,?)",
+          [editingTemplate, item.food.food_id, item.quantity, item.food.base_unit,
+           item.drinkOpts ? JSON.stringify(item.drinkOpts) : null]);
+      }
+      await loadTemplates();
+      leaveTemplateEdit();
+      showToast(lang === "zh" ? "已更新最愛餐" : "Favourite meal updated", "ok");
+    } catch (e) {
+      logError("FoodLog.saveTemplateEdit", e);
+      showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
+    }
+  };
+
+  const deleteTemplate = async (t: MealTemplate) => {
+    if (pendingTplDelete !== t.template_id) { setPendingTplDelete(t.template_id); return; }
+    try {
+      const db = await getDb();
+      await db.execute("DELETE FROM meal_template_items WHERE template_id=?", [t.template_id]);
+      await db.execute("DELETE FROM meal_template WHERE template_id=?", [t.template_id]);
+      setPendingTplDelete(null);
+      if (editingTemplate === t.template_id) leaveTemplateEdit();
+      await loadTemplates();
+    } catch (e) {
+      logError("FoodLog.deleteTemplate", e);
+      showToast(lang === "zh" ? "刪除失敗" : "Delete failed", "error");
+    }
+  };
+
+  /** Put a basket item back into the picker to change its amount or drink options. */
+  const editBasketItem = (idx: number) => {
+    const item = basket[idx];
+    if (!item) return;
+    setPickedFood(item.food);
+    setPickedQty(String(item.quantity));
+    setPickedDrink(item.drinkOpts ?? null);
+    setBasket(b => b.filter((_, i) => i !== idx));
   };
 
   const saveMeal = async () => {
@@ -871,6 +947,8 @@ export function FoodLog() {
   const closeSheet = () => {
     setSheetOpen(false);
     setEditingMealGroup(null);
+    setEditingTemplate(null);
+    setPendingTplDelete(null);
     setBasket([]);
     setPickedFood(null);
     setPickedDrink(null);
@@ -1079,7 +1157,9 @@ export function FoodLog() {
             {/* Sheet header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
               <h2 className="text-lg font-bold text-[var(--text-on-surface)]">
-                {editingMealGroup
+                {editingTemplate !== null
+                  ? (lang === "en" ? "Edit favourite meal" : "編輯最愛餐")
+                  : editingMealGroup
                   ? (lang === "en" ? `Edit ${getMealLabel(editingMealGroup)}` : `編輯 ${getMealLabel(editingMealGroup)}`)
                   : t("food.addMealTitle")}
               </h2>
@@ -1088,8 +1168,18 @@ export function FoodLog() {
 
             <div className="overflow-y-auto flex-1">
 
+              {/* ── 最愛餐名稱 (template edit) ── */}
+              {editingTemplate !== null && (
+                <div className="px-5 pb-4 border-b border-[var(--surface-border)]">
+                  <p className="text-xs font-semibold text-[var(--text-on-surface-muted)] uppercase tracking-wide mb-2">
+                    {lang === "zh" ? "最愛餐名稱" : "Favourite meal name"}
+                  </p>
+                  <input className="input-base text-sm" value={tplName} onChange={e => setTplName(e.target.value)} />
+                </div>
+              )}
+
               {/* ── 餐別 & 時間 ── */}
-              <div className="px-5 pb-4 border-b border-[var(--surface-border)] space-y-3">
+              {editingTemplate === null && <div className="px-5 pb-4 border-b border-[var(--surface-border)] space-y-3">
                 <div>
                   <p className="text-xs font-semibold text-[var(--text-on-surface-muted)] uppercase tracking-wide mb-2">{t("food.mealCat")}</p>
                   <div className="flex flex-wrap gap-2">
@@ -1141,15 +1231,27 @@ export function FoodLog() {
                 {showTplPicker && (
                   <div className="rounded-xl bg-[var(--surface-container-low)] divide-y divide-[var(--surface-border)] overflow-hidden">
                     {templates.map(tpl => (
-                      <button key={tpl.template_id} onClick={() => applyTemplate(tpl)}
-                        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-[var(--surface)] transition-all text-left">
-                        <span className="text-sm font-medium text-[var(--text-on-surface)]">{tpl.template_name}</span>
-                        <span className="text-xs text-[var(--text-on-surface-muted)]">{tpl.items.length} {t("food.items")} · {tpl.items.reduce((s, i) => s + i.calories, 0)} kcal</span>
-                      </button>
+                      <div key={tpl.template_id} className="flex items-center">
+                        <button onClick={() => applyTemplate(tpl)}
+                          className="flex-1 min-w-0 flex items-center justify-between gap-2 px-4 py-2.5 hover:bg-[var(--surface)] transition-all text-left">
+                          <span className="text-sm font-medium text-[var(--text-on-surface)] truncate">{tpl.template_name}</span>
+                          <span className="text-xs text-[var(--text-on-surface-muted)] shrink-0">{tpl.items.length} {t("food.items")} · {tpl.items.reduce((s, i) => s + i.calories, 0)} kcal</span>
+                        </button>
+                        <button onClick={() => openTemplateEdit(tpl)} title={lang === "zh" ? "編輯最愛餐" : "Edit favourite meal"}
+                          className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors shrink-0"><Pencil size={14} /></button>
+                        <button onClick={() => deleteTemplate(tpl)}
+                          title={lang === "zh" ? "刪除最愛餐" : "Delete favourite meal"}
+                          className={clsx("shrink-0 transition-colors",
+                            pendingTplDelete === tpl.template_id
+                              ? "px-2 py-1 mr-1 rounded-lg bg-red-500 text-white text-10 font-semibold"
+                              : "icon-btn text-red-400 hover:text-red-500")}>
+                          {pendingTplDelete === tpl.template_id ? (lang === "zh" ? "確認刪除" : "Delete?") : <Trash2 size={14} />}
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}
-              </div>
+              </div>}
 
               {/* ── 食物搜尋 ── */}
               <div className="px-5 py-4 border-b border-[var(--surface-border)]">
@@ -1234,7 +1336,7 @@ export function FoodLog() {
                           brandFilter === b
                             ? "bg-[var(--color-secondary)] text-white border-[var(--color-secondary)]"
                             : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--color-outline)]")}>
-                        {b === NO_BRAND ? (lang === "zh" ? "無品牌" : "No brand")
+                        {b === NO_BRAND ? (lang === "zh" ? "無" : "None")
                           : b ?? (lang === "zh" ? "全部" : "All")}
                       </button>
                     ))}
@@ -1405,6 +1507,10 @@ export function FoodLog() {
                         <span className="text-xs text-[var(--text-on-surface-muted)] shrink-0 self-center">
                           <span className="font-bold text-[var(--text-on-surface)]">P</span>{item.p.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">C</span>{item.c.toFixed(1)} <span className="font-bold text-[var(--text-on-surface)]">F</span>{item.f.toFixed(1)}
                         </span>
+                        {item.drinkOpts && (
+                          <button onClick={() => editBasketItem(idx)} title={lang === "zh" ? "修改杯量、甜度、配料" : "Change cup, sugar, toppings"}
+                            className="icon-btn-field text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={15} /></button>
+                        )}
                         <button onClick={() => setBasket(b => b.filter((_, i) => i !== idx))}
                           className="icon-btn-field text-red-400 hover:text-red-500 transition-colors"><X size={15} /></button>
                       </div>
@@ -1414,7 +1520,7 @@ export function FoodLog() {
               </div>
 
               {/* ── 存為範本 (only for new meals) ── */}
-              {!editingMealGroup && <div className="px-5 py-4">
+              {!editingMealGroup && editingTemplate === null && <div className="px-5 py-4">
                 <button onClick={() => setSaveAsTpl(!saveAsTpl)}
                   className={clsx("flex items-center gap-2 text-sm font-medium transition-colors",
                     saveAsTpl ? "text-[var(--text-on-surface)]" : "text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]")}>
@@ -1432,12 +1538,24 @@ export function FoodLog() {
 
             {/* Sheet footer */}
             <div className="px-5 py-4 border-t border-[var(--surface-border)] shrink-0">
+              {editingTemplate !== null ? (
+                <div className="flex gap-2">
+                  <button onClick={leaveTemplateEdit} className="btn-ghost flex-1 py-3 text-sm">
+                    {lang === "zh" ? "取消編輯" : "Cancel"}
+                  </button>
+                  <button onClick={saveTemplateEdit} disabled={basket.length === 0 || !tplName.trim()}
+                    className="btn-primary flex-[2] py-3 text-sm font-semibold disabled:opacity-40">
+                    {lang === "zh" ? "更新最愛餐" : "Update favourite"} ({basket.length} {t("food.items")} · {basketTotal.cal} kcal)
+                  </button>
+                </div>
+              ) : (
               <button onClick={saveMeal} disabled={basket.length === 0}
                 className="btn-primary w-full py-3 text-sm font-semibold disabled:opacity-40">
                 {editingMealGroup ? (lang === "en" ? "Update" : "更新") : t("common.save")}
                 {" "}{mealType !== "自訂" ? getMealLabel(mealType) : (customTypeName || t("food.thisMeal"))}
                 {" "}({basket.length} {t("food.items")} · {basketTotal.cal} kcal)
               </button>
+              )}
             </div>
         </BottomSheet>
       )}

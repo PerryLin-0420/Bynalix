@@ -8,7 +8,8 @@ see the [README](./README.md).
 ---
 
 ### v1.8.1
-- **Drinks open on "No brand"** — choosing 飲料 now lists drinks without a brand first (water, plain teas, juice, coffee) instead of every chain's menu at once. The brand row reads No brand / All / each chain, so a chain is still one tap away
+- **Drinks open on "None"** — choosing 飲料 now lists drinks without a brand first (water, plain teas, juice, coffee) instead of every chain's menu at once. The brand row reads None / All / each chain, so a chain is still one tap away
+- **Saved favourite meals can be edited** — each favourite meal in the list now has edit and delete buttons (delete asks for a second tap). Editing loads the meal into the list below, where you can rename it, add or remove items and change amounts; a drink's pencil button reopens its cup / sugar / toppings menu. "Update favourite meal" then replaces the saved contents
 
 ### v1.8.0
 - **Advanced drinks: cup size, sugar level and toppings** — picking a drink-shop drink opens a block under it, split into three small tabs that each show the current choice ("L 600 ml · Half · 1 serving"), with cup-size shortcuts (M 500 / L 700 / XL 1000 ml, or any ml), sugar level (full / less / half / light / 10% / none, strictly proportional to full sugar) and toppings. Only the adjustable part of the sugar scales — milk lactose, fruit, Yakult and brown-sugar syrup stay — and a drink whose sugar can't be adjusted says so. The calories and macros shown, logged and used everywhere else (Overview, History, Statistics) include the sugar removed and the toppings added

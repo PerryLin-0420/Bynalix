@@ -64,7 +64,8 @@ but deeper personal understanding through self-owned data.
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
 **Latest — v1.8.1**
-- Choosing 飲料 opens on drinks without a brand; chains are one tap away in the brand row
+- Choosing 飲料 opens on "None" (drinks without a brand); chains are one tap away in the brand row
+- Saved favourite meals can be renamed, edited (items, amounts, a drink's cup / sugar / toppings) or deleted
 
 **v1.8.0**
 - Drink-shop drinks with cup size, proportional sugar level and toppings (14 built in, add your own, any number of servings)
