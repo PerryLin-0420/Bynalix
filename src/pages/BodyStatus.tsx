@@ -89,25 +89,30 @@ const fmt = (d: string) => format(parseISO(d), "yyyy/M/d");
 
 // ── Sleep time helpers ────────────────────────────────────────────────────────
 
-/** Derive HH:mm sleep-start from stored wake_up_time + duration_hours. */
-const sleepStartFromEntry = (wakeTime: string, durationHours: number): string => {
+/** Day sleep started on, relative to the record's date (the wake day). */
+type SleepStartDay = 0 | -1;
+
+const hhmm = (min: number) =>
+  `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+
+/** Derive the sleep start (HH:mm + day) from stored wake_up_time + duration_hours. */
+const sleepStartFromEntry = (wakeTime: string, durationHours: number): { time: string; day: SleepStartDay } => {
   const [wH, wM] = wakeTime.slice(0, 5).split(":").map(Number);
   const totalMin = wH * 60 + wM - Math.round(durationHours * 60);
-  const sleepMin = ((totalMin % 1440) + 1440) % 1440;
-  return `${String(Math.floor(sleepMin / 60)).padStart(2, "0")}:${String(sleepMin % 60).padStart(2, "0")}`;
+  return { time: hhmm(((totalMin % 1440) + 1440) % 1440), day: totalMin < 0 ? -1 : 0 };
 };
 
-/** Compute duration from two HH:mm times. Handles overnight. Returns null if invalid. */
+/**
+ * Duration from a start HH:mm on the wake day or the day before to a wake HH:mm
+ * on the wake day. Null unless the wake is after the start and within 24 h of it.
+ */
 const computeSleepDuration = (
-  startHHMM: string, endHHMM: string
+  startHHMM: string, startDay: SleepStartDay, endHHMM: string
 ): { h: number; m: number; decimalHours: number } | null => {
   const [sH, sM] = startHHMM.split(":").map(Number);
   const [wH, wM] = endHHMM.split(":").map(Number);
   if ([sH, sM, wH, wM].some(isNaN)) return null;
-  let sleepMin = sH * 60 + sM;
-  let wakeMin  = wH * 60 + wM;
-  if (wakeMin <= sleepMin) wakeMin += 24 * 60; // overnight
-  const totalMin = wakeMin - sleepMin;
+  const totalMin = wH * 60 + wM - (sH * 60 + sM + startDay * 1440);
   if (totalMin <= 0 || totalMin > 24 * 60) return null;
   return {
     h: Math.floor(totalMin / 60),
@@ -115,6 +120,55 @@ const computeSleepDuration = (
     decimalHours: Math.round((totalMin / 60) * 100) / 100,
   };
 };
+
+/** "10/25" for a yyyy-MM-dd date shifted by `day` days. */
+const sleepDayLabel = (date: string, day: SleepStartDay = 0) =>
+  format(addDays(parseISO(date), day), "M/d");
+
+/** Which day a detected fell-asleep timestamp falls on, relative to the wake date. */
+const startDayFromTs = (ts: number, wakeDate: string): SleepStartDay =>
+  format(new Date(ts), "yyyy-MM-dd") === wakeDate ? 0 : -1;
+
+/**
+ * 入睡 / 起床 pickers. Waking is on the record's date; falling asleep is on
+ * that day or the day before, so a record covers the 24 h before waking.
+ */
+function SleepTimeFields({ date, startTime, startDay, wakeTime, onStartTime, onStartDay, onWakeTime, startHint, wakeHint, lang }: {
+  date: string; startTime: string; startDay: SleepStartDay; wakeTime: string;
+  onStartTime: (v: string) => void; onStartDay: (d: SleepStartDay) => void; onWakeTime: (v: string) => void;
+  startHint?: React.ReactNode; wakeHint?: React.ReactNode; lang: string;
+}) {
+  const zh = lang === "zh";
+  const dayBtn = (d: SleepStartDay) => (
+    <button key={d} onClick={() => onStartDay(d)}
+      className={clsx("flex-1 rounded-lg py-1 text-center transition-all",
+        startDay === d ? "bg-[var(--surface)] shadow-sm text-[var(--text-accent)]" : "text-[var(--text-on-surface-sub)]")}>
+      <span className="block text-10 text-[var(--text-on-surface-muted)]">{d === -1 ? (zh ? "前一天" : "Day before") : (zh ? "當天" : "Same day")}</span>
+      <span className="block text-xs font-semibold tabular-nums">{sleepDayLabel(date, d)}</span>
+    </button>
+  );
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">{zh ? "入睡時間" : "Fell asleep"}</p>
+        <div className="flex gap-1 p-1 mb-1.5 rounded-xl bg-[var(--surface-container)]">{dayBtn(-1)}{dayBtn(0)}</div>
+        <TimePicker value={startTime} onChange={onStartTime} />
+        {startHint}
+      </div>
+      <div>
+        <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">{zh ? "起床時間" : "Woke up"}</p>
+        <div className="flex p-1 mb-1.5 rounded-xl bg-[var(--surface-container)]">
+          <div className="flex-1 rounded-lg py-1 text-center">
+            <span className="block text-10 text-[var(--text-on-surface-muted)]">{zh ? "當天" : "Same day"}</span>
+            <span className="block text-xs font-semibold tabular-nums text-[var(--text-on-surface-sub)]">{sleepDayLabel(date)}</span>
+          </div>
+        </div>
+        <TimePicker value={wakeTime} onChange={onWakeTime} />
+        {wakeHint}
+      </div>
+    </div>
+  );
+}
 
 const initForm = (): Record<FormKey, string> => ({
   body_fat_pct: "", body_water_pct: "", visceral_fat_level: "", waist_cm: "",
@@ -216,10 +270,11 @@ export function BodyStatus() {
   const [sleepDate, setSleepDate]               = useState(today);
   const [sleepQuality, setSleepQuality]         = useState<SleepQuality>("normal");
   const [sleepStartTime, setSleepStartTime]     = useState("23:00"); // 入睡時間 HH:mm
+  const [sleepStartDay, setSleepStartDay]       = useState<SleepStartDay>(-1);
   const [sleepWakeTime, setSleepWakeTime]       = useState("");      // 起床時間 HH:mm
   const [sleepNotes, setSleepNotes]             = useState("");
   const [showEditSleepModal, setShowEditSleepModal] = useState(false);
-  const [editingSleep, setEditingSleep]         = useState<{ id: number; quality: SleepQuality; startTime: string; wakeTime: string } | null>(null);
+  const [editingSleep, setEditingSleep]         = useState<{ id: number; date: string; quality: SleepQuality; startTime: string; startDay: SleepStartDay; wakeTime: string } | null>(null);
   // Android screen-monitor state for sleep prediction
   const [predictedSleepTs, setPredictedSleepTs]   = useState<number | null>(null);
   const [predictedWakeTs, setPredictedWakeTs]     = useState<number | null>(null);
@@ -420,10 +475,15 @@ export function BodyStatus() {
     } catch (e) { logError("BodyStatus", e); }
   };
 
+  const sleepRangeErr = lang === "zh"
+    ? "入睡須早於起床，且在起床前 24 小時內"
+    : "Fell asleep must be before waking, within the 24 h before it";
+
   const saveSleep = async () => {
     if (!profile) return;
     setSleepFormErr(null);
-    const dur = computeSleepDuration(sleepStartTime, sleepWakeTime);
+    const dur = computeSleepDuration(sleepStartTime, sleepStartDay, sleepWakeTime);
+    if (sleepWakeTime.trim() && !dur) { setSleepFormErr(sleepRangeErr); return; }
     try {
       const db = await getDb();
       await db.execute(
@@ -433,7 +493,7 @@ export function BodyStatus() {
          sleepWakeTime.trim() || null,
          sleepNotes.trim() || null]);
       setShowSleepForm(false); setSleepDate(today); setSleepQuality("normal");
-      setSleepStartTime("23:00"); setSleepWakeTime(""); setSleepNotes("");
+      setSleepStartTime("23:00"); setSleepStartDay(-1); setSleepWakeTime(""); setSleepNotes("");
       loadSleep();
     } catch (e) {
       logError("BodyStatus.saveSleep", e);
@@ -443,12 +503,14 @@ export function BodyStatus() {
 
   const saveEditSleep = async () => {
     if (!editingSleep) return;
-    const dur = computeSleepDuration(editingSleep.startTime, editingSleep.wakeTime);
+    setSleepFormErr(null);
+    const dur = computeSleepDuration(editingSleep.startTime, editingSleep.startDay, editingSleep.wakeTime);
+    if (editingSleep.wakeTime.trim() && !dur) { setSleepFormErr(sleepRangeErr); return; }
     try {
       const db = await getDb();
       await db.execute(
-        "UPDATE sleep_log SET quality=?, duration_hours=?, wake_up_time=? WHERE id=?",
-        [editingSleep.quality,
+        "UPDATE sleep_log SET sleep_date=?, quality=?, duration_hours=?, wake_up_time=? WHERE id=?",
+        [editingSleep.date, editingSleep.quality,
          dur?.decimalHours ?? null,
          editingSleep.wakeTime.trim() || null,
          editingSleep.id]);
@@ -845,14 +907,18 @@ export function BodyStatus() {
                     <button
                       onClick={() => {
                         const wake = e.wake_up_time?.slice(0, 5) ?? format(new Date(), "HH:mm");
+                        const start = (e.wake_up_time && e.duration_hours != null)
+                          ? sleepStartFromEntry(e.wake_up_time, e.duration_hours)
+                          : { time: "23:00", day: -1 as const };
                         setEditingSleep({
                           id: e.id,
+                          date: e.sleep_date,
                           quality: e.quality,
-                          startTime: (e.wake_up_time && e.duration_hours != null)
-                            ? sleepStartFromEntry(e.wake_up_time, e.duration_hours)
-                            : "23:00",
+                          startTime: start.time,
+                          startDay: start.day,
                           wakeTime: wake,
                         });
+                        setSleepFormErr(null);
                         setShowEditSleepModal(true);
                       }}
                       className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={16} /></button>
@@ -863,20 +929,20 @@ export function BodyStatus() {
 
                 {/* 入睡 / 起床 / 時長 — vertical rows */}
                 {(e.wake_up_time || e.duration_hours != null) && (() => {
-                  const startStr = (e.wake_up_time && e.duration_hours != null)
+                  const start = (e.wake_up_time && e.duration_hours != null)
                     ? sleepStartFromEntry(e.wake_up_time, e.duration_hours)
                     : null;
-                  const dur = (startStr && e.wake_up_time)
-                    ? computeSleepDuration(startStr, e.wake_up_time)
+                  const dur = (start && e.wake_up_time)
+                    ? computeSleepDuration(start.time, start.day, e.wake_up_time.slice(0, 5))
                     : null;
                   const rows = [
                     {
                       label: lang === "zh" ? "入睡" : "Fell asleep",
-                      value: startStr ?? "—",
+                      value: start ? `${sleepDayLabel(e.sleep_date, start.day)} ${start.time}` : "—",
                     },
                     {
                       label: lang === "zh" ? "起床" : "Woke up",
-                      value: e.wake_up_time ? e.wake_up_time.slice(0, 5) : "—",
+                      value: e.wake_up_time ? `${sleepDayLabel(e.sleep_date)} ${e.wake_up_time.slice(0, 5)}` : "—",
                     },
                     {
                       label: lang === "zh" ? "時長" : "Duration",
@@ -915,6 +981,7 @@ export function BodyStatus() {
               setSleepDate(selectedDate);
               setSleepWakeTime(nowHHMM);
               setSleepStartTime("23:00");
+              setSleepStartDay(-1);
               setSleepQuality("normal");
               setSleepNotes("");
               setSleepFormErr(null);
@@ -929,6 +996,7 @@ export function BodyStatus() {
               if (sleepStart) {
                 setPredictedSleepTs(sleepStart);
                 setSleepStartTime(tsToHHMM(sleepStart)); // prefill fell-asleep
+                setSleepStartDay(startDayFromTs(sleepStart, wakeTime ? format(new Date(wakeTime), "yyyy-MM-dd") : selectedDate));
               }
               if (wakeTime) {
                 setPredictedWakeTs(wakeTime);
@@ -1061,6 +1129,7 @@ export function BodyStatus() {
                     if (sleepStart) {
                       setPredictedSleepTs(sleepStart);
                       setSleepStartTime(tsToHHMM(sleepStart));
+                      setSleepStartDay(startDayFromTs(sleepStart, wakeTime ? format(new Date(wakeTime), "yyyy-MM-dd") : sleepDate));
                     }
                     if (wakeTime) {
                       setPredictedWakeTs(wakeTime);
@@ -1074,37 +1143,26 @@ export function BodyStatus() {
             </div>
           )}
 
-          {/* 入睡 + 起床 side-by-side */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
-                {lang === "zh" ? "入睡時間" : "Fell asleep"}
+          {/* 入睡 + 起床 */}
+          <SleepTimeFields date={sleepDate} lang={lang}
+            startTime={sleepStartTime} startDay={sleepStartDay} wakeTime={sleepWakeTime}
+            onStartTime={setSleepStartTime} onStartDay={setSleepStartDay} onWakeTime={setSleepWakeTime}
+            startHint={screenPermGranted === true && predictedSleepTs && (
+              <p className="text-10 text-emerald-500 mt-1 flex items-center gap-1">
+                <Sparkles size={10} />
+                {lang === "zh" ? "自動預估" : "Auto-predicted"}
               </p>
-              <TimePicker value={sleepStartTime} onChange={setSleepStartTime} />
-              {screenPermGranted === true && predictedSleepTs && (
-                <p className="text-10 text-emerald-500 mt-1 flex items-center gap-1">
-                  <Sparkles size={10} />
-                  {lang === "zh" ? "自動預估" : "Auto-predicted"}
-                </p>
-              )}
-            </div>
-            <div>
-              <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
-                {lang === "zh" ? "起床時間" : "Woke up"}
+            )}
+            wakeHint={screenPermGranted === true && predictedWakeTs && (
+              <p className="text-10 text-emerald-500 mt-1 flex items-center gap-1">
+                <Sparkles size={10} />
+                {lang === "zh" ? "自動預估" : "Auto-predicted"}
               </p>
-              <TimePicker value={sleepWakeTime} onChange={setSleepWakeTime} />
-              {screenPermGranted === true && predictedWakeTs && (
-                <p className="text-10 text-emerald-500 mt-1 flex items-center gap-1">
-                  <Sparkles size={10} />
-                  {lang === "zh" ? "自動預估" : "Auto-predicted"}
-                </p>
-              )}
-            </div>
-          </div>
+            )} />
 
           {/* Real-time duration display */}
           {(() => {
-            const dur = computeSleepDuration(sleepStartTime, sleepWakeTime);
+            const dur = computeSleepDuration(sleepStartTime, sleepStartDay, sleepWakeTime);
             if (!dur) return null;
             return (
               <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--surface-container)]">
@@ -1168,31 +1226,23 @@ export function BodyStatus() {
             </div>
           </div>
 
-          {/* 入睡 + 起床 side-by-side */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
-                {lang === "zh" ? "入睡時間" : "Fell asleep"}
-              </p>
-              <TimePicker
-                value={editingSleep.startTime}
-                onChange={v => setEditingSleep(s => s ? { ...s, startTime: v } : null)}
-              />
-            </div>
-            <div>
-              <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">
-                {lang === "zh" ? "起床時間" : "Woke up"}
-              </p>
-              <TimePicker
-                value={editingSleep.wakeTime}
-                onChange={v => setEditingSleep(s => s ? { ...s, wakeTime: v } : null)}
-              />
-            </div>
+          {/* Date */}
+          <div>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mb-1.5">{t("body.sleepDate")}</p>
+            <input className="input-base" type="date" value={editingSleep.date} max={today}
+              onChange={e => { const v = e.target.value; if (v) setEditingSleep(s => s ? { ...s, date: v } : null); }} />
           </div>
+
+          {/* 入睡 + 起床 */}
+          <SleepTimeFields date={editingSleep.date} lang={lang}
+            startTime={editingSleep.startTime} startDay={editingSleep.startDay} wakeTime={editingSleep.wakeTime}
+            onStartTime={v => setEditingSleep(s => s ? { ...s, startTime: v } : null)}
+            onStartDay={d => setEditingSleep(s => s ? { ...s, startDay: d } : null)}
+            onWakeTime={v => setEditingSleep(s => s ? { ...s, wakeTime: v } : null)} />
 
           {/* Real-time duration display */}
           {(() => {
-            const dur = computeSleepDuration(editingSleep.startTime, editingSleep.wakeTime);
+            const dur = computeSleepDuration(editingSleep.startTime, editingSleep.startDay, editingSleep.wakeTime);
             if (!dur) return null;
             return (
               <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--surface-container)]">
@@ -1207,6 +1257,11 @@ export function BodyStatus() {
             );
           })()}
 
+          {sleepFormErr && (
+            <p className="text-xs text-red-500 flex items-center gap-micro">
+              <AlertCircle size={12} className="shrink-0" /> {sleepFormErr}
+            </p>
+          )}
           <div className="flex gap-2 pt-1">
             <button onClick={() => { setShowEditSleepModal(false); setEditingSleep(null); }}
               className="btn-ghost flex-1 border border-[var(--surface-border)]">{t("common.cancel")}</button>

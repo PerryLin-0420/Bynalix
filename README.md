@@ -66,6 +66,7 @@ Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-T
 **Latest — v1.8.1**
 - Choosing 飲料 opens on "None" (drinks without a brand); chains are one tap away in the brand row
 - Saved favourite meals can be renamed, edited (items, amounts, a drink's cup / sugar / toppings) or deleted
+- Sleep records show the date of falling asleep and waking; falling asleep can be the day before or the same day (within the 24 h before waking)
 
 **v1.8.0**
 - Drink-shop drinks with cup size, proportional sugar level and toppings (14 built in, add your own, any number of servings)
