@@ -145,9 +145,9 @@ export async function getDailyStatsRecords(
         -- strength training: per-set MET based on lift/body ratio + rest phase
         SELECT ss.log_date, 0 as cnt, 0 as mins,
           ROUND(SUM(
-            (CASE WHEN st.weight_kg / ? < 0.5 THEN 3.5 WHEN st.weight_kg / ? <= 1.0 THEN 5.0 ELSE 6.5 END)
+            (CASE WHEN st.weight_kg / ? < 0.5 THEN 3.5 WHEN st.weight_kg / ? <= 1.0 THEN 5.0 ELSE 6.5 END - 1.0)
             * ? * (st.reps * 3.0 / 3600.0)
-            + COALESCE(st.rest_sec, 0) * 2.0 * ? / 3600.0
+            + COALESCE(st.rest_sec, 0) * (2.0 - 1.0) * ? / 3600.0
           ), 1) as kcal,
           0 as cardio_cnt, COUNT(DISTINCT ss.id) as strength_cnt
         FROM strength_session ss

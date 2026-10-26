@@ -1512,6 +1512,9 @@ export function ExerciseLog() {
                         {!customExKcal && (
                           <p className="text-10 text-red-500 mt-1">{t("exercise.kcalWarning")}</p>
                         )}
+                        <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
+                          {lang === "zh" ? "填「活動消耗」（不含基礎代謝），例如運動手錶的活動大卡" : "Enter active calories (excluding resting), e.g. a watch's active kcal"}
+                        </p>
                       </div>
                       <button
                         onClick={saveCustomExercise}
