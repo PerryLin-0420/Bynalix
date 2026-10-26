@@ -25,7 +25,8 @@ export interface DashboardExtras {
 export async function getDashboardExtras(
   userId: number,
   today: string,
-  targets: { calories: number; protein: number; carb: number; fat: number; water_ml: number },
+  /** Targets in force on a given day — adherence is judged against each day's own. */
+  targetsOn: (date: string) => { calories: number; protein: number; carb: number; fat: number; water_ml: number },
 ): Promise<DashboardExtras> {
   const db = await getDb();
 
@@ -122,13 +123,14 @@ export async function getDashboardExtras(
   const exDates  = new Set(weeklyExercise.map(r => r.log_date));
 
   let calHit = 0, balanceHit = 0, proteinHit = 0, waterHit = 0, exHit = 0;
-  const calTarget     = targets.calories || 1;
-  const proteinTarget = targets.protein  || 1;
-  const carbTarget    = targets.carb     || 1;
-  const fatTarget     = targets.fat      || 1;
-  const waterTarget   = targets.water_ml || 1;
   for (let i = 0; i < 7; i++) {
     const d = format(subDays(new Date(today), i), "yyyy-MM-dd");
+    const targets       = targetsOn(d);
+    const calTarget     = targets.calories || 1;
+    const proteinTarget = targets.protein  || 1;
+    const carbTarget    = targets.carb     || 1;
+    const fatTarget     = targets.fat      || 1;
+    const waterTarget   = targets.water_ml || 1;
     const meal = mealMap.get(d);
     if (meal) {
       const calRatio = meal.calories / calTarget;

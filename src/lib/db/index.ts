@@ -394,6 +394,14 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   // Daily-life activity (work, commute), apart from exercise. Replaces activity_level,
   // which was inferred from exercise frequency and so counted exercise twice.
   { v: 52, sql: "ALTER TABLE user_profile ADD COLUMN lifestyle TEXT" },
+  // Settings that decide a day's targets, one row per day they changed (lib/dailyTargets)
+  { v: 53, sql: `CREATE TABLE IF NOT EXISTS profile_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    effective_date TEXT NOT NULL,
+    settings TEXT NOT NULL,
+    UNIQUE(user_id, effective_date)
+  )` },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

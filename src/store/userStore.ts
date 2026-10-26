@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { getDb } from "@/lib/db";
 import type { UserProfile, ModeSettings, LatestWeightLog } from "@/types";
+import { ensureTargetHistory, recordTargetSettings, settingsSnapshot } from "@/lib/dailyTargets";
 
 export type { UserProfile, ModeSettings, LatestWeightLog };
 
@@ -17,6 +18,14 @@ interface UserState {
   saveMode: (data: Omit<ModeSettings, "id">) => Promise<void>;
   patchAdvConfig: (advGoalType: string | null, advGoalConfig: string | null, advStatVariables: string | null) => Promise<void>;
   patchAdv2Config: (adv2GoalConfig: string | null, adv2StatVariables: string | null) => Promise<void>;
+}
+
+/** Keep profile_history in step after profile or mode settings are saved. */
+async function recordSettings(get: () => UserState) {
+  const { profile, modeSettings, lbmKg } = get();
+  if (!profile || !modeSettings) return;
+  try { await recordTargetSettings(profile.user_id, settingsSnapshot(profile, modeSettings, lbmKg)); }
+  catch { /* non-blocking */ }
 }
 
 export const useUserStore = create<UserState>((set, get) => ({
@@ -68,6 +77,11 @@ export const useUserStore = create<UserState>((set, get) => ({
         }
       }
 
+      if (profile && modeSettings) {
+        try { await ensureTargetHistory(profile.user_id, settingsSnapshot(profile, modeSettings, lbmKg)); }
+        catch { /* non-blocking */ }
+      }
+
       set({ profile, modeSettings, latestWeightLog, lbmKg, isLoading: false });
     } catch {
       set({ isLoading: false });
@@ -100,6 +114,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       );
       if (r.rowsAffected === 0) throw new Error("profile record not found");
       set({ profile: { ...profile, ...data }, lbmKg: newLbmKg });
+      await recordSettings(get);
     } else {
       const result = await db.execute(
         `INSERT INTO user_profile (name, height_cm, weight_kg, age, sex, lifestyle, body_fat_pct) VALUES (?,?,?,?,?,?,?)`,
@@ -134,6 +149,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       ]
     );
     set({ modeSettings: { id: result.lastInsertId as number, ...data } });
+    await recordSettings(get);
   },
 
   patchAdvConfig: async (advGoalType, advGoalConfig, advStatVariables) => {

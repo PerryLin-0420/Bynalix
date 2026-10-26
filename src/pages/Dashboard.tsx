@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { fmtDay } from "@/lib/dateFormat";
 import { Droplets, Moon, Scale, TrendingDown, TrendingUp, Minus, Flame, Wheat } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
-import { calculateNutritionTargets } from "@/lib/calculations/strategy";
+import { getDailyTargets, settingsSnapshot, targetsFor } from "@/lib/dailyTargets";
 import { computeTdee } from "@/lib/calculations/metabolism";
 import { getDashboardTotals, type DashboardTotals } from "@/lib/db/queries/log";
 import { getDashboardExtras, type DashboardExtras } from "@/lib/db/queries/dashboard";
@@ -47,20 +47,9 @@ export function Dashboard() {
   useEffect(() => { loadUser(); }, []);
 
   const tdee = profile ? computeTdee(profile, lbmKg) : null;
-  const targets = (() => {
-    if (!profile || !modeSettings || tdee == null) return null;
-    try {
-      const w = Math.round(profile.weight_kg);
-      return calculateNutritionTargets({
-        weightKg: w, lbmKg, mode: modeSettings.mode, tdee,
-        targetCalories: modeSettings.custom_calories ?? undefined,
-        customRatio: modeSettings.mode === "custom" && modeSettings.custom_protein_g
-          ? { protein: modeSettings.custom_protein_g, carb: modeSettings.custom_carb_g ?? 1, fat: modeSettings.custom_fat_g ?? 1 }
-          : undefined,
-        fatKcalRatio: modeSettings.mode !== "custom" ? (modeSettings.fat_kcal_ratio ?? 0.30) : undefined,
-      });
-    } catch { return null; }
-  })();
+  const targets = profile && modeSettings
+    ? targetsFor(settingsSnapshot(profile, modeSettings, lbmKg), profile.weight_kg).targets
+    : null;
 
   useEffect(() => {
     if (!profile) return;
@@ -77,17 +66,20 @@ export function Dashboard() {
   const loadExtras = async () => {
     if (!profile) return;
     try {
-      setExtras(await getDashboardExtras(
-        profile.user_id,
-        today,
-        {
-          calories: targets?.total_kcal ?? 2000,
-          protein:  targets?.protein_g  ?? 150,
-          carb:     targets?.carb_g     ?? 200,
-          fat:      targets?.fat_g      ?? 60,
-          water_ml: modeSettings?.water_goal_ml ?? 2000,
-        },
-      ));
+      // Each of the last 7 days is judged by the targets in force that day
+      const current = {
+        calories: targets?.total_kcal ?? 2000,
+        protein:  targets?.protein_g  ?? 150,
+        carb:     targets?.carb_g     ?? 200,
+        fat:      targets?.fat_g      ?? 60,
+        water_ml: modeSettings?.water_goal_ml ?? 2000,
+      };
+      const daily = await getDailyTargets(profile.user_id, format(subDays(new Date(today), 6), "yyyy-MM-dd"), today);
+      setExtras(await getDashboardExtras(profile.user_id, today, date => {
+        const d = daily.get(date);
+        if (!d?.targets) return current;
+        return { calories: d.targets.total_kcal, protein: d.targets.protein_g, carb: d.targets.carb_g, fat: d.targets.fat_g, water_ml: d.water_ml };
+      }));
     } catch (e) { logError("Dashboard.loadExtras", e); }
   };
 

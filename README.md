@@ -68,6 +68,7 @@ Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-T
 - Saved favourite meals can be renamed, edited (items, amounts, a drink's cup / sugar / toppings) or deleted
 - Sleep records show the date of falling asleep and waking; falling asleep can be the day before or the same day (within the 24 h before waking)
 - Activity level is now a lifestyle (sedentary / lightly / moderately active / physical labour); exercise is counted separately, only in the day balance
+- Changing lifestyle or goal mode only affects days from then on; each past day keeps the target from its own settings and weight
 
 **v1.8.0**
 - Drink-shop drinks with cup size, proportional sugar level and toppings (14 built in, add your own, any number of servings)

@@ -15,7 +15,6 @@ import { useLangStore } from "@/store/langStore";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDates } from "@/lib/db/queries/stats";
-import { calculateNutritionTargets } from "@/lib/calculations/strategy";
 import { strengthEstKcalSimple } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
 import { ChartExportButton } from "@/components/common/ChartExportButton";
@@ -26,7 +25,7 @@ import { CardHeader } from "@/components/common/CardHeader";
 import { withTrend, slopePerWeek, fmtSlope } from "@/lib/statistics/trend";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
-import { computeTdee } from "@/lib/calculations/metabolism";
+import { getDailyTargets, settingsSnapshot, targetsFor } from "@/lib/dailyTargets";
 import { MACRO_COLORS, BODY_PART_COLORS, BODY_PARTS, BODY_PART_EN, CARDIO_LABEL, CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE, CARDIO_OTHER_EXCL, type BodyPart } from "@/constants";
 import type { WeightChartPoint, CalorieChartPoint } from "@/types";
 import { useSwipeTabs } from "@/hooks/useSwipe";
@@ -269,21 +268,10 @@ export function History() {
   const waterTrend2  = useMemo(() => withTrend(waterData,  r => (r.ml || null)), [waterData]);
   const sleepTrend2  = useMemo(() => withTrend(sleepPoints, r => r.hours ?? null), [sleepPoints]);
 
-  const targets = (() => {
-    if (!profile || !modeSettings) return null;
-    try {
-      const w = Math.round(profile.weight_kg);
-      return calculateNutritionTargets({
-        weightKg: w, lbmKg, mode: modeSettings.mode,
-        tdee: computeTdee(profile, lbmKg),
-        targetCalories: modeSettings.custom_calories ?? undefined,
-        customRatio: modeSettings.mode === "custom" && modeSettings.custom_protein_g
-          ? { protein: modeSettings.custom_protein_g, carb: modeSettings.custom_carb_g ?? 1, fat: modeSettings.custom_fat_g ?? 1 }
-          : undefined,
-        fatKcalRatio: modeSettings.mode !== "custom" ? (modeSettings.fat_kcal_ratio ?? 0.30) : undefined,
-      });
-    } catch { return null; }
-  })();
+  // Current targets, for the header label; each charted day uses its own (getDailyTargets)
+  const targets = profile && modeSettings
+    ? targetsFor(settingsSnapshot(profile, modeSettings, lbmKg), profile.weight_kg).targets
+    : null;
 
   // Compute from/to from current selection
 
@@ -324,6 +312,8 @@ export function History() {
     setLoading(true);
     try {
       const { from, to } = getFromTo();
+      const daily = await getDailyTargets(profile.user_id, from, to);
+      const targetOn = (d: string, fallback: number) => Math.round(daily.get(d)?.targets?.total_kcal ?? fallback);
       const rangeDays = Math.max(
         Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1,
         1
@@ -362,7 +352,7 @@ export function History() {
         setCalData(dateArr.map(d => ({
           date:     d,
           calories: cMap.get(d)?.calories ?? 0,
-          target:   targets?.total_kcal ?? 2000,
+          target:   targetOn(d, targets?.total_kcal ?? 2000),
           protein:  cMap.get(d)?.protein  ?? 0,
           carb:     cMap.get(d)?.carb     ?? 0,
           fat:      cMap.get(d)?.fat      ?? 0,
@@ -382,7 +372,7 @@ export function History() {
           getMealCountHistory(profile.user_id, rangeDays),
         ]);
         setWeightData(w);
-        setCalData(c);
+        setCalData(c.map(r => ({ ...r, target: targetOn(r.date, r.target) })));
         setMealCountData(m);
       }
 
@@ -859,7 +849,9 @@ export function History() {
                       return [`${Math.round(v)} kcal`, labels[name] ?? name];
                     }}
                     contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
-                  {targets && <ReferenceLine y={Math.round(targets.total_kcal)} stroke="#10b981" strokeDasharray="4 4" />}
+                  {/* Each day's own target — steps where lifestyle, mode or weight changed */}
+                  {targets && <Line type="stepAfter" dataKey="target" stroke="#10b981" strokeWidth={1.5}
+                    strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={false} />}
                   <Line type="monotone" dataKey="calories" stroke="#111827"
                     strokeWidth={2} dot={days <= 14} connectNulls activeDot={{ r: 4, fill: "#111827" }} />
                   {showTrend && <Line type="linear" dataKey="trend" stroke="#f97316" strokeWidth={2} strokeDasharray="7 4" dot={false} connectNulls isAnimationActive={false} />}
