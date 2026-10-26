@@ -410,7 +410,24 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   // Rows without a MET are the user's own figure and are left alone.
   { v: 54, sql: `UPDATE exercise_log SET calories_burned = ROUND(MAX(0, calories_burned * (1 - 1.0 /
       (mets * CASE intensity WHEN 'light' THEN 0.85 WHEN 'intense' THEN 1.15 ELSE 1.0 END))))
-    WHERE mets IS NOT NULL AND mets > 0 AND calories_burned IS NOT NULL` },
+    WHERE mets IS NOT NULL AND mets > 1 AND calories_burned IS NOT NULL` },
+  // Custom exercises get a default burn (net kcal/min at moderate intensity)
+  // instead of the 1.0 MET placeholder, which made them burn nothing.
+  { v: 55, sql: "ALTER TABLE exercise_database ADD COLUMN kcal_per_min REAL" },
+  // …taken from the last time the user typed in its calories
+  { v: 56, sql: `UPDATE exercise_database SET kcal_per_min = (
+      SELECT el.calories_burned * 1.0 / el.duration_min FROM exercise_log el
+      WHERE el.exercise_name = exercise_database.name AND el.mets IS NULL AND el.duration_min > 0
+      ORDER BY el.id DESC LIMIT 1)
+    WHERE source_type = 'user' AND kcal_per_min IS NULL` },
+  // Logs made by picking a custom exercise used the placeholder MET; recount them
+  // from its default burn, and mark them as the user's own figure (mets NULL).
+  { v: 57, sql: `UPDATE exercise_log SET calories_burned = ROUND(
+      (SELECT ed.kcal_per_min FROM exercise_database ed WHERE ed.exercise_id = exercise_log.exercise_id)
+      * duration_min * CASE intensity WHEN 'light' THEN 0.85 WHEN 'intense' THEN 1.15 ELSE 1.0 END),
+      mets = NULL
+    WHERE mets IS NOT NULL AND mets <= 1 AND exercise_id IN (
+      SELECT exercise_id FROM exercise_database WHERE source_type = 'user' AND kcal_per_min IS NOT NULL)` },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

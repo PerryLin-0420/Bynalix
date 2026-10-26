@@ -15,6 +15,14 @@ const INTENSITY_FACTOR: Record<Intensity, number> = {
 };
 
 /**
+ * A custom exercise's burn from its own default rate (net kcal per minute at
+ * moderate intensity), scaled by duration and intensity like the MET models.
+ */
+export function customExerciseKcal(kcalPerMin: number, durationMin: number, intensity: Intensity = 'moderate'): number {
+  return Math.max(0, kcalPerMin) * durationMin * INTENSITY_FACTOR[intensity];
+}
+
+/**
  * Basic model: uses total body weight.
  * @param mets  Metabolic Equivalent of Task
  * @param weightKg  body weight in kg
