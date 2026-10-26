@@ -19,7 +19,7 @@ export interface UserProfile {
   weight_kg:      number;
   age:            number;
   sex:            Sex;
-  activity_level: string;   // free-form; ActivityLevel lists the canonical values
+  lifestyle:      string | null;   // Lifestyle key; null = not chosen yet (treated as sedentary)
   body_fat_pct:   number | null;
 }
 

@@ -1,5 +1,13 @@
 export type Intensity = 'light' | 'moderate' | 'intense';
 
+/**
+ * Burn is NET of rest: the 1 MET a body spends anyway is already in BMR (and so
+ * in TDEE), and the day balance subtracts TDEE and exercise both, so counting
+ * gross METs would charge the exercise time's resting cost twice.
+ */
+const REST_MET = 1;
+const netMet = (mets: number) => Math.max(0, mets - REST_MET);
+
 const INTENSITY_FACTOR: Record<Intensity, number> = {
   light:    0.85,
   moderate: 1.00,
@@ -7,12 +15,20 @@ const INTENSITY_FACTOR: Record<Intensity, number> = {
 };
 
 /**
+ * A custom exercise's burn from its own default rate (net kcal per minute at
+ * moderate intensity), scaled by duration and intensity like the MET models.
+ */
+export function customExerciseKcal(kcalPerMin: number, durationMin: number, intensity: Intensity = 'moderate'): number {
+  return Math.max(0, kcalPerMin) * durationMin * INTENSITY_FACTOR[intensity];
+}
+
+/**
  * Basic model: uses total body weight.
  * @param mets  Metabolic Equivalent of Task
  * @param weightKg  body weight in kg
  * @param durationMin  exercise duration in minutes
  * @param intensity  light / moderate / intense
- * @returns kcal burned
+ * @returns net kcal burned (above rest)
  */
 export function exerciseKcalBasic(
   mets: number,
@@ -20,7 +36,7 @@ export function exerciseKcalBasic(
   durationMin: number,
   intensity: Intensity = 'moderate',
 ): number {
-  return mets * weightKg * (durationMin / 60) * INTENSITY_FACTOR[intensity];
+  return netMet(mets * INTENSITY_FACTOR[intensity]) * weightKg * (durationMin / 60);
 }
 
 /**
@@ -33,7 +49,7 @@ export function exerciseKcalLbm(
   durationMin: number,
   intensity: Intensity = 'moderate',
 ): number {
-  return mets * lbmKg * (durationMin / 60) * INTENSITY_FACTOR[intensity];
+  return netMet(mets * INTENSITY_FACTOR[intensity]) * lbmKg * (durationMin / 60);
 }
 
 // ── Cardio (running / swimming / cycling) ────────────────────────────────────
@@ -70,8 +86,8 @@ export function cardioMets(type: CardioType, speedKmh: number): number {
 }
 
 /**
- * kcal for one cardio interval. Speed is derived from distance & duration,
- * then METS × weight × hours. Uses total body weight (consistent across the
+ * Net kcal for one cardio interval. Speed is derived from distance & duration,
+ * then (METS − 1) × weight × hours. Uses total body weight (consistent across the
  * activity page, history, and statistics).
  */
 export function cardioIntervalKcal(
@@ -82,7 +98,7 @@ export function cardioIntervalKcal(
 ): number {
   if (durationMin <= 0 || distanceKm <= 0 || weightKg <= 0) return 0;
   const speed = distanceKm / (durationMin / 60);
-  return cardioMets(type, speed) * weightKg * (durationMin / 60);
+  return netMet(cardioMets(type, speed)) * weightKg * (durationMin / 60);
 }
 
 /** kcal for a whole cardio session = sum of its intervals. */
@@ -107,10 +123,10 @@ function workMet(liftKg: number, bodyKg: number): number {
 }
 
 /**
- * Calorie estimate for a strength session using per-set data.
+ * Net calorie estimate for a strength session using per-set data.
  *
- * Work phase : MET(lift/body ratio) × bodyKg × (reps × 3 sec / 3600)
- * Rest phase  : 2.0 MET × bodyKg × (rest_sec / 3600)  — only between sets
+ * Work phase : (MET(lift/body ratio) − 1) × bodyKg × (reps × 3 sec / 3600)
+ * Rest phase  : (2.0 − 1) MET × bodyKg × (rest_sec / 3600)  — only between sets
  */
 export function strengthEstKcal(
   sets: { weight_kg: number; reps: number; rest_sec?: number | null }[],
@@ -120,9 +136,9 @@ export function strengthEstKcal(
   const SEC_PER_REP = 3;
   let kcal = 0;
   for (const s of sets) {
-    kcal += workMet(s.weight_kg, bodyWeightKg) * bodyWeightKg * (s.reps * SEC_PER_REP / 3600);
+    kcal += netMet(workMet(s.weight_kg, bodyWeightKg)) * bodyWeightKg * (s.reps * SEC_PER_REP / 3600);
     if (s.rest_sec) {
-      kcal += MET_REST * bodyWeightKg * (s.rest_sec / 3600);
+      kcal += netMet(MET_REST) * bodyWeightKg * (s.rest_sec / 3600);
     }
   }
   return Math.round(kcal);

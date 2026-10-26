@@ -3,10 +3,10 @@ import { useSwipeTabs } from "@/hooks/useSwipe";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { calculateNutritionTargets, weeklyWeightChange, type Mode } from "@/lib/calculations/strategy";
-import { bmr, bmrKM, tdeeBasic, neat } from "@/lib/calculations/metabolism";
+import { bmr, bmrKM, tdeeBasic, neat, LIFESTYLES, LIFESTYLE_FACTORS } from "@/lib/calculations/metabolism";
 import { checkBound, BOUNDS } from "@/lib/validate";
 import { clsx } from "clsx";
-import { Save, ChevronRight, Zap, TrendingDown, TrendingUp, Minus, FlaskConical, Target } from "lucide-react";
+import { Save, Zap, TrendingDown, TrendingUp, Minus, FlaskConical, Target } from "lucide-react";
 import { StickyHeader } from "@/components/layout/StickyHeader";
 import { PillButton } from "@/components/common/PillButton";
 
@@ -17,13 +17,10 @@ export function Profile() {
   const { profile, modeSettings, latestWeightLog, loadUser, saveProfile, saveMode, lbmKg } = useUserStore();
   const { t, lang } = useLangStore();
 
-  const ACTIVITY_LEVELS = [
-    { value: "sedentary",         label: t("profile.activity.sedentary") },
-    { value: "lightly_active",    label: t("profile.activity.light") },
-    { value: "moderately_active", label: t("profile.activity.moderate") },
-    { value: "very_active",       label: t("profile.activity.active") },
-    { value: "extra_active",      label: t("profile.activity.extra") },
-  ];
+  const LIFESTYLE_OPTIONS = LIFESTYLES.map(value => ({
+    value, factor: LIFESTYLE_FACTORS[value],
+    label: t(`profile.lifestyle.${value}`), hint: t(`profile.lifestyle.${value}.hint`),
+  }));
 
   const [tab, setTab] = useState<"profile" | "mode">("profile");
   const [saving, setSaving] = useState(false);
@@ -37,7 +34,7 @@ export function Profile() {
   const [form, setForm] = useState({
     name: "", height_cm: "", weight_kg: "", age: "",
     sex: "male" as "male" | "female",
-    activity_level: "moderately_active",
+    lifestyle: "sedentary" as string,
     body_fat_pct: "",
   });
   // Mode form state — two-tier
@@ -73,7 +70,7 @@ export function Profile() {
         weight_kg: String(profile.weight_kg),
         age: String(profile.age),
         sex: profile.sex,
-        activity_level: profile.activity_level,
+        lifestyle: profile.lifestyle ?? "sedentary",
         body_fat_pct: profile.body_fat_pct != null ? String(profile.body_fat_pct) : "",
       });
     }
@@ -142,7 +139,7 @@ export function Profile() {
       const bmrVal  = previewLbm != null
         ? bmrKM(previewLbm)
         : bmr(wRounded, h, a, form.sex);
-      const neatVal = neat(bmrVal, form.activity_level as any);
+      const neatVal = neat(bmrVal, form.lifestyle);
       const tdee    = Math.round(tdeeBasic(bmrVal, neatVal));
       const targetCal = goalCategory === "custom"
         ? (customCalFromMacros ?? undefined)
@@ -187,7 +184,7 @@ export function Profile() {
         weight_kg: w,
         age: a,
         sex: form.sex,
-        activity_level: form.activity_level,
+        lifestyle: form.lifestyle,
         body_fat_pct: form.body_fat_pct ? parseFloat(form.body_fat_pct) : null,
       });
       setSaved(true);
@@ -348,18 +345,25 @@ export function Profile() {
             </div>
           </div>
 
-          {/* Activity level */}
+          {/* Lifestyle — daily activity only; exercise is logged and counted separately */}
           <div className="card">
-            <p className="text-sm font-medium text-[var(--text-on-surface)] mb-3">{t("profile.activity")}</p>
+            <p className="text-sm font-medium text-[var(--text-on-surface)]">{t("profile.lifestyle")}</p>
+            <p className="text-xs text-[var(--text-on-surface-muted)] mt-0.5 mb-3">{t("profile.lifestyle.note")}</p>
+            {profile && !profile.lifestyle && (
+              <p className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2 mb-3">{t("profile.lifestyle.unset")}</p>
+            )}
             <div className="space-y-tight">
-              {ACTIVITY_LEVELS.map(({ value, label }) => (
-                <button key={value} onClick={() => setForm(f => ({ ...f, activity_level: value }))}
-                  className={clsx("w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all",
-                    form.activity_level === value
+              {LIFESTYLE_OPTIONS.map(({ value, label, hint, factor }) => (
+                <button key={value} onClick={() => setForm(f => ({ ...f, lifestyle: value }))}
+                  className={clsx("w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-sm text-left transition-all",
+                    form.lifestyle === value
                       ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)]"
                       : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--text-on-surface-muted)]")}>
-                  <span>{label}</span>
-                  {form.activity_level === value && <ChevronRight size={16} />}
+                  <span className="min-w-0">
+                    <span className="block font-medium">{label}</span>
+                    <span className={clsx("block text-xs mt-0.5", form.lifestyle === value ? "text-white/80" : "text-[var(--text-on-surface-muted)]")}>{hint}</span>
+                  </span>
+                  <span className="shrink-0 text-xs font-mono tabular-nums opacity-80">×{factor.toFixed(2)}</span>
                 </button>
               ))}
             </div>

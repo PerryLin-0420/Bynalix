@@ -35,7 +35,7 @@ but deeper personal understanding through self-owned data.
 
 ### Goals
 - Eight modes — three cut rates, three bulk rates, maintenance, and fully custom
-- Calorie and macronutrient targets derived from BMR, NEAT and TDEE (Mifflin-St Jeor, or Katch-McArdle once body fat is known). Lean body mass is stored from a measured body-fat reading rather than drifting with day-to-day weight
+- Calorie and macronutrient targets derived from BMR and a lifestyle factor (Mifflin-St Jeor, or Katch-McArdle once body fat is known) — daily life only; logged exercise never adds to what you can eat and is settled separately in the day balance (eaten − TDEE − exercise). Lean body mass is stored from a measured body-fat reading rather than drifting with day-to-day weight
 - Custom mode adds a free-form goal metric — any strength, cardio, body, diet or burn measure — with up to five variables scored against it
 
 ### Analysis
@@ -63,7 +63,16 @@ but deeper personal understanding through self-owned data.
 
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
-**Latest — v1.8.0**
+**Latest — v1.8.1**
+- Choosing 飲料 opens on "None" (drinks without a brand); chains are one tap away in the brand row
+- Saved favourite meals can be renamed, edited (items, amounts, a drink's cup / sugar / toppings) or deleted
+- Sleep records show the date of falling asleep and waking; falling asleep can be the day before or the same day (within the 24 h before waking)
+- Activity level is now a lifestyle (sedentary / lightly / moderately active / physical labour); exercise is counted separately, only in the day balance
+- Changing lifestyle or goal mode only affects days from then on; each past day keeps the target from its own settings and weight
+- Exercise burn is net of rest (MET − 1); History adds a day-balance chart with the period total
+- Custom exercises keep a default burn (kcal / hour), scaled by duration and intensity when logged
+
+**v1.8.0**
 - Drink-shop drinks with cup size, proportional sugar level and toppings (14 built in, add your own, any number of servings)
 - First list of 132 drinks from 15 Taiwanese chains, stored as base + usual toppings so toppings never double count
 - Each chain's real cup sizes, and a brand row under the 飲料 filter

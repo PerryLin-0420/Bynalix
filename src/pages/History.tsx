@@ -14,8 +14,7 @@ import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
-import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDates } from "@/lib/db/queries/stats";
-import { calculateNutritionTargets } from "@/lib/calculations/strategy";
+import { getWeightHistory, getCalorieHistory, getMealCountHistory, getActiveDates, getDailyStatsRecords } from "@/lib/db/queries/stats";
 import { strengthEstKcalSimple } from "@/lib/calculations/exercise";
 import { NoProfile } from "@/components/common/NoProfile";
 import { ChartExportButton } from "@/components/common/ChartExportButton";
@@ -26,7 +25,7 @@ import { CardHeader } from "@/components/common/CardHeader";
 import { withTrend, slopePerWeek, fmtSlope } from "@/lib/statistics/trend";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
-import { computeTdee } from "@/lib/calculations/metabolism";
+import { getDailyTargets, settingsSnapshot, targetsFor } from "@/lib/dailyTargets";
 import { MACRO_COLORS, BODY_PART_COLORS, BODY_PARTS, BODY_PART_EN, CARDIO_LABEL, CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE, CARDIO_OTHER_EXCL, type BodyPart } from "@/constants";
 import type { WeightChartPoint, CalorieChartPoint } from "@/types";
 import { useSwipeTabs } from "@/hooks/useSwipe";
@@ -232,6 +231,8 @@ export function History() {
   const [calData, setCalData]       = useState<CalorieChartPoint[]>([]);
   const [mealCountData, setMealCountData] = useState<MealCountPoint[]>([]);
   const [waterData, setWaterData]   = useState<{ date: string; ml: number }[]>([]);
+  /** Day balance = eaten − that day's TDEE − exercise; null on days nothing was eaten-logged. */
+  const [balanceData, setBalanceData] = useState<{ date: string; balance: number | null; eaten: number; tdee: number; exercise: number }[]>([]);
   const [showTrend, setShowTrend]   = useState(true);
   const [loading, setLoading]       = useState(false);
 
@@ -269,21 +270,10 @@ export function History() {
   const waterTrend2  = useMemo(() => withTrend(waterData,  r => (r.ml || null)), [waterData]);
   const sleepTrend2  = useMemo(() => withTrend(sleepPoints, r => r.hours ?? null), [sleepPoints]);
 
-  const targets = (() => {
-    if (!profile || !modeSettings) return null;
-    try {
-      const w = Math.round(profile.weight_kg);
-      return calculateNutritionTargets({
-        weightKg: w, lbmKg, mode: modeSettings.mode,
-        tdee: computeTdee(profile, lbmKg),
-        targetCalories: modeSettings.custom_calories ?? undefined,
-        customRatio: modeSettings.mode === "custom" && modeSettings.custom_protein_g
-          ? { protein: modeSettings.custom_protein_g, carb: modeSettings.custom_carb_g ?? 1, fat: modeSettings.custom_fat_g ?? 1 }
-          : undefined,
-        fatKcalRatio: modeSettings.mode !== "custom" ? (modeSettings.fat_kcal_ratio ?? 0.30) : undefined,
-      });
-    } catch { return null; }
-  })();
+  // Current targets, for the header label; each charted day uses its own (getDailyTargets)
+  const targets = profile && modeSettings
+    ? targetsFor(settingsSnapshot(profile, modeSettings, lbmKg), profile.weight_kg).targets
+    : null;
 
   // Compute from/to from current selection
 
@@ -324,6 +314,8 @@ export function History() {
     setLoading(true);
     try {
       const { from, to } = getFromTo();
+      const daily = await getDailyTargets(profile.user_id, from, to);
+      const targetOn = (d: string, fallback: number) => Math.round(daily.get(d)?.targets?.total_kcal ?? fallback);
       const rangeDays = Math.max(
         Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000) + 1,
         1
@@ -362,7 +354,7 @@ export function History() {
         setCalData(dateArr.map(d => ({
           date:     d,
           calories: cMap.get(d)?.calories ?? 0,
-          target:   targets?.total_kcal ?? 2000,
+          target:   targetOn(d, targets?.total_kcal ?? 2000),
           protein:  cMap.get(d)?.protein  ?? 0,
           carb:     cMap.get(d)?.carb     ?? 0,
           fat:      cMap.get(d)?.fat      ?? 0,
@@ -382,7 +374,7 @@ export function History() {
           getMealCountHistory(profile.user_id, rangeDays),
         ]);
         setWeightData(w);
-        setCalData(c);
+        setCalData(c.map(r => ({ ...r, target: targetOn(r.date, r.target) })));
         setMealCountData(m);
       }
 
@@ -400,6 +392,17 @@ export function History() {
         wDates.push(format(c, "yyyy-MM-dd"));
       }
       setWaterData(wDates.map(d => ({ date: d, ml: wlMap.get(d) ?? 0 })));
+
+      // Day balance — the only place exercise meets intake. Each day uses its
+      // own TDEE (settings and weight in force then); a day without meals logged
+      // has no balance rather than a huge fake deficit.
+      const recs = await getDailyStatsRecords(profile.user_id, 0, from, to);
+      setBalanceData(recs.map(r => {
+        const tdee = daily.get(r.date)?.tdee ?? 0;
+        const eaten = r.calories ?? 0, exercise = r.exercise_kcal ?? 0;
+        return { date: r.date, eaten, tdee, exercise,
+          balance: eaten > 0 && tdee > 0 ? Math.round(eaten - tdee - exercise) : null };
+      }));
     } catch (e) { logError("History", e); }
     setLoading(false);
   };
@@ -859,7 +862,9 @@ export function History() {
                       return [`${Math.round(v)} kcal`, labels[name] ?? name];
                     }}
                     contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
-                  {targets && <ReferenceLine y={Math.round(targets.total_kcal)} stroke="#10b981" strokeDasharray="4 4" />}
+                  {/* Each day's own target — steps where lifestyle, mode or weight changed */}
+                  {targets && <Line type="stepAfter" dataKey="target" stroke="#10b981" strokeWidth={1.5}
+                    strokeDasharray="4 4" dot={false} activeDot={false} isAnimationActive={false} />}
                   <Line type="monotone" dataKey="calories" stroke="#111827"
                     strokeWidth={2} dot={days <= 14} connectNulls activeDot={{ r: 4, fill: "#111827" }} />
                   {showTrend && <Line type="linear" dataKey="trend" stroke="#f97316" strokeWidth={2} strokeDasharray="7 4" dot={false} connectNulls isAnimationActive={false} />}
@@ -877,6 +882,56 @@ export function History() {
             )}
             <ChartExportButton slug="calories" />
           </div>
+
+          {/* Day balance: eaten − TDEE − exercise, per logged day */}
+          {(() => {
+            const logged = balanceData.filter(d => d.balance != null);
+            const total  = logged.reduce((s, d) => s + d.balance!, 0);
+            const zh = lang === "zh";
+            return (
+              <div className="card">
+                <CardHeader title={zh ? "每日收支" : "Day balance"}
+                  action={logged.length ? (
+                    <span className="text-xs text-[var(--text-on-surface-muted)] tabular-nums">
+                      {zh ? "累計 " : "Total "}{total > 0 ? "+" : ""}{Math.round(total).toLocaleString("en-US")} kcal
+                      {" ≈ "}{total > 0 ? "+" : ""}{(total / 7700).toFixed(2)} kg
+                    </span>
+                  ) : undefined} />
+                {logged.length < 1 ? (
+                  <EmptyState icon={Flame} message={t("history.noFood")} />
+                ) : (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={balanceData} margin={{ top: 4, right: 8, bottom: 0, left: -10 }}>
+                      <CartesianGrid {...GRID_STROKE} />
+                      <XAxis dataKey="date" tickFormatter={fmt} interval={tickInterval} {...AXIS_COMMON} />
+                      <YAxis {...AXIS_COMMON} />
+                      <ReferenceLine y={0} stroke="var(--text-on-surface-muted)" />
+                      <Tooltip
+                        labelFormatter={v => format(parseISO(v as string), "M/d")}
+                        formatter={(v: number, _n: string, item: any) => {
+                          const d = item?.payload;
+                          return [`${v > 0 ? "+" : ""}${Math.round(v)} kcal` + (d
+                            ? (zh ? `（攝取 ${Math.round(d.eaten)} − TDEE ${Math.round(d.tdee)} − 運動 ${Math.round(d.exercise)}）`
+                                  : ` (eaten ${Math.round(d.eaten)} − TDEE ${Math.round(d.tdee)} − exercise ${Math.round(d.exercise)})`)
+                            : ""), zh ? "收支" : "Balance"];
+                        }}
+                        contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }} />
+                      <Bar dataKey="balance" radius={[3, 3, 3, 3]}>
+                        {balanceData.map(d => (
+                          <Cell key={d.date} fill={(d.balance ?? 0) < 0 ? "#0ea5e9" : "#f97316"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+                <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
+                  {zh ? "攝取 − 當日 TDEE − 運動（淨消耗）；藍色為熱量赤字，橘色為盈餘，未記錄飲食的日子不計"
+                      : "Eaten − that day's TDEE − exercise (net burn); blue is a deficit, orange a surplus; days without meals logged are skipped"}
+                </p>
+                <ChartExportButton slug="day-balance" />
+              </div>
+            );
+          })()}
 
             <div className="card">
               <CardHeader title={lang === "zh" ? "每日餐次" : "Meals per Day"}

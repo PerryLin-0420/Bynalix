@@ -1,6 +1,6 @@
 import Database from "@tauri-apps/plugin-sql";
 import { seedBuiltins } from "./seed";
-import { cardioSessionKcal, type CardioType } from "@/lib/calculations/exercise";
+import { cardioMets, cardioSessionKcal, type CardioType } from "@/lib/calculations/exercise";
 
 let _initPromise: Promise<Database> | null = null;
 
@@ -33,6 +33,9 @@ export function getDb(): Promise<Database> {
           `UPDATE strength_session SET name_en = (SELECT ed.name_en FROM exercise_database ed WHERE ed.name = strength_session.exercise_name AND ed.name_en IS NOT NULL LIMIT 1) WHERE name_en IS NULL OR name_en = ''`
         );
       } catch { /* safe to ignore */ }
+
+      // Before the backfill, so rows it fills (already net) aren't converted again
+      try { await convertCardioKcalToNet(db); } catch (e) { console.error("[DB] cardio kcal net:", e); }
 
       // Backfill cardio calories for running_session rows that have none yet
       // (older data, or rows imported from a pre-v33 backup). Uses the real
@@ -391,6 +394,40 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   { v: 50, sql: "ALTER TABLE food_database ADD COLUMN brand TEXT" },
   // Per-drink cup volumes ({"M":ml,"L":ml,"XL":ml}); null = the default 500 / 700 / 1000
   { v: 51, sql: "ALTER TABLE food_database ADD COLUMN cup_sizes TEXT" },
+  // Daily-life activity (work, commute), apart from exercise. Replaces activity_level,
+  // which was inferred from exercise frequency and so counted exercise twice.
+  { v: 52, sql: "ALTER TABLE user_profile ADD COLUMN lifestyle TEXT" },
+  // Settings that decide a day's targets, one row per day they changed (lib/dailyTargets)
+  { v: 53, sql: `CREATE TABLE IF NOT EXISTS profile_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    effective_date TEXT NOT NULL,
+    settings TEXT NOT NULL,
+    UNIQUE(user_id, effective_date)
+  )` },
+  // Exercise burn is now net of the resting 1 MET (lib/calculations/exercise).
+  // Stored MET-based rows were gross: gross × (1 − 1 / (MET × intensity factor)).
+  // Rows without a MET are the user's own figure and are left alone.
+  { v: 54, sql: `UPDATE exercise_log SET calories_burned = ROUND(MAX(0, calories_burned * (1 - 1.0 /
+      (mets * CASE intensity WHEN 'light' THEN 0.85 WHEN 'intense' THEN 1.15 ELSE 1.0 END))))
+    WHERE mets IS NOT NULL AND mets > 1 AND calories_burned IS NOT NULL` },
+  // Custom exercises get a default burn (net kcal/min at moderate intensity)
+  // instead of the 1.0 MET placeholder, which made them burn nothing.
+  { v: 55, sql: "ALTER TABLE exercise_database ADD COLUMN kcal_per_min REAL" },
+  // …taken from the last time the user typed in its calories
+  { v: 56, sql: `UPDATE exercise_database SET kcal_per_min = (
+      SELECT el.calories_burned * 1.0 / el.duration_min FROM exercise_log el
+      WHERE el.exercise_name = exercise_database.name AND el.mets IS NULL AND el.duration_min > 0
+      ORDER BY el.id DESC LIMIT 1)
+    WHERE source_type = 'user' AND kcal_per_min IS NULL` },
+  // Logs made by picking a custom exercise used the placeholder MET; recount them
+  // from its default burn, and mark them as the user's own figure (mets NULL).
+  { v: 57, sql: `UPDATE exercise_log SET calories_burned = ROUND(
+      (SELECT ed.kcal_per_min FROM exercise_database ed WHERE ed.exercise_id = exercise_log.exercise_id)
+      * duration_min * CASE intensity WHEN 'light' THEN 0.85 WHEN 'intense' THEN 1.15 ELSE 1.0 END),
+      mets = NULL
+    WHERE mets IS NOT NULL AND mets <= 1 AND exercise_id IN (
+      SELECT exercise_id FROM exercise_database WHERE source_type = 'user' AND kcal_per_min IS NOT NULL)` },
 ];
 
 // Compute & store calories for running_session rows missing them, using the
@@ -411,6 +448,35 @@ async function backfillCardioKcal(db: Database) {
     const kcal = cardioSessionKcal(s.cardio_type as CardioType, ivs, wt);
     await db.execute("UPDATE running_session SET calories_burned=? WHERE id=?", [kcal, s.id]);
   }
+}
+
+/**
+ * One-time: stored running_session calories were gross METs. Recover the body
+ * weight each was computed with (gross / Σ MET·h) and drop its resting 1 MET
+ * per hour, so old sessions keep the weight they were logged at.
+ */
+async function convertCardioKcalToNet(db: Database) {
+  const [done] = await db.select<{ value: string }[]>(
+    "SELECT value FROM app_settings WHERE key='cardio_kcal_net'");
+  if (done) return;
+  const sessions = await db.select<{ id: number; cardio_type: string; calories_burned: number }[]>(
+    "SELECT id, COALESCE(cardio_type,'running') as cardio_type, calories_burned FROM running_session WHERE calories_burned > 0");
+  for (const s of sessions) {
+    const ivs = await db.select<{ distance_km: number; duration_min: number }[]>(
+      "SELECT distance_km, duration_min FROM running_interval WHERE session_id=?", [s.id]);
+    let metHours = 0, hours = 0;
+    for (const iv of ivs) {
+      if (iv.duration_min <= 0 || iv.distance_km <= 0) continue;
+      const h = iv.duration_min / 60;
+      metHours += cardioMets(s.cardio_type as CardioType, iv.distance_km / h) * h;
+      hours += h;
+    }
+    if (metHours <= 0) continue;
+    const weightKg = s.calories_burned / metHours;
+    await db.execute("UPDATE running_session SET calories_burned=? WHERE id=?",
+      [Math.max(0, Math.round(s.calories_burned - weightKg * hours)), s.id]);
+  }
+  await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('cardio_kcal_net', '1')");
 }
 
 async function runMigrations(db: Database) {

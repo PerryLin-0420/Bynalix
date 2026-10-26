@@ -13,7 +13,7 @@ import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
 import { NoProfile } from "@/components/common/NoProfile";
 import { DateNavHeader } from "@/components/layout/DateNavHeader";
-import { exerciseKcalBasic, exerciseKcalLbm, cardioSessionKcal, strengthEstKcal, pushupRatio, pushupLoadKg, type Intensity, type CardioType as CardioKind } from "@/lib/calculations/exercise";
+import { customExerciseKcal, exerciseKcalBasic, exerciseKcalLbm, cardioSessionKcal, strengthEstKcal, pushupRatio, pushupLoadKg, type Intensity, type CardioType as CardioKind } from "@/lib/calculations/exercise";
 import { BODY_PART_COLORS, BODY_PARTS, CARDIO_EMOJI, CARDIO_LABEL, type BodyPart } from "@/constants";
 import { leanBodyMass } from "@/lib/calculations/metabolism";
 import { ExerciseHistoryDrawer } from "@/components/exercise/ExerciseHistoryDrawer";
@@ -27,6 +27,8 @@ type Tab = "cardio" | "running" | "strength" | "other" | "water";
 interface ExerciseDB {
   exercise_id: number; name: string; name_en: string | null; category: string;
   default_mets: number; source_type: string; body_part: string | null;
+  /** Custom exercises: default net kcal per minute at moderate intensity. */
+  kcal_per_min: number | null;
 }
 interface ExerciseEntry {
   id: number; exercise_name: string; name_en: string | null; category: string | null;
@@ -194,6 +196,12 @@ export function ExerciseLog() {
   const [showExForm, setShowExForm]   = useState(false);
   const [exSearch, setExSearch]       = useState("");
   const [selEx, setSelEx]             = useState<ExerciseDB | null>(null);
+  // A custom exercise's default burn, as kcal per hour in the form
+  const [exRate, setExRate]           = useState("");
+  useEffect(() => {
+    setExRate(selEx?.kcal_per_min != null ? String(Math.round(selEx.kcal_per_min * 60)) : "");
+  }, [selEx]);
+  const isCustomEx = (ex: ExerciseDB | null) => ex?.source_type === "user" && ex.category !== "重訓";
   const [exDuration, setExDuration]   = useState("30");
   const [exIntensity, setExIntensity] = useState<Intensity>("moderate");
   const [totalExKcal, setTotalExKcal] = useState(0);
@@ -342,6 +350,7 @@ export function ExerciseLog() {
   const calcKcal = (): number => {
     if (!selEx || !profile) return 0;
     const dur  = parseFloat(exDuration) || 0;
+    if (isCustomEx(selEx)) return Math.round(customExerciseKcal((parseFloat(exRate) || 0) / 60, dur, exIntensity));
     const mets = selEx.default_mets;
     if (profile.body_fat_pct) {
       const lbm = leanBodyMass(profile.weight_kg, profile.body_fat_pct / 100);
@@ -355,13 +364,24 @@ export function ExerciseLog() {
     setCardioErr(null);
     const err = checkBound(exDuration, BOUNDS.exDuration, lang, true);
     if (err) { setCardioErr(err); return; }
+    const custom = isCustomEx(selEx);
+    const rate = (parseFloat(exRate) || 0) / 60;
+    if (custom && rate <= 0) {
+      setCardioErr(lang === "zh" ? "請填入預設消耗" : "Enter a default burn");
+      return;
+    }
     try {
       const db = await getDb();
+      // Editing the rate here updates the exercise's default for next time
+      if (custom && rate !== selEx.kcal_per_min) {
+        await db.execute("UPDATE exercise_database SET kcal_per_min=? WHERE exercise_id=?", [rate, selEx.exercise_id]);
+        loadExerciseDb();
+      }
       await db.execute(
         `INSERT INTO exercise_log (user_id, exercise_id, exercise_name, name_en, category, duration_min, intensity, mets, calories_burned, log_date)
          VALUES (?,?,?,?,?,?,?,?,?,?)`,
         [profile.user_id, selEx.exercise_id, selEx.name, selEx.name_en ?? null, selEx.category,
-         parseInt(exDuration), exIntensity, selEx.default_mets, calcKcal(), selectedDate]);
+         parseInt(exDuration), exIntensity, custom ? null : selEx.default_mets, calcKcal(), selectedDate]);
       setShowExForm(false); setSelEx(null); setExDuration("30"); setExSearch(""); setExFormMode("cardio");
       loadAll();
     } catch (e) {
@@ -398,9 +418,13 @@ export function ExerciseLog() {
       const nameEn = customExNameEn.trim() || null;
       // Persist custom cardio exercise to DB for future use
       const exCat = exFormMode === "other" ? "其他" : "有氧";
+      // This session's calories become the exercise's default burn for next time
+      const dur = parseInt(customExDuration) || 30;
       await db.execute(
         "INSERT OR IGNORE INTO exercise_database (name, name_en, category, default_mets, source_type) VALUES (?,?,?,?,?)",
         [name, nameEn, exCat, 1.0, "user"]);
+      await db.execute(
+        "UPDATE exercise_database SET kcal_per_min=? WHERE name=? AND source_type='user'", [kcal / dur, name]);
       // If name_en was provided and the exercise already existed, update name_en
       if (nameEn) {
         await db.execute(
@@ -410,8 +434,7 @@ export function ExerciseLog() {
       await db.execute(
         `INSERT INTO exercise_log (user_id, exercise_name, name_en, category, duration_min, intensity, calories_burned, log_date)
          VALUES (?,?,?,?,?,?,?,?)`,
-        [profile.user_id, name, nameEn, exCat,
-         parseInt(customExDuration) || 30, "moderate", kcal, selectedDate]);
+        [profile.user_id, name, nameEn, exCat, dur, "moderate", kcal, selectedDate]);
       setShowExForm(false); setExSearch(""); setCustomExKcal(""); setCustomExDuration("30"); setCustomExNameEn(""); setExFormMode("cardio");
       loadExerciseDb();
       loadAll();
@@ -645,10 +668,16 @@ export function ExerciseLog() {
     const dur = parseInt(editingEx.duration) || 0;
     try {
       const db = await getDb();
-      const [row] = await db.select<{ mets: number }[]>("SELECT mets FROM exercise_log WHERE id=?", [editingEx.id]);
+      const [row] = await db.select<{ mets: number | null; duration_min: number; intensity: Intensity; calories_burned: number }[]>(
+        "SELECT mets, duration_min, intensity, calories_burned FROM exercise_log WHERE id=?", [editingEx.id]);
       const mets = row?.mets ?? 5.0;
       let kcal: number;
-      if (profile.body_fat_pct) {
+      if (row && row.mets == null) {
+        // The user's own figure (custom exercise): keep its rate, rescale it
+        const perMin = row.duration_min > 0
+          ? row.calories_burned / customExerciseKcal(1, row.duration_min, row.intensity) : 0;
+        kcal = Math.round(customExerciseKcal(perMin, dur, editingEx.intensity));
+      } else if (profile.body_fat_pct) {
         const lbm = leanBodyMass(profile.weight_kg, profile.body_fat_pct / 100);
         kcal = Math.round(exerciseKcalLbm(mets, lbm, dur, editingEx.intensity));
       } else {
@@ -1512,6 +1541,9 @@ export function ExerciseLog() {
                         {!customExKcal && (
                           <p className="text-10 text-red-500 mt-1">{t("exercise.kcalWarning")}</p>
                         )}
+                        <p className="text-10 text-[var(--text-on-surface-muted)] mt-1">
+                          {lang === "zh" ? "填「活動消耗」（不含基礎代謝），例如運動手錶的活動大卡" : "Enter active calories (excluding resting), e.g. a watch's active kcal"}
+                        </p>
                       </div>
                       <button
                         onClick={saveCustomExercise}
@@ -1561,6 +1593,16 @@ export function ExerciseLog() {
                     ))}
                   </select>
                 </div>
+                {isCustomEx(selEx) && (
+                  <div>
+                    <p className="text-11 text-amber-600 font-medium mb-1">{lang === "zh" ? "預設消耗（活動大卡，中等強度）" : "Default burn (active kcal, moderate)"}</p>
+                    <div className="relative">
+                      <input className="input-base pr-20" type="number" inputMode="decimal" value={exRate}
+                        onChange={e => setExRate(e.target.value)} placeholder="0" />
+                      <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">{lang === "zh" ? "kcal / 小時" : "kcal / hour"}</span>
+                    </div>
+                  </div>
+                )}
                 {previewKcal > 0 && (
                   <p className="text-xs text-center text-[var(--text-on-surface-muted)]">{t("exercise.estBurn")} <strong>{previewKcal} kcal</strong></p>
                 )}
@@ -1848,6 +1890,9 @@ function ExRow({ ex, onSelect, onFav, isFav, isSelected, onDelete }: {
       onClick={() => onSelect(ex)}>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-[var(--text-on-surface)] truncate">{displayName}</p>
+        {ex.source_type === "user" && ex.kcal_per_min != null && (
+          <p className="text-10 text-[var(--text-on-surface-muted)]">{Math.round(ex.kcal_per_min * 60)} kcal / {lang === "zh" ? "小時" : "hour"}</p>
+        )}
       </div>
       <button onClick={e => { e.stopPropagation(); onFav(ex); }}
         className={clsx("p-1.5 transition-colors", isFav ? "text-yellow-400" : "text-yellow-400 hover:text-yellow-500")}>

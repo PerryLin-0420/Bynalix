@@ -27,9 +27,9 @@ export async function getDashboardTotals(userId: number, date: string, bodyWeigh
       "SELECT COALESCE(SUM(calories_burned),0) as total FROM running_session WHERE user_id=? AND log_date=?", [userId, date]),
     db.select<{ total: number }[]>(`
       SELECT COALESCE(ROUND(SUM(
-        (CASE WHEN st.weight_kg / ? < 0.5 THEN 3.5 WHEN st.weight_kg / ? <= 1.0 THEN 5.0 ELSE 6.5 END)
+        (CASE WHEN st.weight_kg / ? < 0.5 THEN 3.5 WHEN st.weight_kg / ? <= 1.0 THEN 5.0 ELSE 6.5 END - 1.0)
         * ? * (st.reps * 3.0 / 3600.0)
-        + COALESCE(st.rest_sec, 0) * 2.0 * ? / 3600.0
+        + COALESCE(st.rest_sec, 0) * (2.0 - 1.0) * ? / 3600.0
       ), 1), 0) as total
       FROM strength_session ss
       JOIN strength_set st ON st.session_id = ss.id

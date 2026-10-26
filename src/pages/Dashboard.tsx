@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { fmtDay } from "@/lib/dateFormat";
 import { Droplets, Moon, Scale, TrendingDown, TrendingUp, Minus, Flame, Wheat } from "lucide-react";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
-import { calculateNutritionTargets } from "@/lib/calculations/strategy";
+import { getDailyTargets, settingsSnapshot, targetsFor } from "@/lib/dailyTargets";
 import { computeTdee } from "@/lib/calculations/metabolism";
 import { getDashboardTotals, type DashboardTotals } from "@/lib/db/queries/log";
 import { getDashboardExtras, type DashboardExtras } from "@/lib/db/queries/dashboard";
@@ -47,20 +47,9 @@ export function Dashboard() {
   useEffect(() => { loadUser(); }, []);
 
   const tdee = profile ? computeTdee(profile, lbmKg) : null;
-  const targets = (() => {
-    if (!profile || !modeSettings || tdee == null) return null;
-    try {
-      const w = Math.round(profile.weight_kg);
-      return calculateNutritionTargets({
-        weightKg: w, lbmKg, mode: modeSettings.mode, tdee,
-        targetCalories: modeSettings.custom_calories ?? undefined,
-        customRatio: modeSettings.mode === "custom" && modeSettings.custom_protein_g
-          ? { protein: modeSettings.custom_protein_g, carb: modeSettings.custom_carb_g ?? 1, fat: modeSettings.custom_fat_g ?? 1 }
-          : undefined,
-        fatKcalRatio: modeSettings.mode !== "custom" ? (modeSettings.fat_kcal_ratio ?? 0.30) : undefined,
-      });
-    } catch { return null; }
-  })();
+  const targets = profile && modeSettings
+    ? targetsFor(settingsSnapshot(profile, modeSettings, lbmKg), profile.weight_kg).targets
+    : null;
 
   useEffect(() => {
     if (!profile) return;
@@ -77,17 +66,20 @@ export function Dashboard() {
   const loadExtras = async () => {
     if (!profile) return;
     try {
-      setExtras(await getDashboardExtras(
-        profile.user_id,
-        today,
-        {
-          calories: targets?.total_kcal ?? 2000,
-          protein:  targets?.protein_g  ?? 150,
-          carb:     targets?.carb_g     ?? 200,
-          fat:      targets?.fat_g      ?? 60,
-          water_ml: modeSettings?.water_goal_ml ?? 2000,
-        },
-      ));
+      // Each of the last 7 days is judged by the targets in force that day
+      const current = {
+        calories: targets?.total_kcal ?? 2000,
+        protein:  targets?.protein_g  ?? 150,
+        carb:     targets?.carb_g     ?? 200,
+        fat:      targets?.fat_g      ?? 60,
+        water_ml: modeSettings?.water_goal_ml ?? 2000,
+      };
+      const daily = await getDailyTargets(profile.user_id, format(subDays(new Date(today), 6), "yyyy-MM-dd"), today);
+      setExtras(await getDashboardExtras(profile.user_id, today, date => {
+        const d = daily.get(date);
+        if (!d?.targets) return current;
+        return { calories: d.targets.total_kcal, protein: d.targets.protein_g, carb: d.targets.carb_g, fat: d.targets.fat_g, water_ml: d.water_ml };
+      }));
     } catch (e) { logError("Dashboard.loadExtras", e); }
   };
 
@@ -210,15 +202,17 @@ export function Dashboard() {
   const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${fmtK(Math.abs(v))}`;
 
   // ── Calorie budget: target side and actual side, kept apart ─────────────────
-  // Target = TDEE adjusted by the mode's daily deficit/surplus (custom mode: the
-  // user's own number, shown as its offset from TDEE). Actual = what was eaten
-  // minus today's logged exercise burn. Remaining compares the two finals.
+  // Target = TDEE (BMR × lifestyle, no exercise) adjusted by the mode's daily
+  // deficit/surplus (custom mode: the user's own number, shown as its offset
+  // from TDEE). The gauge compares intake with that target only — exercise
+  // never earns food back. It meets intake only in the day's settlement:
+  // eaten − TDEE − exercise, the day's real energy balance.
   const calTarget   = targets?.total_kcal ?? 2000;
   const adjustment  = tdee != null ? calTarget - tdee : 0;
-  const finalKcal   = totals.calories - totals.exercise_kcal;
-  const calRemain   = calTarget - finalKcal;
+  const calRemain   = calTarget - totals.calories;
   const calOver     = calRemain < 0;
-  const calPct      = calTarget > 0 ? Math.max(0, finalKcal) / calTarget : 0;
+  const calPct      = calTarget > 0 ? Math.max(0, totals.calories) / calTarget : 0;
+  const settlement  = tdee != null ? totals.calories - tdee - totals.exercise_kcal : null;
   const isCustom    = modeSettings?.mode === "custom";
   const adjLabel    = isCustom
     ? (zh ? "自訂調整" : "Custom adj.")
@@ -325,11 +319,16 @@ export function Dashboard() {
         <div className="rounded-xl bg-[var(--surface-container-low)] px-3 py-2.5">
           <p className="text-10 font-semibold uppercase tracking-wide text-sky-600 mb-1.5">{zh ? "實際" : "Actual"}</p>
           <BudgetRow label={zh ? "攝取" : "Eaten"} value={fmtK(totals.calories)} />
+          <BudgetRow label="TDEE" value={tdee != null ? signed(-tdee) : "—"} />
           <BudgetRow label={zh ? "運動消耗" : "Exercise"} value={signed(-totals.exercise_kcal)}
             tone={totals.exercise_kcal > 0 ? "text-orange-500" : undefined} />
-          <BudgetRow total label={zh ? "最終熱量" : "Final"} value={fmtK(finalKcal)} />
+          <BudgetRow total label={zh ? "當日收支" : "Day balance"} value={settlement != null ? signed(settlement) : "—"} />
         </div>
       </div>
+      <p className="mt-2 text-10 text-[var(--text-on-surface-muted)]">
+        {zh ? "運動不加回可吃熱量，只在當日收支結算：攝取 − TDEE − 運動，負值為熱量赤字"
+            : "Exercise doesn't add to what you can eat; it only counts in the day balance: eaten − TDEE − exercise (negative = deficit)"}
+      </p>
 
     </div>
   );
