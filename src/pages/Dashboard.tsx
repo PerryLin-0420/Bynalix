@@ -210,15 +210,17 @@ export function Dashboard() {
   const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${fmtK(Math.abs(v))}`;
 
   // ── Calorie budget: target side and actual side, kept apart ─────────────────
-  // Target = TDEE adjusted by the mode's daily deficit/surplus (custom mode: the
-  // user's own number, shown as its offset from TDEE). Actual = what was eaten
-  // minus today's logged exercise burn. Remaining compares the two finals.
+  // Target = TDEE (BMR × lifestyle, no exercise) adjusted by the mode's daily
+  // deficit/surplus (custom mode: the user's own number, shown as its offset
+  // from TDEE). The gauge compares intake with that target only — exercise
+  // never earns food back. It meets intake only in the day's settlement:
+  // eaten − TDEE − exercise, the day's real energy balance.
   const calTarget   = targets?.total_kcal ?? 2000;
   const adjustment  = tdee != null ? calTarget - tdee : 0;
-  const finalKcal   = totals.calories - totals.exercise_kcal;
-  const calRemain   = calTarget - finalKcal;
+  const calRemain   = calTarget - totals.calories;
   const calOver     = calRemain < 0;
-  const calPct      = calTarget > 0 ? Math.max(0, finalKcal) / calTarget : 0;
+  const calPct      = calTarget > 0 ? Math.max(0, totals.calories) / calTarget : 0;
+  const settlement  = tdee != null ? totals.calories - tdee - totals.exercise_kcal : null;
   const isCustom    = modeSettings?.mode === "custom";
   const adjLabel    = isCustom
     ? (zh ? "自訂調整" : "Custom adj.")
@@ -325,11 +327,16 @@ export function Dashboard() {
         <div className="rounded-xl bg-[var(--surface-container-low)] px-3 py-2.5">
           <p className="text-10 font-semibold uppercase tracking-wide text-sky-600 mb-1.5">{zh ? "實際" : "Actual"}</p>
           <BudgetRow label={zh ? "攝取" : "Eaten"} value={fmtK(totals.calories)} />
+          <BudgetRow label="TDEE" value={tdee != null ? signed(-tdee) : "—"} />
           <BudgetRow label={zh ? "運動消耗" : "Exercise"} value={signed(-totals.exercise_kcal)}
             tone={totals.exercise_kcal > 0 ? "text-orange-500" : undefined} />
-          <BudgetRow total label={zh ? "最終熱量" : "Final"} value={fmtK(finalKcal)} />
+          <BudgetRow total label={zh ? "當日收支" : "Day balance"} value={settlement != null ? signed(settlement) : "—"} />
         </div>
       </div>
+      <p className="mt-2 text-10 text-[var(--text-on-surface-muted)]">
+        {zh ? "運動不加回可吃熱量，只在當日收支結算：攝取 − TDEE − 運動，負值為熱量赤字"
+            : "Exercise doesn't add to what you can eat; it only counts in the day balance: eaten − TDEE − exercise (negative = deficit)"}
+      </p>
 
     </div>
   );

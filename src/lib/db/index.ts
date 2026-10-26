@@ -391,6 +391,9 @@ const MIGRATIONS: { v: number; sql: string }[] = [
   { v: 50, sql: "ALTER TABLE food_database ADD COLUMN brand TEXT" },
   // Per-drink cup volumes ({"M":ml,"L":ml,"XL":ml}); null = the default 500 / 700 / 1000
   { v: 51, sql: "ALTER TABLE food_database ADD COLUMN cup_sizes TEXT" },
+  // Daily-life activity (work, commute), apart from exercise. Replaces activity_level,
+  // which was inferred from exercise frequency and so counted exercise twice.
+  { v: 52, sql: "ALTER TABLE user_profile ADD COLUMN lifestyle TEXT" },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

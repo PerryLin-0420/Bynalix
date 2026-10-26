@@ -1,20 +1,24 @@
 export type Sex = 'male' | 'female';
-export type ActivityLevel =
-  | 'sedentary'
-  | 'lightly_active'
-  | 'moderately_active'
-  | 'very_active'
-  | 'extra_active';
 
-// Harris-Benedict activity factors minus 1 (TDEE = BMR + BMR * factor = BMR * (1 + factor))
-// Standard multipliers: sedentary 1.2, lightly 1.375, moderate 1.55, very 1.725, extra 1.9
-const NEAT_MULTIPLIERS: Record<ActivityLevel, number> = {
-  sedentary:         0.20,
-  lightly_active:    0.375,
-  moderately_active: 0.55,
-  very_active:       0.725,
-  extra_active:      0.90,
+/**
+ * Lifestyle: how active a day is WITHOUT deliberate exercise — work, commute,
+ * chores. Logged exercise is never folded in here; it is counted separately
+ * and only meets intake in the day's settlement.
+ */
+export type Lifestyle = 'sedentary' | 'light' | 'moderate' | 'heavy';
+
+/** TDEE = BMR × factor (includes the thermic effect of food). */
+export const LIFESTYLE_FACTORS: Record<Lifestyle, number> = {
+  sedentary: 1.20,
+  light:     1.35,
+  moderate:  1.50,
+  heavy:     1.70,
 };
+
+export const LIFESTYLES = Object.keys(LIFESTYLE_FACTORS) as Lifestyle[];
+
+const lifestyleFactor = (l: string | null | undefined): number =>
+  LIFESTYLE_FACTORS[l as Lifestyle] ?? LIFESTYLE_FACTORS.sedentary;
 
 /** Mifflin–St Jeor: weight(kg), height(cm), age(years) */
 export function bmr(weightKg: number, heightCm: number, age: number, sex: Sex): number {
@@ -27,8 +31,9 @@ export function bmrKM(lbmKg: number): number {
   return 370 + 21.6 * lbmKg;
 }
 
-export function neat(bmrValue: number, activityLevel: ActivityLevel): number {
-  return bmrValue * (NEAT_MULTIPLIERS[activityLevel] ?? 0);
+/** Daily-life energy above BMR for a lifestyle (no exercise). */
+export function neat(bmrValue: number, lifestyle: string | null | undefined): number {
+  return bmrValue * (lifestyleFactor(lifestyle) - 1);
 }
 
 export function tdeeBasic(bmrValue: number, neatValue: number): number {
@@ -36,19 +41,19 @@ export function tdeeBasic(bmrValue: number, neatValue: number): number {
 }
 
 /**
- * Compute TDEE from a user profile + optional stored LBM.
+ * Compute TDEE (BMR × lifestyle, exercise excluded) from a user profile + optional stored LBM.
  * Uses Katch-McArdle when lbmKg is available, falls back to Mifflin-St Jeor.
  * Weight is rounded to integer to reduce noise from sub-kg fluctuations.
  */
 export function computeTdee(
-  profile: { weight_kg: number; height_cm: number; age: number; sex: Sex; activity_level: string },
+  profile: { weight_kg: number; height_cm: number; age: number; sex: Sex; lifestyle: string | null },
   lbmKg: number | null,
 ): number {
   const w = Math.round(profile.weight_kg);
   const b = lbmKg != null
     ? bmrKM(lbmKg)
     : bmr(w, profile.height_cm, profile.age, profile.sex);
-  return Math.round(tdeeBasic(b, neat(b, profile.activity_level as ActivityLevel)));
+  return Math.round(tdeeBasic(b, neat(b, profile.lifestyle)));
 }
 
 // ── Body composition (merged from bodyComposition.ts) ────────────────────────
