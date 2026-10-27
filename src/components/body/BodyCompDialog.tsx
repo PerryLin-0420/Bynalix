@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { AlertCircle, X } from "lucide-react";
 import { clsx } from "clsx";
@@ -258,18 +258,40 @@ const SEG_POS: Record<Segment, { left: string; top: string }> = {
   left_leg:  { left: "69%", top: "84%" },
 };
 
-/** Head, torso, arms and legs; `grow` widens every shape, for the outline pass. */
-function FigureShapes({ paint, grow }: { paint: string; grow: number }) {
+/**
+ * Outlined human figure. The parts are drawn as plain overlapping shapes, then
+ * one filter melts them into a single silhouette — blur + alpha threshold
+ * rounds every join (shoulders, neck, crotch) into a smooth fillet — and
+ * strokes it: a dilated copy minus the shape gives an even outline all round.
+ */
+function FigureOutline() {
+  const id = `figure-${useId().replace(/:/g, "")}`;
   return (
-    <g fill={paint} stroke={paint} strokeLinecap="round" strokeLinejoin="round" opacity={grow ? 0.55 : 1}>
-      <line x1="72" y1="80" x2="26" y2="114" strokeWidth={26 + grow} />
-      <line x1="128" y1="80" x2="174" y2="114" strokeWidth={26 + grow} />
-      <line x1="86" y1="150" x2="70" y2="216" strokeWidth={30 + grow} />
-      <line x1="114" y1="150" x2="130" y2="216" strokeWidth={30 + grow} />
-      <rect x="64" y="58" width="72" height="102" rx="26" strokeWidth={grow} />
-      <rect x="92" y="50" width="16" height="14" strokeWidth={grow} />
-      <circle cx="100" cy="32" r="22" strokeWidth={grow} />
-    </g>
+    <>
+      <defs>
+        <filter id={id} filterUnits="userSpaceOnUse" x="0" y="0" width="200" height="240">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="6" result="blur" />
+          <feColorMatrix in="blur" type="matrix" result="shape"
+            values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 24 -11" />
+          <feMorphology in="shape" operator="dilate" radius="2.5" result="outer" />
+          <feComposite in="outer" in2="shape" operator="out" result="ring" />
+          <feFlood style={{ floodColor: "var(--surface)" }} result="fillColor" />
+          <feComposite in="fillColor" in2="shape" operator="in" result="fill" />
+          <feFlood style={{ floodColor: "var(--text-on-surface-muted)", floodOpacity: 0.6 }} result="lineColor" />
+          <feComposite in="lineColor" in2="ring" operator="in" result="line" />
+          <feMerge><feMergeNode in="fill" /><feMergeNode in="line" /></feMerge>
+        </filter>
+      </defs>
+      <g filter={`url(#${id})`} fill="#000" stroke="#000" strokeLinecap="round">
+        <line x1="72" y1="80" x2="26" y2="114" strokeWidth={26} />
+        <line x1="128" y1="80" x2="174" y2="114" strokeWidth={26} />
+        <line x1="86" y1="150" x2="70" y2="216" strokeWidth={30} />
+        <line x1="114" y1="150" x2="130" y2="216" strokeWidth={30} />
+        <rect x="64" y="58" width="72" height="102" rx="26" strokeWidth={0} />
+        <rect x="92" y="48" width="16" height="16" strokeWidth={0} />
+        <circle cx="100" cy="32" r="22" strokeWidth={0} />
+      </g>
+    </>
   );
 }
 
@@ -283,10 +305,7 @@ function FigureFields({ color, keyOf, form, onChange, label }: {
   return (
     <div className="relative mx-auto w-full max-w-[300px] aspect-[5/6]">
       <svg viewBox="0 0 200 240" className="absolute inset-0 w-full h-full" aria-hidden>
-        {/* Outlined human figure: the shapes drawn once as a wider outline, then
-            again in the surface colour on top, so the joins read as one silhouette */}
-        <FigureShapes paint="var(--text-on-surface-muted)" grow={5} />
-        <FigureShapes paint="var(--surface)" grow={0} />
+        <FigureOutline />
       </svg>
       {SEGMENTS.map(s => (
         <div key={s} className="absolute -translate-x-1/2 -translate-y-1/2 w-[72px] text-center"
