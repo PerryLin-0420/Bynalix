@@ -1,7 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { AlertCircle, X } from "lucide-react";
-import { clsx } from "clsx";
 import { getDb } from "@/lib/db";
 import { logError } from "@/lib/error";
 import { checkBound, BOUNDS } from "@/lib/validate";
@@ -308,19 +307,18 @@ function FigureFields({ color, keyOf, form, onChange, label }: {
         <FigureOutline />
       </svg>
       {SEGMENTS.map(s => (
-        <div key={s} className="absolute -translate-x-1/2 -translate-y-1/2 w-[72px] text-center"
-          style={SEG_POS[s]}>
-          <span className="block text-10 font-semibold mb-0.5 drop-shadow-sm" style={{ color }}>{label(s)}</span>
-          <div className="relative">
+        // Label and input share one opaque box, so the outline never runs through the text
+        <label key={s} className="absolute -translate-x-1/2 -translate-y-1/2 w-[76px] rounded-lg border bg-[var(--surface)] px-1.5 pt-0.5 pb-1 text-center cursor-text"
+          style={{ ...SEG_POS[s], borderColor: color }}>
+          <span className="block text-10 font-semibold leading-tight" style={{ color }}>{label(s)}</span>
+          <span className="relative block">
             <input
-              className={clsx("w-full rounded-lg border bg-[var(--surface)]/95 text-center text-sm py-1 pr-5 pl-1",
-                "focus:outline-none focus:ring-2 tabular-nums text-[var(--text-on-surface)]")}
-              style={{ borderColor: color }}
+              className="w-full bg-transparent text-center text-sm pr-4 focus:outline-none tabular-nums text-[var(--text-on-surface)]"
               type="number" inputMode="decimal" placeholder="—"
               value={form[keyOf(s)]} onChange={ev => onChange(keyOf(s), ev.target.value)} />
-            <span className="absolute right-1.5 top-1.5 text-9 text-[var(--text-on-surface-muted)]">kg</span>
-          </div>
-        </div>
+            <span className="absolute right-0 top-0.5 text-9 text-[var(--text-on-surface-muted)]">kg</span>
+          </span>
+        </label>
       ))}
     </div>
   );
