@@ -65,7 +65,7 @@ Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-T
 
 **Latest — v1.8.2**
 - A body-composition measurement now replaces lean body mass (and so BMR and the protein target) from its date on, after you confirm; a body-fat % typed with a weigh-in doesn't
-- The measurement form is a dialog with Basics / Muscle / Fat tabs; muscle and fat per segment go on a gingerbread silhouette
+- The measurement form is a dialog with Basics / Muscle / Fat tabs; muscle and fat per segment go on an outlined human figure
 - Fat mass per segment is new, body water is recorded in kg (existing % readings converted), and History charts fat mass
 
 **v1.8.1**

@@ -47,7 +47,7 @@ function formFrom(e: CompEntry | null): Form {
 /**
  * Add / edit one body-composition measurement in a dialog split into
  * Basics / Muscle / Fat tabs; the two segment tabs place their five inputs on
- * a gingerbread silhouette. A body-fat % here is a measurement, so saving it can
+ * an outlined human figure. A body-fat % here is a measurement, so saving it can
  * replace the lean body mass the targets use (see lib/bodyComp) — the footer
  * says what will change before it does.
  */
@@ -198,7 +198,7 @@ export function BodyCompDialog({ entry, defaultDate, onClose, onSaved }: {
 
           {(tab === "muscle" || tab === "fat") && (
             <>
-              <GingerbreadFields
+              <FigureFields
                 color={tab === "muscle" ? MUSCLE_COLOR : FAT_COLOR}
                 keyOf={tab === "muscle" ? muscleKey : fatKey}
                 form={form} onChange={set} label={segLabel} />
@@ -241,7 +241,7 @@ export function BodyCompDialog({ entry, defaultDate, onClose, onSaved }: {
           )}
           <div className="flex gap-2">
             <button onClick={onClose} className="btn-ghost flex-1 border border-[var(--surface-border)]">{t("common.cancel")}</button>
-            <button onClick={save} disabled={saving} className="btn-primary bg-[var(--color-primary)] flex-1 disabled:opacity-50">{t("common.save")}</button>
+            <button onClick={save} disabled={saving} className="btn-primary bg-[var(--color-primary)] text-white flex-1 disabled:opacity-50">{t("common.save")}</button>
           </div>
         </div>
       </div>
@@ -258,7 +258,22 @@ const SEG_POS: Record<Segment, { left: string; top: string }> = {
   left_leg:  { left: "69%", top: "84%" },
 };
 
-function GingerbreadFields({ color, keyOf, form, onChange, label }: {
+/** Head, torso, arms and legs; `grow` widens every shape, for the outline pass. */
+function FigureShapes({ paint, grow }: { paint: string; grow: number }) {
+  return (
+    <g fill={paint} stroke={paint} strokeLinecap="round" strokeLinejoin="round" opacity={grow ? 0.55 : 1}>
+      <line x1="72" y1="80" x2="26" y2="114" strokeWidth={26 + grow} />
+      <line x1="128" y1="80" x2="174" y2="114" strokeWidth={26 + grow} />
+      <line x1="86" y1="150" x2="70" y2="216" strokeWidth={30 + grow} />
+      <line x1="114" y1="150" x2="130" y2="216" strokeWidth={30 + grow} />
+      <rect x="64" y="58" width="72" height="102" rx="26" strokeWidth={grow} />
+      <rect x="92" y="50" width="16" height="14" strokeWidth={grow} />
+      <circle cx="100" cy="32" r="22" strokeWidth={grow} />
+    </g>
+  );
+}
+
+function FigureFields({ color, keyOf, form, onChange, label }: {
   color: string;
   keyOf: (s: Segment) => SegKey;
   form: Form;
@@ -268,31 +283,10 @@ function GingerbreadFields({ color, keyOf, form, onChange, label }: {
   return (
     <div className="relative mx-auto w-full max-w-[300px] aspect-[5/6]">
       <svg viewBox="0 0 200 240" className="absolute inset-0 w-full h-full" aria-hidden>
-        <g fill="#e2b48a" stroke="#b9824f" strokeWidth={3} strokeLinejoin="round">
-          {/* arms and legs as thick rounded strokes under the body */}
-          <g stroke="#b9824f" strokeLinecap="round" fill="none">
-            <line x1="72" y1="80" x2="24" y2="112" strokeWidth={34} />
-            <line x1="128" y1="80" x2="176" y2="112" strokeWidth={34} />
-            <line x1="84" y1="150" x2="64" y2="214" strokeWidth={38} />
-            <line x1="116" y1="150" x2="136" y2="214" strokeWidth={38} />
-          </g>
-          <g stroke="#e2b48a" strokeLinecap="round" fill="none">
-            <line x1="72" y1="80" x2="24" y2="112" strokeWidth={28} />
-            <line x1="128" y1="80" x2="176" y2="112" strokeWidth={28} />
-            <line x1="84" y1="150" x2="64" y2="214" strokeWidth={32} />
-            <line x1="116" y1="150" x2="136" y2="214" strokeWidth={32} />
-          </g>
-          <rect x="62" y="58" width="76" height="104" rx="30" />
-          <circle cx="100" cy="34" r="25" />
-        </g>
-        {/* icing */}
-        <g fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" opacity={0.85}>
-          <path d="M90 42 Q100 50 110 42" />
-          <path d="M14 106 l6 8 M184 106 l-6 8 M56 210 l14 0 M130 210 l14 0" />
-        </g>
-        <g fill="#fff" opacity={0.9}>
-          <circle cx="91" cy="30" r="3" /><circle cx="109" cy="30" r="3" />
-        </g>
+        {/* Outlined human figure: the shapes drawn once as a wider outline, then
+            again in the surface colour on top, so the joins read as one silhouette */}
+        <FigureShapes paint="var(--text-on-surface-muted)" grow={5} />
+        <FigureShapes paint="var(--surface)" grow={0} />
       </svg>
       {SEGMENTS.map(s => (
         <div key={s} className="absolute -translate-x-1/2 -translate-y-1/2 w-[72px] text-center"
