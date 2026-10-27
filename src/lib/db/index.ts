@@ -428,6 +428,24 @@ const MIGRATIONS: { v: number; sql: string }[] = [
       mets = NULL
     WHERE mets IS NOT NULL AND mets <= 1 AND exercise_id IN (
       SELECT exercise_id FROM exercise_database WHERE source_type = 'user' AND kcal_per_min IS NOT NULL)` },
+  // Body composition: fat mass per segment, like the muscle segments
+  { v: 58, sql: "ALTER TABLE body_composition_log ADD COLUMN fat_trunk_kg REAL" },
+  { v: 59, sql: "ALTER TABLE body_composition_log ADD COLUMN fat_left_arm_kg REAL" },
+  { v: 60, sql: "ALTER TABLE body_composition_log ADD COLUMN fat_right_arm_kg REAL" },
+  { v: 61, sql: "ALTER TABLE body_composition_log ADD COLUMN fat_left_leg_kg REAL" },
+  { v: 62, sql: "ALTER TABLE body_composition_log ADD COLUMN fat_right_leg_kg REAL" },
+  // Body water in kg instead of %; body_water_pct stays only as the source of v64
+  { v: 63, sql: "ALTER TABLE body_composition_log ADD COLUMN body_water_kg REAL" },
+  // % → kg at that day's weight: the latest weigh-in on or before it (fasting first
+  // within a day), else the first one ever, else the profile weight
+  { v: 64, sql: `UPDATE body_composition_log SET body_water_kg = ROUND(body_water_pct / 100.0 * COALESCE(
+      (SELECT w.weight_kg FROM weight_log w WHERE w.user_id = body_composition_log.user_id
+         AND w.log_date <= body_composition_log.log_date
+       ORDER BY w.log_date DESC, (w.measurement_type = 'fasting') DESC, w.log_time DESC LIMIT 1),
+      (SELECT w.weight_kg FROM weight_log w WHERE w.user_id = body_composition_log.user_id
+       ORDER BY w.log_date, w.log_time LIMIT 1),
+      (SELECT p.weight_kg FROM user_profile p WHERE p.user_id = body_composition_log.user_id)), 1)
+    WHERE body_water_pct IS NOT NULL AND body_water_kg IS NULL` },
 ];
 
 // Compute & store calories for running_session rows missing them, using the

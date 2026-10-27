@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { format } from "date-fns";
 import { getDb } from "@/lib/db";
 import type { UserProfile, ModeSettings, LatestWeightLog } from "@/types";
 import { ensureTargetHistory, recordTargetSettings, settingsSnapshot } from "@/lib/dailyTargets";
@@ -9,9 +10,11 @@ interface UserState {
   profile: UserProfile | null;
   modeSettings: ModeSettings | null;
   latestWeightLog: LatestWeightLog | null;
-  /** Stored lean body mass (kg). Set once when BF% is first recorded; weight
-   *  changes don't overwrite it so the protein target stays anchored to LBM. */
+  /** Stored lean body mass (kg). Weight changes don't move it; only a newer
+   *  body-fat measurement (體態, or BF% changed in Profile) replaces it — see lib/bodyComp. */
   lbmKg: number | null;
+  /** Date of the measurement lbmKg came from (null for LBM set before this was tracked). */
+  lbmDate: string | null;
   isLoading: boolean;
   loadUser: () => Promise<void>;
   saveProfile: (data: Omit<UserProfile, "user_id">) => Promise<void>;
@@ -33,6 +36,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   modeSettings: null,
   latestWeightLog: null,
   lbmKg: null,
+  lbmDate: null,
   isLoading: true,
 
   loadUser: async () => {
@@ -51,6 +55,10 @@ export const useUserStore = create<UserState>((set, get) => ({
         "SELECT value FROM app_settings WHERE key='lbm_kg'"
       );
       if (lbmRow) lbmKg = parseFloat(lbmRow.value) || null;
+      const [lbmDateRow] = await db.select<{ value: string }[]>(
+        "SELECT value FROM app_settings WHERE key='lbm_date'"
+      );
+      const lbmDate = lbmKg != null ? (lbmDateRow?.value ?? null) : null;
 
       if (profile) {
         const modes = await db.select<ModeSettings[]>(
@@ -59,22 +67,31 @@ export const useUserStore = create<UserState>((set, get) => ({
         );
         modeSettings = modes[0] ?? null;
 
-        // Sync latest weight / body_fat from weight_log
+        // Latest weight: the newest day, its fasting weigh-in first
         const [latestW] = await db.select<LatestWeightLog[]>(
           `SELECT weight_kg, body_fat_pct, log_date
            FROM weight_log
            WHERE user_id = ?
-           ORDER BY log_date DESC, log_time DESC
+           ORDER BY log_date DESC, (measurement_type = 'fasting') DESC, log_time DESC
            LIMIT 1`,
           [profile.user_id]
         );
+        // Latest body fat from either a weigh-in or a 體態 measurement
+        const [latestBf] = await db.select<{ body_fat_pct: number }[]>(
+          `SELECT body_fat_pct FROM (
+             SELECT body_fat_pct, log_date, log_time FROM weight_log
+               WHERE user_id = ? AND body_fat_pct IS NOT NULL
+             UNION ALL
+             SELECT body_fat_pct, log_date, log_time FROM body_composition_log
+               WHERE user_id = ? AND body_fat_pct IS NOT NULL
+           ) ORDER BY log_date DESC, log_time DESC LIMIT 1`,
+          [profile.user_id, profile.user_id]
+        );
         if (latestW) {
-          latestWeightLog = latestW;
+          latestWeightLog = { ...latestW, body_fat_pct: latestBf?.body_fat_pct ?? null };
           profile.weight_kg = latestW.weight_kg;
-          if (latestW.body_fat_pct != null) {
-            profile.body_fat_pct = latestW.body_fat_pct;
-          }
         }
+        if (latestBf) profile.body_fat_pct = latestBf.body_fat_pct;
       }
 
       if (profile && modeSettings) {
@@ -82,7 +99,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         catch { /* non-blocking */ }
       }
 
-      set({ profile, modeSettings, latestWeightLog, lbmKg, isLoading: false });
+      set({ profile, modeSettings, latestWeightLog, lbmKg, lbmDate, isLoading: false });
     } catch {
       set({ isLoading: false });
     }
@@ -90,21 +107,33 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   saveProfile: async (data) => {
     const db = await getDb();
-    const { profile, lbmKg } = get();
+    const { profile, lbmKg, lbmDate } = get();
 
-    // Rule 3: when BF% is provided, compute LBM once and persist it.
-    // Only overwrite stored LBM when the user actively changes body_fat_pct.
+    // LBM only moves when the user actually changes BF% here (a new reading),
+    // never because the latest synced BF% is saved back unchanged — that used to
+    // recompute LBM from whatever weight was current on every profile save.
+    const prevBf = profile?.body_fat_pct ?? null;
+    const bfChanged = data.body_fat_pct == null
+      ? prevBf != null
+      : prevBf == null || Math.abs(data.body_fat_pct - prevBf) > 1e-9;
     let newLbmKg = lbmKg;
-    if (data.body_fat_pct != null) {
+    let newLbmDate = lbmDate;
+    if (bfChanged && data.body_fat_pct != null) {
       newLbmKg = data.weight_kg * (1 - data.body_fat_pct / 100);
+      newLbmDate = format(new Date(), "yyyy-MM-dd");
       await db.execute(
         "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('lbm_kg', ?)",
         [String(newLbmKg)]
       );
-    } else if (data.body_fat_pct == null && lbmKg != null) {
+      await db.execute(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('lbm_date', ?)",
+        [newLbmDate]
+      );
+    } else if (bfChanged && lbmKg != null) {
       // BF explicitly cleared → discard stored LBM
       newLbmKg = null;
-      await db.execute("DELETE FROM app_settings WHERE key='lbm_kg'");
+      newLbmDate = null;
+      await db.execute("DELETE FROM app_settings WHERE key IN ('lbm_kg','lbm_date')");
     }
 
     if (profile) {
@@ -113,14 +142,14 @@ export const useUserStore = create<UserState>((set, get) => ({
         [data.name, data.height_cm, data.weight_kg, data.age, data.sex, data.lifestyle, data.body_fat_pct, profile.user_id]
       );
       if (r.rowsAffected === 0) throw new Error("profile record not found");
-      set({ profile: { ...profile, ...data }, lbmKg: newLbmKg });
+      set({ profile: { ...profile, ...data }, lbmKg: newLbmKg, lbmDate: newLbmDate });
       await recordSettings(get);
     } else {
       const result = await db.execute(
         `INSERT INTO user_profile (name, height_cm, weight_kg, age, sex, lifestyle, body_fat_pct) VALUES (?,?,?,?,?,?,?)`,
         [data.name, data.height_cm, data.weight_kg, data.age, data.sex, data.lifestyle, data.body_fat_pct]
       );
-      set({ profile: { user_id: result.lastInsertId as number, ...data }, lbmKg: newLbmKg });
+      set({ profile: { user_id: result.lastInsertId as number, ...data }, lbmKg: newLbmKg, lbmDate: newLbmDate });
     }
   },
 
