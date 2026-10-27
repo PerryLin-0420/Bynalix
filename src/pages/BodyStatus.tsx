@@ -20,7 +20,8 @@ import {
 } from "@/lib/screenMonitor";
 import { PillButton } from "@/components/common/PillButton";
 import { Dialog } from "@/components/common/Modal";
-import { BottomSheet } from "@/components/common/Modal";
+import { BodyCompDialog } from "@/components/body/BodyCompDialog";
+import { SEGMENTS, fatKey, segmentTotal, type CompEntry } from "@/lib/bodyComp";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,23 +37,6 @@ const WEIGHT_TYPE_LABELS_EN: Record<WeightType, string> = {
   fasting: "Fasting", before_meal: "Pre-meal", after_meal: "Post-meal",
 };
 
-interface CompEntry {
-  id: number;
-  body_fat_pct: number | null;
-  skeletal_muscle_kg: number | null;
-  muscle_trunk_kg: number | null;
-  muscle_left_arm_kg: number | null;
-  muscle_right_arm_kg: number | null;
-  muscle_left_leg_kg: number | null;
-  muscle_right_leg_kg: number | null;
-  body_water_pct: number | null;
-  visceral_fat_level: number | null;
-  waist_cm: number | null;
-  log_date: string;
-  log_time: string;
-  notes: string | null;
-}
-
 type SleepQuality = "good" | "normal" | "poor";
 interface SleepEntry {
   id: number; sleep_date: string; quality: SleepQuality;
@@ -64,7 +48,7 @@ interface SleepEntry {
 
 const BASE_FIELDS = [
   { key: "body_fat_pct",       unit: "%",  color: "#f97316", placeholder: "18.5" },
-  { key: "body_water_pct",     unit: "%",  color: "#0ea5e9", placeholder: "55.0" },
+  { key: "body_water_kg",      unit: "kg", color: "#0ea5e9", placeholder: "38.0" },
   { key: "visceral_fat_level", unit: "",   color: "#8b5cf6", placeholder: "5"    },
   { key: "waist_cm",           unit: "cm", color: "#ec4899", placeholder: "75"   },
 ] as const;
@@ -79,7 +63,6 @@ const MUSCLE_FIELDS = [
 
 type BaseKey   = typeof BASE_FIELDS[number]["key"];
 type MuscleKey = typeof MUSCLE_FIELDS[number]["key"];
-type FormKey   = BaseKey | MuscleKey;
 
 const SLEEP_COLORS: Record<SleepQuality, string> = {
   good: "#10b981", normal: "#f59e0b", poor: "#ef4444",
@@ -170,28 +153,10 @@ function SleepTimeFields({ date, startTime, startDay, wakeTime, onStartTime, onS
   );
 }
 
-const initForm = (): Record<FormKey, string> => ({
-  body_fat_pct: "", body_water_pct: "", visceral_fat_level: "", waist_cm: "",
-  muscle_trunk_kg: "", muscle_left_arm_kg: "", muscle_right_arm_kg: "",
-  muscle_left_leg_kg: "", muscle_right_leg_kg: "",
-});
-
-const entryToForm = (e: CompEntry): Record<FormKey, string> => ({
-  body_fat_pct:       e.body_fat_pct       != null ? String(e.body_fat_pct)       : "",
-  body_water_pct:     e.body_water_pct     != null ? String(e.body_water_pct)     : "",
-  visceral_fat_level: e.visceral_fat_level != null ? String(e.visceral_fat_level) : "",
-  waist_cm:           e.waist_cm           != null ? String(e.waist_cm)           : "",
-  muscle_trunk_kg:    e.muscle_trunk_kg    != null ? String(e.muscle_trunk_kg)    : "",
-  muscle_left_arm_kg: e.muscle_left_arm_kg != null ? String(e.muscle_left_arm_kg) : "",
-  muscle_right_arm_kg:e.muscle_right_arm_kg!= null ? String(e.muscle_right_arm_kg): "",
-  muscle_left_leg_kg: e.muscle_left_leg_kg != null ? String(e.muscle_left_leg_kg) : "",
-  muscle_right_leg_kg:e.muscle_right_leg_kg!= null ? String(e.muscle_right_leg_kg): "",
-});
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function BodyStatus() {
-  const { profile } = useUserStore();
+  const { profile, loadUser } = useUserStore();
   const { t, lang } = useLangStore();
   const today = format(new Date(), "yyyy-MM-dd");
   const [selectedDate, setSelectedDate] = useState(today);
@@ -202,14 +167,14 @@ export function BodyStatus() {
 
   const BASE_LABELS: Record<BaseKey, string> = {
     body_fat_pct:       t("body.bodyFat"),
-    body_water_pct:     t("body.water"),
+    body_water_kg:      t("body.water"),
     visceral_fat_level: t("body.visceralFat"),
     waist_cm:           t("body.waist"),
   };
 
   const BASE_UNITS: Record<BaseKey, string> = {
     body_fat_pct:       "%",
-    body_water_pct:     "%",
+    body_water_kg:      "kg",
     visceral_fat_level: t("body.visceralUnit"),
     waist_cm:           "cm",
   };
@@ -235,17 +200,8 @@ export function BodyStatus() {
   const bodySwipe = useSwipeTabs(BODY_TABS, mainTab, setMainTab as (t: string) => void);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [entries, setEntries] = useState<CompEntry[]>([]);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm]         = useState<Record<FormKey, string>>(initForm);
-  const [formNotes, setFormNotes] = useState("");
-  const [formDate, setFormDate] = useState(today);
-  const [formTime, setFormTime] = useState(format(new Date(), "HH:mm"));
-  // Inline edit for body comp
-  const [editId, setEditId]     = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<Record<FormKey, string>>(initForm);
-  const [editNotes, setEditNotes] = useState("");
-  const [editDate, setEditDate] = useState(today);
-  const [editTime, setEditTime] = useState(format(new Date(), "HH:mm"));
+  // Body-composition dialog: null = closed, { entry: null } = new measurement
+  const [compDialog, setCompDialog] = useState<{ entry: CompEntry | null } | null>(null);
 
   // Weight
   const [weightEntries, setWeightEntries]   = useState<WeightEntry[]>([]);
@@ -261,7 +217,6 @@ export function BodyStatus() {
 
   // Form validation errors
   const [weightFormErr, setWeightFormErr] = useState<string | null>(null);
-  const [compFormErr,   setCompFormErr]   = useState<string | null>(null);
   const [sleepFormErr,  setSleepFormErr]  = useState<string | null>(null);
 
   // Sleep
@@ -315,105 +270,11 @@ export function BodyStatus() {
     } catch (e) { logError("BodyStatus", e); }
   };
 
-  const save = async () => {
-    if (!profile) return;
-    const allKeys: FormKey[] = [...BASE_FIELDS.map(f => f.key), ...MUSCLE_FIELDS.map(f => f.key)];
-    const hasAny = allKeys.some(k => form[k].trim() !== "");
-    if (!hasAny) return;
-    setCompFormErr(null);
-    const compErr =
-      checkBound(form.body_fat_pct,        BOUNDS.bodyFat,     lang) ??
-      checkBound(form.body_water_pct,      BOUNDS.bodyWater,   lang) ??
-      checkBound(form.visceral_fat_level,  BOUNDS.visceralFat, lang) ??
-      checkBound(form.waist_cm,            BOUNDS.waist,       lang) ??
-      checkBound(form.muscle_trunk_kg,     BOUNDS.muscleTrunk, lang) ??
-      checkBound(form.muscle_left_arm_kg,  BOUNDS.muscleArm,   lang) ??
-      checkBound(form.muscle_right_arm_kg, BOUNDS.muscleArm,   lang) ??
-      checkBound(form.muscle_left_leg_kg,  BOUNDS.muscleLeg,   lang) ??
-      checkBound(form.muscle_right_leg_kg, BOUNDS.muscleLeg,   lang);
-    if (compErr) { setCompFormErr(compErr); return; }
-    try {
-      const db = await getDb();
-      const muscleParts = MUSCLE_FIELDS.map(f => form[f.key]).filter(v => v.trim() !== "").map(parseFloat);
-      const totalMuscle = muscleParts.length > 0 ? muscleParts.reduce((s, v) => s + v, 0) : null;
-      await db.execute(
-        `INSERT INTO body_composition_log
-           (user_id, body_fat_pct, skeletal_muscle_kg,
-            muscle_trunk_kg, muscle_left_arm_kg, muscle_right_arm_kg, muscle_left_leg_kg, muscle_right_leg_kg,
-            body_water_pct, visceral_fat_level, waist_cm, log_date, log_time, notes)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          profile.user_id,
-          form.body_fat_pct        ? parseFloat(form.body_fat_pct)        : null,
-          totalMuscle,
-          form.muscle_trunk_kg     ? parseFloat(form.muscle_trunk_kg)     : null,
-          form.muscle_left_arm_kg  ? parseFloat(form.muscle_left_arm_kg)  : null,
-          form.muscle_right_arm_kg ? parseFloat(form.muscle_right_arm_kg) : null,
-          form.muscle_left_leg_kg  ? parseFloat(form.muscle_left_leg_kg)  : null,
-          form.muscle_right_leg_kg ? parseFloat(form.muscle_right_leg_kg) : null,
-          form.body_water_pct      ? parseFloat(form.body_water_pct)      : null,
-          form.visceral_fat_level  ? parseInt(form.visceral_fat_level)    : null,
-          form.waist_cm            ? parseFloat(form.waist_cm)            : null,
-          formDate,
-          formTime + ":00",
-          formNotes.trim() || null,
-        ]);
-      setShowForm(false); setForm(initForm()); setFormNotes("");
-      setFormDate(today); setFormTime(format(new Date(), "HH:mm"));
-      loadEntries();
-    } catch (e) { logError("BodyStatus", e); }
-  };
-
-  const startEdit = (e: CompEntry) => {
-    setEditId(e.id);
-    setEditForm(entryToForm(e));
-    setEditNotes(e.notes ?? "");
-    setEditDate(e.log_date);
-    setEditTime(e.log_time?.slice(0, 5) ?? format(new Date(), "HH:mm"));
-  };
-
-  const saveEdit = async () => {
-    if (!profile || editId == null) return;
-    try {
-      const db = await getDb();
-      const f = editForm;
-      const muscleParts = MUSCLE_FIELDS.map(mf => f[mf.key]).filter(v => v.trim() !== "").map(parseFloat);
-      const totalMuscle = muscleParts.length > 0 ? muscleParts.reduce((s, v) => s + v, 0) : null;
-      await db.execute(
-        `UPDATE body_composition_log SET
-           body_fat_pct=?, skeletal_muscle_kg=?,
-           muscle_trunk_kg=?, muscle_left_arm_kg=?, muscle_right_arm_kg=?,
-           muscle_left_leg_kg=?, muscle_right_leg_kg=?,
-           body_water_pct=?, visceral_fat_level=?, waist_cm=?,
-           log_date=?, log_time=?, notes=?
-         WHERE id=?`,
-        [
-          f.body_fat_pct        ? parseFloat(f.body_fat_pct)        : null,
-          totalMuscle,
-          f.muscle_trunk_kg     ? parseFloat(f.muscle_trunk_kg)     : null,
-          f.muscle_left_arm_kg  ? parseFloat(f.muscle_left_arm_kg)  : null,
-          f.muscle_right_arm_kg ? parseFloat(f.muscle_right_arm_kg) : null,
-          f.muscle_left_leg_kg  ? parseFloat(f.muscle_left_leg_kg)  : null,
-          f.muscle_right_leg_kg ? parseFloat(f.muscle_right_leg_kg) : null,
-          f.body_water_pct      ? parseFloat(f.body_water_pct)      : null,
-          f.visceral_fat_level  ? parseInt(f.visceral_fat_level)    : null,
-          f.waist_cm            ? parseFloat(f.waist_cm)            : null,
-          editDate,
-          editTime + ":00",
-          editNotes.trim() || null,
-          editId,
-        ]);
-      setEditId(null); setEditForm(initForm()); setEditNotes("");
-      setEditDate(today); setEditTime(format(new Date(), "HH:mm"));
-      loadEntries();
-    } catch (e) { logError("BodyStatus", e); }
-  };
-
   const deleteEntry = async (id: number) => {
     try {
       const db = await getDb();
       await db.execute("DELETE FROM body_composition_log WHERE id=?", [id]);
-      loadEntries();
+      loadEntries(); loadLastBfDate(); loadUser();
     } catch (e) { logError("BodyStatus", e); }
   };
 
@@ -453,7 +314,7 @@ export function BodyStatus() {
         bodyFatVal ? parseFloat(bodyFatVal) : null,
         weightType, selectedDate, weightNotes || null);
       setShowWeightForm(false); setWeightVal(""); setBodyFatVal(""); setWeightNotes("");
-      loadWeightEntries();
+      loadWeightEntries(); loadUser(); // weight / BF% now current everywhere
     } catch (e) {
       logError("BodyStatus.saveWeight", e);
       showToast(lang === "zh" ? "儲存失敗，請再試一次" : "Save failed, please try again", "error");
@@ -471,7 +332,7 @@ export function BodyStatus() {
         [w, editingWeight.bodyFat ? parseFloat(editingWeight.bodyFat) : null,
          editingWeight.type, editingWeight.id]);
       setEditingWeight(null);
-      loadWeightEntries();
+      loadWeightEntries(); loadUser(); // weight / BF% now current everywhere
     } catch (e) { logError("BodyStatus", e); }
   };
 
@@ -539,6 +400,14 @@ export function BodyStatus() {
     return parts.length > 0
       ? parts.join(" · ")
       : (e.skeletal_muscle_kg != null ? `${t("body.muscleMass")} ${e.skeletal_muscle_kg}` : null);
+  };
+
+  const getFatSummary = (e: CompEntry): string | null => {
+    const parts = SEGMENTS.flatMap(sg => {
+      const v = e[fatKey(sg)];
+      return v != null ? [`${MUSCLE_LABELS[`muscle_${sg}_kg` as MuscleKey]} ${v}`] : [];
+    });
+    return parts.length ? parts.join(" · ") : null;
   };
 
   const latest = entries[0] ?? null;
@@ -691,7 +560,7 @@ export function BodyStatus() {
                       )}
                       <button onClick={() => setEditingWeight({ id: w.id, weight: String(w.weight_kg), bodyFat: w.body_fat_pct != null ? String(w.body_fat_pct) : "", type: w.measurement_type })}
                         className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors"><Pencil size={16} /></button>
-                      <button onClick={async () => { await deleteWeightEntry(w.id); loadWeightEntries(); }}
+                      <button onClick={async () => { await deleteWeightEntry(w.id); loadWeightEntries(); loadUser(); }}
                         className="icon-btn text-red-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                     </div>
                   );
@@ -796,6 +665,30 @@ export function BodyStatus() {
                   )}
                 </div>
               )}
+
+              {/* Fat breakdown */}
+              {SEGMENTS.some(sg => latest[fatKey(sg)] != null) && (
+                <div className="card">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-[var(--text-on-surface-muted)]">{lang === "zh" ? "脂肪分佈" : "Fat distribution"}</p>
+                    <p className="text-xs font-semibold text-orange-500 tabular-nums">
+                      {t("body.muscleTotalLabel")} {segmentTotal(SEGMENTS.map(sg => latest[fatKey(sg)]))} kg
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 text-center">
+                    {SEGMENTS.map(sg => {
+                      const val = latest[fatKey(sg)];
+                      return (
+                        <div key={sg}>
+                          <p className="text-10 text-[var(--text-on-surface-muted)] mb-0.5">{MUSCLE_LABELS[`muscle_${sg}_kg` as MuscleKey]}</p>
+                          <p className="text-sm font-bold text-orange-500">{val != null ? val : "—"}</p>
+                          {val != null && <p className="text-10 text-[var(--text-on-surface-muted)]">kg</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -807,49 +700,6 @@ export function BodyStatus() {
               </div>
             ) : entries.map(e => (
               <div key={e.id} className="card border-l-4 border-l-teal-300">
-                {editId === e.id ? (
-                  /* ── Inline edit ── */
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <input className="input-base py-1 text-sm w-32 shrink-0" type="date"
-                          value={editDate} max={today}
-                          onChange={ev => setEditDate(ev.target.value)} />
-                        <TimePicker value={editTime} onChange={setEditTime} />
-                      </div>
-                      <div className="flex gap-micro shrink-0">
-                        <button onClick={saveEdit} className="icon-btn-field text-[var(--text-accent-mid)] hover:text-[var(--text-accent)]"><Check size={16} /></button>
-                        <button onClick={() => setEditId(null)} className="icon-btn-field text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={16} /></button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {BASE_FIELDS.map(f => (
-                        <div key={f.key}>
-                          <label className="block text-10 font-medium mb-0.5" style={{ color: f.color }}>{BASE_LABELS[f.key]}</label>
-                          <div className="relative">
-                            <input className="input-base py-1.5 pr-8 text-sm" type="number" inputMode="decimal" placeholder={f.placeholder}
-                              value={editForm[f.key as FormKey]}
-                              onChange={ev => setEditForm(prev => ({ ...prev, [f.key]: ev.target.value }))} />
-                            <span className="absolute right-2 top-1.5 text-10 text-[var(--text-on-surface-muted)]">{BASE_UNITS[f.key]}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-5 gap-micro.5">
-                      {MUSCLE_FIELDS.map(f => (
-                        <div key={f.key}>
-                          <label className="block text-9 font-medium text-center mb-0.5" style={{ color: f.color }}>{MUSCLE_LABELS[f.key]}</label>
-                          <input className="input-base text-center text-xs px-1 py-1.5" type="number" inputMode="decimal" placeholder={f.placeholder}
-                            value={editForm[f.key as FormKey]}
-                            onChange={ev => setEditForm(prev => ({ ...prev, [f.key]: ev.target.value }))} />
-                        </div>
-                      ))}
-                    </div>
-                    <input className="input-base text-sm py-1.5" placeholder={`${t("body.sleep.notes")}（${t("common.optional")}）`}
-                      value={editNotes} onChange={ev => setEditNotes(ev.target.value)} />
-                  </div>
-                ) : (
-                  /* ── Normal display ── */
                   <div className="flex items-start gap-3">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1.5">
@@ -858,22 +708,22 @@ export function BodyStatus() {
                       </div>
                       <div className="flex flex-wrap gap-3">
                         {e.body_fat_pct   != null && <span className="text-xs"><span className="text-[var(--text-on-surface-muted)]">{t("body.bfShort")} </span><span className="font-semibold" style={{ color: "#f97316" }}>{e.body_fat_pct}%</span></span>}
-                        {e.body_water_pct != null && <span className="text-xs"><span className="text-[var(--text-on-surface-muted)]">{t("body.waterShort")} </span><span className="font-semibold" style={{ color: "#0ea5e9" }}>{e.body_water_pct}%</span></span>}
+                        {e.body_water_kg != null && <span className="text-xs"><span className="text-[var(--text-on-surface-muted)]">{t("body.waterShort")} </span><span className="font-semibold" style={{ color: "#0ea5e9" }}>{e.body_water_kg}kg</span></span>}
                         {e.visceral_fat_level != null && <span className="text-xs"><span className="text-[var(--text-on-surface-muted)]">{t("body.visceralShort")} </span><span className="font-semibold" style={{ color: "#8b5cf6" }}>Lv.{e.visceral_fat_level}</span></span>}
                         {e.waist_cm != null && <span className="text-xs"><span className="text-[var(--text-on-surface-muted)]">{t("body.waist")} </span><span className="font-semibold" style={{ color: "#ec4899" }}>{e.waist_cm}cm</span></span>}
                       </div>
                       {getMuscleSummary(e) && <p className="text-xs text-emerald-600 mt-1 font-medium">{t("body.muscleShort")} {getMuscleSummary(e)} kg</p>}
+                      {getFatSummary(e) && <p className="text-xs text-orange-500 mt-0.5 font-medium">{lang === "zh" ? "脂肪" : "Fat"} {getFatSummary(e)} kg</p>}
                       {e.notes && <p className="text-xs text-[var(--text-on-surface-muted)] mt-1">{e.notes}</p>}
                     </div>
-                    <button onClick={() => startEdit(e)} className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors mt-0.5"><Pencil size={15} /></button>
+                    <button onClick={() => setCompDialog({ entry: e })} className="icon-btn text-yellow-400 hover:text-yellow-500 transition-colors mt-0.5"><Pencil size={15} /></button>
                     <button onClick={() => deleteEntry(e.id)} className="icon-btn text-red-400 hover:text-red-500 transition-colors mt-0.5"><Trash2 size={16} /></button>
                   </div>
-                )}
               </div>
             ))}
           </div>
 
-          <button onClick={() => { setFormDate(selectedDate); setShowForm(true); }}
+          <button onClick={() => setCompDialog({ entry: null })}
             className="w-full py-3.5 rounded-xl bg-[var(--surface)] text-[var(--text-on-surface)] border border-[var(--surface-border)] hover:bg-[var(--surface-container-low)] transition-all flex items-center justify-center gap-2 text-sm font-medium">
             <Plus size={16} /> {t("body.addMeasurement")}
           </button>
@@ -1009,73 +859,11 @@ export function BodyStatus() {
         </>
       )}
 
-      {/* ── Body form modal ── */}
-      {showForm && (
-        <BottomSheet>
-            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--surface-border)] shrink-0">
-              <h2 className="text-lg font-bold text-[var(--text-on-surface)]">{t("body.bodyFormTitle")}</h2>
-              <button onClick={() => setShowForm(false)} className="icon-btn-lg -mr-1 text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)]"><X size={20} /></button>
-            </div>
-            <div className="overflow-y-auto flex-1 px-5 py-5 space-y-5">
-              {/* Date + Time */}
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs text-[var(--text-on-surface-muted)] mb-1">{t("body.recordDate")}</label>
-                  <input className="input-base" type="date" value={formDate} max={today}
-                    onChange={e => setFormDate(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-xs text-[var(--text-on-surface-muted)] mb-1">{t("body.recordTime")}</label>
-                  <TimePicker value={formTime} onChange={setFormTime} />
-                </div>
-              </div>
-              <p className="text-xs text-[var(--text-on-surface-muted)]">{t("body.formHint")}</p>
-              <div className="grid grid-cols-2 gap-3">
-                {BASE_FIELDS.map(f => (
-                  <div key={f.key}>
-                    <label className="block text-xs font-medium mb-1" style={{ color: f.color }}>{BASE_LABELS[f.key]}</label>
-                    <div className="relative">
-                      <input className="input-base pr-10" type="number" inputMode="decimal" placeholder={f.placeholder}
-                        value={form[f.key as FormKey]}
-                        onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} />
-                      <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">{BASE_UNITS[f.key]}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-[var(--text-on-surface-muted)] mb-2">{t("body.muscleDist")} (kg)</p>
-                <div className="grid grid-cols-5 gap-2">
-                  {MUSCLE_FIELDS.map(f => (
-                    <div key={f.key}>
-                      <label className="block text-xs font-medium text-center mb-1" style={{ color: f.color }}>{MUSCLE_LABELS[f.key]}</label>
-                      <input className="input-base text-center text-sm px-1" type="number" inputMode="decimal" placeholder={f.placeholder}
-                        value={form[f.key as FormKey]}
-                        onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))} />
-                    </div>
-                  ))}
-                </div>
-                {MUSCLE_FIELDS.some(f => form[f.key as FormKey] !== "") && (
-                  <p className="text-xs text-[var(--text-on-surface-muted)] mt-1.5 text-right">
-                    {t("body.muscleTotalLabel")} {MUSCLE_FIELDS.filter(f => form[f.key as FormKey] !== "").reduce((s, f) => s + parseFloat(form[f.key as FormKey] || "0"), 0).toFixed(1)} kg
-                  </p>
-                )}
-              </div>
-              <input className="input-base" placeholder={`${t("body.sleep.notes")}（${t("common.optional")}）`}
-                value={formNotes} onChange={e => setFormNotes(e.target.value)} />
-            </div>
-            <div className="px-5 py-4 border-t border-[var(--surface-border)] shrink-0">
-              {compFormErr && (
-                <p className="text-xs text-red-500 flex items-center gap-micro mb-2">
-                  <AlertCircle size={12} className="shrink-0" /> {compFormErr}
-                </p>
-              )}
-              <div className="flex gap-2">
-                <button onClick={() => { setShowForm(false); setCompFormErr(null); }} className="btn-ghost flex-1 border border-[var(--surface-border)]">{t("common.cancel")}</button>
-                <button onClick={save} className="btn-primary bg-[var(--color-primary)] flex-1">{t("common.save")}</button>
-              </div>
-            </div>
-        </BottomSheet>
+      {/* ── Body composition dialog (add / edit) ── */}
+      {compDialog && (
+        <BodyCompDialog entry={compDialog.entry} defaultDate={selectedDate}
+          onClose={() => setCompDialog(null)}
+          onSaved={() => { setCompDialog(null); loadEntries(); loadLastBfDate(); loadUser(); }} />
       )}
 
       {/* ── Sleep add modal ── */}

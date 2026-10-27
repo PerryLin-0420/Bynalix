@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { format, parseISO } from "date-fns";
 import { useSwipeTabs } from "@/hooks/useSwipe";
 import { useUserStore } from "@/store/userStore";
 import { useLangStore } from "@/store/langStore";
@@ -14,7 +15,7 @@ type GoalCategory  = "cut" | "maintain" | "bulk" | "custom";
 type GoalIntensity = "slow" | "normal" | "aggressive";
 
 export function Profile() {
-  const { profile, modeSettings, latestWeightLog, loadUser, saveProfile, saveMode, lbmKg } = useUserStore();
+  const { profile, modeSettings, latestWeightLog, loadUser, saveProfile, saveMode, lbmKg, lbmDate } = useUserStore();
   const { t, lang } = useLangStore();
 
   const LIFESTYLE_OPTIONS = LIFESTYLES.map(value => ({
@@ -289,42 +290,32 @@ export function Profile() {
                 const synced =
                   latestWeightLog &&
                   (key === "weight_kg" || (key === "body_fat_pct" && latestWeightLog.body_fat_pct != null));
-                // BF% is locked after first initialisation (lbmKg stored = BF was set at least once)
-                const bfLocked = key === "body_fat_pct" && lbmKg != null;
                 return (
                   <div key={key}>
                     <label className="block text-xs text-[var(--text-on-surface-muted)] mb-1">
                       {label}
-                      {synced && !bfLocked && <span className="ml-1 text-teal-500">↑</span>}
-                      {bfLocked && <span className="ml-1 text-[var(--text-on-surface-muted)]">🔒</span>}
+                      {synced && <span className="ml-1 text-teal-500">↑</span>}
                     </label>
                     <div className="relative">
                       <input
                         className={clsx(
                           "input-base pr-10",
-                          synced && !bfLocked && "border-teal-200 bg-teal-50/30",
-                          bfLocked && "bg-[var(--surface-container)] cursor-not-allowed opacity-60",
+                          synced && "border-teal-200 bg-teal-50/30",
                         )}
                         placeholder={placeholder}
                         inputMode={key === "age" ? "numeric" : "decimal"}
                         value={(form as any)[key]}
-                        readOnly={bfLocked}
-                        onChange={bfLocked ? undefined : e => {
-                          setForm(f => ({ ...f, [key]: e.target.value }));
-                        }}
+                        onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                       />
                       <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">{unit}</span>
                     </div>
-                    {bfLocked && profile && lbmKg != null && (() => {
-                      const w = Math.round(profile.weight_kg);
-                      if (lbmKg >= w) return null;
-                      const inferredBf = ((w - lbmKg) / w * 100).toFixed(1);
-                      return (
-                        <p className="mt-1 text-10 text-yellow-500 font-medium">
-                          {lang === "zh" ? `推算體脂：${inferredBf}%` : `Est. body fat: ${inferredBf}%`}
-                        </p>
-                      );
-                    })()}
+                    {key === "body_fat_pct" && lbmKg != null && (
+                      <p className="mt-1 text-10 text-[var(--text-on-surface-muted)]">
+                        {lang === "zh"
+                          ? `去脂體重 ${Math.round(lbmKg * 10) / 10} kg${lbmDate ? `・來自 ${format(parseISO(lbmDate), "yyyy/M/d")} 量測` : ""}`
+                          : `Lean mass ${Math.round(lbmKg * 10) / 10} kg${lbmDate ? ` · measured ${format(parseISO(lbmDate), "yyyy/M/d")}` : ""}`}
+                      </p>
+                    )}
                   </div>
                 );
               })}

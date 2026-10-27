@@ -7,6 +7,13 @@ see the [README](./README.md).
 
 ---
 
+### v1.8.2
+- **A body-composition measurement now replaces lean body mass** — lean body mass (LBM) drives BMR (Katch-McArdle) and the protein target, and used to be fixed for good the first time body fat was set; later readings never reached it. Now a body-fat % saved in 體態 is treated as a measurement: if it is at least as recent as the reading LBM came from, the dialog shows "Update lean mass 56 → 57.2 kg (at 10/27 fasting weight 70.2 kg)", ticked by default, and saving applies it from the measurement's date — earlier days keep their old LBM. LBM uses that day's weight (the latest weigh-in on or before it, fasting first). A body-fat % typed next to a weigh-in still doesn't move LBM, and an older reading entered later says a newer one exists. Profile no longer locks body fat: it shows the current LBM and when it was measured, and only changing the value there replaces LBM — saving the profile no longer recomputes it from whatever weight is current
+- **Saves show up immediately** — after saving a weigh-in or a measurement, Overview, targets and Profile use the new values right away instead of on the next visit. The current weight is the newest day's fasting weigh-in when there is one, and the current body fat is the latest from either weigh-ins or measurements
+- **Measurement form as a dialog with tabs** — Basics (date, time, body fat, water, visceral fat, waist, notes) / Muscle / Fat, each tab showing what's filled. The Muscle and Fat tabs place their five segment inputs (trunk, both arms, both legs) on an outlined human figure facing you, with the total underneath. Editing a record opens the same dialog instead of the old inline fields
+- **Fat mass per segment** — trunk, arms and legs, alongside the muscle segments; 體態 shows the latest fat distribution and each record lists it, and History's body charts add fat mass
+- **Body water in kg** — recorded in kilograms instead of %. Existing readings are converted at that day's weight (the latest weigh-in on or before it, fasting first; else the first weigh-in; else the profile weight)
+
 ### v1.8.1
 - **Drinks open on "None"** — choosing 飲料 now lists drinks without a brand first (water, plain teas, juice, coffee) instead of every chain's menu at once. The brand row reads None / All / each chain, so a chain is still one tap away
 - **Saved favourite meals can be edited** — each favourite meal in the list now has edit and delete buttons (delete asks for a second tap). Editing loads the meal into the list below, where you can rename it, add or remove items and change amounts; a drink's pencil button reopens its cup / sugar / toppings menu. "Update favourite meal" then replaces the saved contents

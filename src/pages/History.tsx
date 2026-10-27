@@ -26,6 +26,7 @@ import { withTrend, slopePerWeek, fmtSlope } from "@/lib/statistics/trend";
 import { DateRangePills, DateRangePickerCard } from "@/components/common/DateRangePicker";
 import { useDateRange } from "@/hooks/useDateRange";
 import { getDailyTargets, settingsSnapshot, targetsFor } from "@/lib/dailyTargets";
+import { segmentTotal } from "@/lib/bodyComp";
 import { MACRO_COLORS, BODY_PART_COLORS, BODY_PARTS, BODY_PART_EN, CARDIO_LABEL, CARDIO_SWIM_LIKE, CARDIO_CYCLE_LIKE, CARDIO_RUN_LIKE, CARDIO_OTHER_EXCL, type BodyPart } from "@/constants";
 import type { WeightChartPoint, CalorieChartPoint } from "@/types";
 import { useSwipeTabs } from "@/hooks/useSwipe";
@@ -100,6 +101,7 @@ interface BodyCompPoint {
   date: string;
   body_fat: number | null;
   muscle: number | null;
+  fat_mass: number | null;
   water: number | null;
   visceral: number | null;
   waist: number | null;
@@ -114,7 +116,7 @@ interface BodySleepPoint {
   color: string;
 }
 
-type BodyChartMetric = "body_fat" | "muscle" | "water" | "visceral" | "waist";
+type BodyChartMetric = "body_fat" | "muscle" | "fat_mass" | "water" | "visceral" | "waist";
 
 const BODY_SLEEP_COLORS: Record<SleepQuality, string> = {
   good: "#10b981", normal: "#f59e0b", poor: "#ef4444",
@@ -618,11 +620,14 @@ export function History() {
         log_date: string; body_fat_pct: number | null; skeletal_muscle_kg: number | null;
         muscle_trunk_kg: number | null; muscle_left_arm_kg: number | null; muscle_right_arm_kg: number | null;
         muscle_left_leg_kg: number | null; muscle_right_leg_kg: number | null;
-        body_water_pct: number | null; visceral_fat_level: number | null; waist_cm: number | null;
+        fat_trunk_kg: number | null; fat_left_arm_kg: number | null; fat_right_arm_kg: number | null;
+        fat_left_leg_kg: number | null; fat_right_leg_kg: number | null;
+        body_water_kg: number | null; visceral_fat_level: number | null; waist_cm: number | null;
       }[]>(
         `SELECT log_date, body_fat_pct, skeletal_muscle_kg,
            muscle_trunk_kg, muscle_left_arm_kg, muscle_right_arm_kg, muscle_left_leg_kg, muscle_right_leg_kg,
-           body_water_pct, visceral_fat_level, waist_cm
+           fat_trunk_kg, fat_left_arm_kg, fat_right_arm_kg, fat_left_leg_kg, fat_right_leg_kg,
+           body_water_kg, visceral_fat_level, waist_cm
          FROM body_composition_log
          WHERE user_id=? AND log_date BETWEEN ? AND ?
          ORDER BY log_date ASC`,
@@ -639,7 +644,8 @@ export function History() {
           date:     r.log_date,
           body_fat: r.body_fat_pct,
           muscle:   totalMuscle,
-          water:    r.body_water_pct,
+          fat_mass: segmentTotal([r.fat_trunk_kg, r.fat_left_arm_kg, r.fat_right_arm_kg, r.fat_left_leg_kg, r.fat_right_leg_kg]),
+          water:    r.body_water_kg,
           visceral: r.visceral_fat_level,
           waist:    r.waist_cm,
         };
@@ -1603,6 +1609,7 @@ export function History() {
         const bodyChartOpts: { key: BodyChartMetric; label: string; color: string }[] = [
           { key: "body_fat", label: t("body.bodyFat"),    color: "#f97316" },
           { key: "muscle",   label: t("body.muscleMass"), color: "#10b981" },
+          { key: "fat_mass", label: lang === "zh" ? "脂肪量" : "Fat mass", color: "#fb923c" },
           { key: "water",    label: t("body.water"),      color: "#0ea5e9" },
           { key: "visceral", label: t("body.visceralFat"), color: "#8b5cf6" },
           { key: "waist",    label: t("body.waist"),      color: "#ec4899" },

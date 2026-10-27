@@ -63,7 +63,12 @@ but deeper personal understanding through self-owned data.
 
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
-**Latest — v1.8.1**
+**Latest — v1.8.2**
+- A body-composition measurement now replaces lean body mass (and so BMR and the protein target) from its date on, after you confirm; a body-fat % typed with a weigh-in doesn't
+- The measurement form is a dialog with Basics / Muscle / Fat tabs; muscle and fat per segment go on an outlined human figure
+- Fat mass per segment is new, body water is recorded in kg (existing % readings converted), and History charts fat mass
+
+**v1.8.1**
 - Choosing 飲料 opens on "None" (drinks without a brand); chains are one tap away in the brand row
 - Saved favourite meals can be renamed, edited (items, amounts, a drink's cup / sugar / toppings) or deleted
 - Sleep records show the date of falling asleep and waking; falling asleep can be the day before or the same day (within the 24 h before waking)
