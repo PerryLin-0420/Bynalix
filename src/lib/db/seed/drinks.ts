@@ -43,6 +43,12 @@ export const SEED_TOPPINGS: SeedTopping[] = [
   { name: "蒟蒻",     name_en: "Konjac jelly",    calories_kcal: 71,  protein_g: 0,   carbohydrates_g: 18, fat_g: 0,    sugar_g: 14 },
   { name: "OREO 脆片", name_en: "OREO crumbs",    calories_kcal: 116, protein_g: 1,   carbohydrates_g: 17, fat_g: 5,    sugar_g: 6 },
   { name: "茶凍",     name_en: "Tea jelly",       calories_kcal: 40,  protein_g: 0,   carbohydrates_g: 10, fat_g: 0,    sugar_g: 8 },
+  // 有飲's own toppings, from its calorie table (per serving, 125 ± 5 g; 蜜燕麥 100 g).
+  // Only kcal and sugar are published; the rest is estimated from the ingredients.
+  { name: "寒天纖果", name_en: "Agar fiber jelly", calories_kcal: 78,  protein_g: 0,   carbohydrates_g: 22.5, fat_g: 0,  sugar_g: 22.5 },
+  { name: "蜜燕麥",   name_en: "Honey oats",      calories_kcal: 149.2, protein_g: 5, carbohydrates_g: 26.7, fat_g: 2.5, sugar_g: 5.6 },
+  { name: "椪糖Q粿",  name_en: "Dalgona rice cake", calories_kcal: 112.1, protein_g: 0.5, carbohydrates_g: 27.5, fat_g: 0, sugar_g: 25.5 },
+  { name: "椪糖凍",   name_en: "Dalgona jelly",   calories_kcal: 84.3, protein_g: 0,  carbohydrates_g: 21.1, fat_g: 0,  sugar_g: 20.8 },
 ];
 
 interface DrinkSpec {
@@ -58,6 +64,8 @@ interface DrinkSpec {
   toppings?: string[];
   /** Sugar-free with nothing added counts toward water (plain teas only). */
   water?: boolean;
+  /** Cup volumes when this drink isn't sold in all of its chain's sizes (else BRAND_CUPS). */
+  cups?: { M?: number; L?: number; XL?: number };
 }
 
 /**
@@ -82,6 +90,7 @@ export const BRAND_CUPS: Record<string, { M?: number; L: number; XL?: number }> 
   "萬波":     { M: 500, L: 700 },
   "珍煮丹":   { M: 500, L: 650 },
   "鶴茶樓":   { M: 500, L: 660 },
+  "有飲":     { M: 500, L: 660 },
 };
 
 // Fixed (non-adjustable) sugar is measured from calories, not guessed: a brand's
@@ -247,6 +256,70 @@ const DRINKS: DrinkSpec[] = [
   // ── 鶴茶樓 — platform labels (one store, L)
   { name: "鶴茶樓 鶴頂紅茶",   name_en: "Hechalou Crane Black Tea",     ml: 660, kcal: 174,   sugar: 41,   kind: "tea", water: true },
   { name: "鶴茶樓 鶴頂那堤",   name_en: "Hechalou Crane Latte",         ml: 660, kcal: 290,   sugar: 49,   fixedSugar: 8, kind: "milk" },
+  // ── 有飲 — the shop's own calorie table (全糖, largest cup; M 500 / L 660 ml).
+  // Drinks listed in both sizes use the L figure; M-only drinks are based on 500 ml
+  // and offer only the M cup. Syrup baseline: its plain teas, 39.2 g per 660 ml.
+  // 珍珠鮮奶 has no tea or syrup (its base is about all milk), so its sugar is all fixed.
+  // Repeated listings (奶霜 and 椪糖 series under two headings) appear once. docs/drinks-research.md §15.
+  { name: "有飲 古早味憨厚紅茶", name_en: "Youin Old-style Black Tea", ml: 660, kcal: 183.6, sugar: 39.2, kind: "tea", water: true },
+  { name: "有飲 斯里蘭卡醇紅茶", name_en: "Youin Ceylon Black Tea", ml: 660, kcal: 183.6, sugar: 39.2, kind: "tea", water: true },
+  { name: "有飲 尚青四季春茶", name_en: "Youin Four Seasons Tea", ml: 660, kcal: 183.6, sugar: 39.2, kind: "tea", water: true },
+  { name: "有飲 醇焙烏龍茶", name_en: "Youin Roasted Oolong Tea", ml: 660, kcal: 183.6, sugar: 39.2, kind: "tea", water: true },
+  { name: "有飲 焙香黃金穀物茶", name_en: "Youin Roasted Golden Grain Tea", ml: 660, kcal: 183.6, sugar: 39.2, kind: "tea", water: true },
+  { name: "有飲 蜜香檸檬四季春", name_en: "Youin Honey Lemon Four Seasons Tea", ml: 660, kcal: 324.8, sugar: 66.4, fixedSugar: 27.2, kind: "tea" },
+  { name: "有飲 多肉鳳梨焙烏龍", name_en: "Youin Pineapple Roasted Oolong", ml: 660, kcal: 324.2, sugar: 66.2, fixedSugar: 27, kind: "tea" },
+  { name: "有飲 蜜釀蘋果四季", name_en: "Youin Honey Apple Four Seasons Tea", ml: 660, kcal: 416, sugar: 89, fixedSugar: 49.8, kind: "tea" },
+  { name: "有飲 台灣柳丁四季", name_en: "Youin Taiwan Orange Four Seasons Tea", ml: 660, kcal: 291, sugar: 62, fixedSugar: 22.8, kind: "tea" },
+  { name: "有飲 炎炎夏日水果茶", name_en: "Youin Summer Fruit Tea", ml: 660, kcal: 338.1, sugar: 69.4, fixedSugar: 30.2, kind: "tea" },
+  { name: "有飲 粉紅泡泡草莓優優", name_en: "Youin Strawberry Yogurt Drink", ml: 500, kcal: 232.6, sugar: 22.6, kind: "milk", cups: { M: 500 } },
+  { name: "有飲 臉紅紅蘋果優優", name_en: "Youin Apple Yogurt Drink", ml: 500, kcal: 389.5, sugar: 56.7, fixedSugar: 27, kind: "milk", cups: { M: 500 } },
+  { name: "有飲 台灣囡仔鳳梨優優", name_en: "Youin Pineapple Yogurt Drink", ml: 500, kcal: 354, sugar: 46.9, fixedSugar: 17.2, kind: "milk", cups: { M: 500 } },
+  { name: "有飲 酸甘甜百香果優優", name_en: "Youin Passion Fruit Yogurt Drink", ml: 500, kcal: 343.3, sugar: 42.1, fixedSugar: 12.4, kind: "milk", cups: { M: 500 } },
+  { name: "有飲 咔滋咔滋椪糖優優", name_en: "Youin Crunchy Dalgona Yogurt Drink", ml: 500, kcal: 381.3, sugar: 58.5, fixedSugar: 28.8, kind: "milk", cups: { M: 500 } },
+  { name: "有飲 古早味憨厚奶茶", name_en: "Youin Old-style Milk Tea", ml: 660, kcal: 440.9, sugar: 46.4, fixedSugar: 7.2, kind: "creamer" },
+  { name: "有飲 斯里蘭卡厚奶茶", name_en: "Youin Ceylon Milk Tea", ml: 660, kcal: 440.9, sugar: 46.4, fixedSugar: 7.2, kind: "creamer" },
+  { name: "有飲 尚青四季奶茶", name_en: "Youin Four Seasons Milk Tea", ml: 660, kcal: 440.9, sugar: 46.4, fixedSugar: 7.2, kind: "creamer" },
+  { name: "有飲 醇焙烏龍奶茶", name_en: "Youin Roasted Oolong Milk Tea", ml: 660, kcal: 440.9, sugar: 46.4, fixedSugar: 7.2, kind: "creamer" },
+  { name: "有飲 焙香穀物奶茶", name_en: "Youin Roasted Grain Milk Tea", ml: 660, kcal: 440.9, sugar: 46.4, fixedSugar: 7.2, kind: "creamer" },
+  { name: "有飲 珍珠奶茶爆擊", name_en: "Youin Pearl Milk Tea Blast", ml: 660, kcal: 599.9, sugar: 62.1, fixedSugar: 7.9, kind: "creamer", toppings: ["珍珠"] },
+  { name: "有飲 小時候ㄟ麵茶奶茶", name_en: "Youin Childhood Mian Cha Milk Tea", ml: 660, kcal: 568.4, sugar: 51.5, fixedSugar: 12.3, kind: "creamer" },
+  { name: "有飲 濃萃可可奶茶", name_en: "Youin Rich Cocoa Milk Tea", ml: 660, kcal: 442.3, sugar: 59.8, fixedSugar: 20.6, kind: "creamer" },
+  { name: "有飲 玫瑰鹽奶霜紅茶", name_en: "Youin Rose Salt Cream Foam Black Tea", ml: 660, kcal: 382.3, sugar: 45.9, fixedSugar: 6.7, kind: "creamer" },
+  { name: "有飲 玫瑰鹽奶霜四季春", name_en: "Youin Rose Salt Cream Foam Four Seasons Tea", ml: 660, kcal: 382.3, sugar: 45.9, fixedSugar: 6.7, kind: "creamer" },
+  { name: "有飲 玫瑰鹽奶霜烏龍茶", name_en: "Youin Rose Salt Cream Foam Oolong Tea", ml: 660, kcal: 382.3, sugar: 45.9, fixedSugar: 6.7, kind: "creamer" },
+  { name: "有飲 玫瑰鹽奶霜穀物茶", name_en: "Youin Rose Salt Cream Foam Grain Tea", ml: 660, kcal: 382.3, sugar: 45.9, fixedSugar: 6.7, kind: "creamer" },
+  { name: "有飲 椪糖奶霜紅茶", name_en: "Youin Dalgona Cream Foam Black Tea", ml: 660, kcal: 486.6, sugar: 71.6, fixedSugar: 32.4, kind: "creamer" },
+  { name: "有飲 椪糖奶霜四季春", name_en: "Youin Dalgona Cream Foam Four Seasons Tea", ml: 660, kcal: 486.6, sugar: 71.6, fixedSugar: 32.4, kind: "creamer" },
+  { name: "有飲 椪糖奶霜烏龍茶", name_en: "Youin Dalgona Cream Foam Oolong Tea", ml: 660, kcal: 486.6, sugar: 71.6, fixedSugar: 32.4, kind: "creamer" },
+  { name: "有飲 椪糖奶霜穀物茶", name_en: "Youin Dalgona Cream Foam Grain Tea", ml: 660, kcal: 486.6, sugar: 71.6, fixedSugar: 32.4, kind: "creamer" },
+  { name: "有飲 椪糖風味奶霜紅茶", name_en: "Youin Dalgona-flavour Cream Foam Black Tea", ml: 660, kcal: 398.9, sugar: 65.6, fixedSugar: 26.4, kind: "creamer" },
+  { name: "有飲 椪糖風味奶霜四季春", name_en: "Youin Dalgona-flavour Cream Foam Four Seasons Tea", ml: 660, kcal: 398.9, sugar: 65.6, fixedSugar: 26.4, kind: "creamer" },
+  { name: "有飲 椪糖風味奶霜烏龍茶", name_en: "Youin Dalgona-flavour Cream Foam Oolong Tea", ml: 660, kcal: 398.9, sugar: 65.6, fixedSugar: 26.4, kind: "creamer" },
+  { name: "有飲 椪糖風味奶霜穀物茶", name_en: "Youin Dalgona-flavour Cream Foam Grain Tea", ml: 660, kcal: 398.9, sugar: 65.6, fixedSugar: 26.4, kind: "creamer" },
+  { name: "有飲 醇濃可可奶霜", name_en: "Youin Rich Cocoa Cream Foam", ml: 660, kcal: 577.7, sugar: 65.5, fixedSugar: 26.3, kind: "creamer" },
+  { name: "有飲 草莓可可奶霜", name_en: "Youin Strawberry Cocoa Cream Foam", ml: 660, kcal: 596.9, sugar: 80.8, fixedSugar: 41.6, kind: "creamer" },
+  { name: "有飲 焦香椪糖紅茶", name_en: "Youin Caramel Dalgona Black Tea", ml: 660, kcal: 287.8, sugar: 64.9, fixedSugar: 25.7, kind: "tea" },
+  { name: "有飲 焦香椪糖四季春", name_en: "Youin Caramel Dalgona Four Seasons Tea", ml: 660, kcal: 287.8, sugar: 64.9, fixedSugar: 25.7, kind: "tea" },
+  { name: "有飲 焦香椪糖烏龍茶", name_en: "Youin Caramel Dalgona Oolong Tea", ml: 660, kcal: 287.8, sugar: 64.9, fixedSugar: 25.7, kind: "tea" },
+  { name: "有飲 焦香椪糖穀物茶", name_en: "Youin Caramel Dalgona Grain Tea", ml: 660, kcal: 287.8, sugar: 64.9, fixedSugar: 25.7, kind: "tea" },
+  { name: "有飲 焦香椪糖奶茶", name_en: "Youin Caramel Dalgona Milk Tea", ml: 660, kcal: 545.2, sugar: 72.1, fixedSugar: 32.9, kind: "creamer" },
+  { name: "有飲 焦香椪糖鮮奶茶", name_en: "Youin Caramel Dalgona Fresh Milk Tea", ml: 660, kcal: 274.2, sugar: 37.2, kind: "milk" },
+  { name: "有飲 椪糖粿鮮奶茶", name_en: "Youin Dalgona Rice Cake Fresh Milk Tea", ml: 660, kcal: 352.4, sugar: 60.4, kind: "milk", toppings: ["椪糖Q粿"] },
+  { name: "有飲 椪糖凍鮮奶茶", name_en: "Youin Dalgona Jelly Fresh Milk Tea", ml: 660, kcal: 324.5, sugar: 55.6, kind: "milk", toppings: ["椪糖凍"] },
+  { name: "有飲 椪糖冰淇淋紅茶", name_en: "Youin Dalgona Ice Cream Black Tea", ml: 660, kcal: 367.3, sugar: 67.3, fixedSugar: 28.1, kind: "creamer" },
+  { name: "有飲 椪糖冰淇淋四季春", name_en: "Youin Dalgona Ice Cream Four Seasons Tea", ml: 660, kcal: 367.3, sugar: 67.3, fixedSugar: 28.1, kind: "creamer" },
+  { name: "有飲 椪糖冰淇淋烏龍茶", name_en: "Youin Dalgona Ice Cream Oolong Tea", ml: 660, kcal: 367.3, sugar: 67.3, fixedSugar: 28.1, kind: "creamer" },
+  { name: "有飲 椪糖冰淇淋穀物茶", name_en: "Youin Dalgona Ice Cream Grain Tea", ml: 660, kcal: 367.3, sugar: 67.3, fixedSugar: 28.1, kind: "creamer" },
+  { name: "有飲 憨厚紅茶鮮奶茶", name_en: "Youin Old-style Black Tea Fresh Milk Tea", ml: 660, kcal: 319.6, sugar: 48.4, fixedSugar: 9.2, kind: "milk" },
+  { name: "有飲 斯里蘭卡鮮奶茶", name_en: "Youin Ceylon Fresh Milk Tea", ml: 660, kcal: 319.6, sugar: 48.4, fixedSugar: 9.2, kind: "milk" },
+  { name: "有飲 尚青四季鮮奶茶", name_en: "Youin Four Seasons Fresh Milk Tea", ml: 660, kcal: 319.6, sugar: 48.4, fixedSugar: 9.2, kind: "milk" },
+  { name: "有飲 醇焙烏龍鮮奶茶", name_en: "Youin Roasted Oolong Fresh Milk Tea", ml: 660, kcal: 319.6, sugar: 48.4, fixedSugar: 9.2, kind: "milk" },
+  { name: "有飲 焙香穀物鮮奶茶", name_en: "Youin Roasted Grain Fresh Milk Tea", ml: 660, kcal: 319.6, sugar: 48.4, fixedSugar: 9.2, kind: "milk" },
+  { name: "有飲 黑糖珍珠鮮奶茶", name_en: "Youin Brown Sugar Pearl Fresh Milk Tea", ml: 660, kcal: 395.4, sugar: 54.9, fixedSugar: 0.7, kind: "milk", toppings: ["珍珠"] },
+  { name: "有飲 醇濃可可鮮奶", name_en: "Youin Rich Cocoa Fresh Milk", ml: 660, kcal: 524.4, sugar: 69.7, fixedSugar: 30.5, kind: "milk" },
+  { name: "有飲 草莓可可鮮奶", name_en: "Youin Strawberry Cocoa Fresh Milk", ml: 500, kcal: 449.9, sugar: 74.5, fixedSugar: 44.8, kind: "milk", cups: { M: 500 } },
+  { name: "有飲 燕麥可可鮮奶", name_en: "Youin Oat Cocoa Fresh Milk", ml: 500, kcal: 312.3, sugar: 31.8, fixedSugar: 2.1, kind: "milk", cups: { M: 500 } },
+  { name: "有飲 珍珠鮮奶", name_en: "Youin Pearl Fresh Milk", ml: 500, kcal: 299.4, sugar: 23.2, fixedSugar: 8.2, kind: "milk", toppings: ["珍珠"], cups: { M: 500 } },
 ];
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -281,7 +354,8 @@ export const SEED_DRINKS: SeedDrink[] = DRINKS.map(d => {
   const m = estimateDrinkMacros(kcal, sugar, d.kind);
   return {
     food_name: d.name, name_en: d.name_en, brand: d.name.split(" ")[0],
-    cup_sizes: BRAND_CUPS[d.name.split(" ")[0]] ? JSON.stringify(BRAND_CUPS[d.name.split(" ")[0]]) : null,
+    cup_sizes: d.cups ? JSON.stringify(d.cups)
+      : BRAND_CUPS[d.name.split(" ")[0]] ? JSON.stringify(BRAND_CUPS[d.name.split(" ")[0]]) : null,
     protein_g: r1(m.p), carbohydrates_g: r1(m.c), fat_g: r1(m.f), calories_kcal: r1(kcal),
     base_quantity: d.ml, base_unit: "ml", category: "飲料",
     counts_as_water: d.water ?? false,
