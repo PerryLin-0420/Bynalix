@@ -1,6 +1,6 @@
 import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
 import { format } from "date-fns";
-import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle, Timer } from "lucide-react";
+import { Dumbbell, Droplets, Plus, Trash2, X, Star, Pencil, Check, AlertCircle, Timer, Settings2 } from "lucide-react";
 import { clsx } from "clsx";
 import { PillButton } from "@/components/common/PillButton";
 import { BottomSheet } from "@/components/common/Modal";
@@ -19,6 +19,8 @@ import { leanBodyMass } from "@/lib/calculations/metabolism";
 import { ExerciseHistoryDrawer } from "@/components/exercise/ExerciseHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
 import { useSwipeTabs } from "@/hooks/useSwipe";
+import { WaterPresetsDialog } from "@/components/exercise/WaterPresetsDialog";
+import { DEFAULT_WATER_PRESETS, loadWaterPresets, saveWaterPresets } from "@/lib/waterPresets";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,7 +51,6 @@ interface RunningSession  { id: number; log_time: string; cardio_type: string; i
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WATER_PRESETS = [150, 250, 350, 500];
 
 
 // Body-part i18n key map (values stay Chinese in DB/state)
@@ -233,6 +234,13 @@ export function ExerciseLog() {
   const [waterEntries, setWaterEntries] = useState<WaterEntry[]>([]);
   const [totalWater, setTotalWater]     = useState(0);
   const [waterAmount, setWaterAmount]   = useState("250");
+  // Quick-add shortcuts, per user (amounts and order editable, count fixed)
+  const [waterPresets, setWaterPresets] = useState<number[]>(DEFAULT_WATER_PRESETS);
+  const [showWaterPresets, setShowWaterPresets] = useState(false);
+  useEffect(() => {
+    if (!profile) return;
+    loadWaterPresets(profile.user_id).then(setWaterPresets).catch(e => logError("ExerciseLog.loadWaterPresets", e));
+  }, [profile?.user_id]);
   const [waterTime, setWaterTime]       = useState(format(new Date(), "HH:mm"));
 
   // Custom cardio exercise
@@ -1373,10 +1381,17 @@ export function ExerciseLog() {
           </div>
 
           <div>
-            <p className="text-xs font-medium text-[var(--text-on-bg-muted)] mb-2">{t("exercise.quickAdd")}</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-[var(--text-on-bg-muted)]">{t("exercise.quickAdd")}</p>
+              <button onClick={() => setShowWaterPresets(true)} title={lang === "zh" ? "飲水快捷設定" : "Water shortcuts"}
+                aria-label={lang === "zh" ? "飲水快捷設定" : "Water shortcuts"}
+                className="icon-btn text-[var(--text-on-bg-muted)] hover:text-[var(--text-on-bg)]">
+                <Settings2 size={14} />
+              </button>
+            </div>
             <div className="grid grid-cols-4 gap-2">
-              {WATER_PRESETS.map(ml => (
-                <button key={ml} onClick={() => addWater(ml)}
+              {waterPresets.map((ml, i) => (
+                <button key={i} onClick={() => addWater(ml)}
                   className="py-3 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-medium text-[var(--text-on-bg)] transition-all">
                   {ml} ml
                 </button>
@@ -1408,6 +1423,19 @@ export function ExerciseLog() {
               addWater(parseInt(waterAmount) || 0);
             }} className="btn-primary px-5">{t("common.add")}</button>
           </div>
+          {showWaterPresets && profile && (
+            <WaterPresetsDialog presets={waterPresets} lang={lang} onClose={() => setShowWaterPresets(false)}
+              onSave={async p => {
+                try {
+                  await saveWaterPresets(profile.user_id, p);
+                  setWaterPresets(p);
+                  setShowWaterPresets(false);
+                } catch (e) {
+                  logError("ExerciseLog.saveWaterPresets", e);
+                  showToast(lang === "zh" ? "儲存失敗" : "Save failed", "error");
+                }
+              }} />
+          )}
           {waterAddErr && (
             <p className="text-xs text-red-500 flex items-center gap-micro -mt-1">
               <AlertCircle size={12} className="shrink-0" /> {waterAddErr}
