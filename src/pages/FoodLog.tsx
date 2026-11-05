@@ -18,7 +18,7 @@ import { FoodHistoryDrawer } from "@/components/food/FoodHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
 import { DrinkOptions, SummaryTabs, ToppingEditor, type NewTopping } from "@/components/food/DrinkOptions";
 import {
-  CUP_PRESETS, defaultDrinkOpts, drinkAdjustment, drinkCountsAsWater, drinkOptsSummary, isAdvancedDrink,
+  CUP_PRESETS, DRINK_KINDS, defaultDrinkOpts, estimateDrinkMacros, guessDrinkKind, type DrinkKind, drinkAdjustment, drinkCountsAsWater, drinkOptsSummary, isAdvancedDrink,
   parseCupSizes, parseDrinkOpts, parseToppings, round1, type DrinkOpts, type Topping, type ToppingPick,
 } from "@/lib/drink";
 
@@ -245,6 +245,8 @@ export function FoodLog() {
     quantity: "100", unit: "g", category: "", addToFav: true,
     // Advanced drink: nutrition above is at full sugar; sugar fields per the same amount
     drinkAdvanced: false, sugar: "", sugarFixed: "",
+    // Drinks: enter kcal + sugar (what shops publish) and estimate P/C/F, or macros directly
+    macroMode: "kcal" as "kcal" | "macro", kcal: "", drinkKind: "tea" as DrinkKind,
     brand: "",
     // Advanced drink: its own cup volumes (blank = not offered; all blank = defaults)
     cups: { M: "", L: "", XL: "" } as Record<"M" | "L" | "XL", string>,
@@ -256,11 +258,19 @@ export function FoodLog() {
   const [cfTab, setCfTab] = useState<"basic" | "sugar" | "toppings">("basic");
   const cfTabbed = cfIsDrink && cf.drinkAdvanced;
   const cfView = cfTabbed ? cfTab : "basic";
-  const cfCalories = Math.round(
-    (parseFloat(cf.protein) || 0) * 4 +
-    (parseFloat(cf.carb)    || 0) * 4 +
-    (parseFloat(cf.fat)     || 0) * 9
-  );
+  const cfKcalMode = cfIsDrink && cf.macroMode === "kcal";
+  // In kcal mode the macros are estimated from kcal + full sugar by drink kind
+  const cfEst = cfKcalMode
+    ? estimateDrinkMacros(parseFloat(cf.kcal) || 0, Math.min(parseFloat(cf.sugar) || 0, (parseFloat(cf.kcal) || 0) / 4), cf.drinkKind)
+    : null;
+  const cfMacros = cfEst
+    ? { p: round1(cfEst.p), c: round1(cfEst.c), f: round1(cfEst.f) }
+    : { p: parseFloat(cf.protein) || 0, c: parseFloat(cf.carb) || 0, f: parseFloat(cf.fat) || 0 };
+  const cfCalories = cfKcalMode
+    ? Math.round(parseFloat(cf.kcal) || 0)
+    : Math.round(cfMacros.p * 4 + cfMacros.c * 4 + cfMacros.f * 9);
+  // Sugar the sugar level can act on, as it will be saved (capped by carbs, minus fixed)
+  const cfAdjSugar = Math.min(parseFloat(cf.sugar) || 0, cfMacros.c) - (parseFloat(cf.sugarFixed) || 0);
 
   useEffect(() => {
     if (profile) { loadLog(); loadFavIds(); loadTemplates(); loadKnownTypes(); loadExtraFilters(); loadToppings(); }
@@ -812,6 +822,13 @@ export function FoodLog() {
         return { M: own?.M ? String(own.M) : "", L: own?.L ? String(own.L) : "", XL: own?.XL ? String(own.XL) : "" };
       })(),
       defaultToppings: parseToppings(food.default_toppings),
+      ...(() => {
+        // Reopen a drink in kcal mode when its macros are our own estimate
+        const kind = food.category === "飲料" ? guessDrinkKind(food) : null;
+        return kind
+          ? { macroMode: "kcal" as const, kcal: String(food.calories_kcal), drinkKind: kind }
+          : { macroMode: "macro" as const, kcal: "", drinkKind: "tea" as DrinkKind };
+      })(),
     });
     setCustomFoodErr(null);
     setCfTab("basic");
@@ -829,8 +846,9 @@ export function FoodLog() {
   const saveCustomFood = async () => {
     if (!cf.name) return;
     setCustomFoodErr(null);
-    const cfErr =
-      (cf.protein ? checkBound(cf.protein, BOUNDS.macroNutrient, lang) : null) ??
+    const cfErr = cfKcalMode
+      ? (cf.kcal ? null : (lang === "zh" ? "請填熱量" : "Enter the calories"))
+      : (cf.protein ? checkBound(cf.protein, BOUNDS.macroNutrient, lang) : null) ??
       (cf.carb    ? checkBound(cf.carb,    BOUNDS.macroNutrient, lang) : null) ??
       (cf.fat     ? checkBound(cf.fat,     BOUNDS.macroNutrient, lang) : null);
     if (cfErr) { setCustomFoodErr(cfErr); return; }
@@ -840,7 +858,7 @@ export function FoodLog() {
       // above the fixed part, capped at the carbohydrate it came from
       const adv = cfIsDrink && cf.drinkAdvanced;
       const unit = adv ? "ml" : (cf.unit || "g");
-      const sugar = adv ? Math.min(parseFloat(cf.sugar) || 0, parseFloat(cf.carb) || 0) : null;
+      const sugar = adv ? Math.min(parseFloat(cf.sugar) || 0, cfMacros.c) : null;
       const sugarFixed = adv ? Math.min(parseFloat(cf.sugarFixed) || 0, sugar ?? 0) : 0;
       const brand = cfIsDrink ? (cf.brand.trim() || null) : null;
       const cupEntries = adv ? CUP_PRESETS
@@ -856,8 +874,7 @@ export function FoodLog() {
              drink_advanced=?, sugar_g=?, sugar_fixed_g=?, brand=?, cup_sizes=?, default_toppings=?
            WHERE food_id=? AND source_type='custom'`,
           [cf.name, cf.name_en.trim() || null,
-           parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
-           parseFloat(cf.fat)||0, cfCalories,
+           cfMacros.p, cfMacros.c, cfMacros.f, cfCalories,
            parseFloat(cf.quantity)||100, unit,
            cf.category||null, adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings, cfEditId]);
         if (profile) {
@@ -881,8 +898,7 @@ export function FoodLog() {
               drink_advanced, sugar_g, sugar_fixed_g, brand, cup_sizes, default_toppings)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [cf.name, cf.name_en.trim() || null,
-           parseFloat(cf.protein)||0, parseFloat(cf.carb)||0,
-           parseFloat(cf.fat)||0, cfCalories,
+           cfMacros.p, cfMacros.c, cfMacros.f, cfCalories,
            parseFloat(cf.quantity)||100, unit,
            cf.category||null, "custom", profile?.user_id??null,
            adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings]);
@@ -1601,6 +1617,57 @@ export function FoodLog() {
                   value={cf.name_en} onChange={e => setCf(f => ({ ...f, name_en: e.target.value }))} />
               </div>
 
+              {cfIsDrink && (
+                <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[var(--surface-container)]" role="tablist">
+                  {([["kcal", lang === "zh" ? "熱量＋糖量" : "Calories + sugar"], ["macro", lang === "zh" ? "三大營養素" : "Macros"]] as const).map(([k, label]) => (
+                    <button key={k} role="tab" aria-selected={cf.macroMode === k}
+                      onClick={() => setCf(f => ({ ...f, macroMode: k,
+                        // Carry the numbers over so switching never loses them
+                        ...(k === "macro" && f.macroMode === "kcal" && f.kcal
+                          ? { protein: String(cfMacros.p), carb: String(cfMacros.c), fat: String(cfMacros.f) } : {}),
+                        ...(k === "kcal" && f.macroMode === "macro" && !f.kcal && cfCalories ? { kcal: String(cfCalories) } : {}) }))}
+                      className={clsx("rounded-lg px-2 py-1.5 text-xs font-medium transition-all",
+                        cf.macroMode === k ? "bg-[var(--surface)] shadow-sm text-[var(--text-accent)]" : "text-[var(--text-on-surface-sub)]")}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {cfKcalMode ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <input className="input-base pr-10" type="number" inputMode="decimal"
+                        placeholder={lang === "zh" ? "熱量 *" : "Calories *"}
+                        value={cf.kcal} onChange={e => setCf(f => ({ ...f, kcal: e.target.value }))} />
+                      <span className="absolute right-2 top-2 text-xs text-[var(--text-on-surface-muted)]">kcal</span>
+                    </div>
+                    <div className="relative">
+                      <input className="input-base pr-6" type="number" inputMode="decimal"
+                        placeholder={lang === "zh" ? "糖量（全糖）" : "Sugar (full)"}
+                        value={cf.sugar} onChange={e => setCf(f => ({ ...f, sugar: e.target.value }))} />
+                      <span className="absolute right-2 top-2 text-xs text-[var(--text-on-surface-muted)]">g</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {DRINK_KINDS.map(k => (
+                      <button key={k.key} onClick={() => setCf(f => ({ ...f, drinkKind: k.key }))}
+                        className={clsx("px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
+                          cf.drinkKind === k.key
+                            ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)]"
+                            : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--color-outline)]")}>
+                        {lang === "zh" ? k.zh : k.en}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-10 text-[var(--text-on-surface-muted)]">
+                    {lang === "zh"
+                      ? `照店家熱量表填全糖數值即可；三大營養素依飲料類型估算：P${cfMacros.p} C${cfMacros.c} F${cfMacros.f} g`
+                      : `Enter the shop's full-sugar figures; macros are estimated by drink type: P${cfMacros.p} C${cfMacros.c} F${cfMacros.f} g`}
+                  </p>
+                </div>
+              ) : (
               <div className="grid grid-cols-3 gap-2">
                 {([[t("dashboard.protein"),"protein"],[t("dashboard.carb"),"carb"],[t("food.oilFat"),"fat"]] as [string,string][]).map(([label, key]) => (
                   <div key={key} className="relative">
@@ -1611,13 +1678,16 @@ export function FoodLog() {
                   </div>
                 ))}
               </div>
+              )}
 
+              {!cfKcalMode && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--surface-container)] border border-[var(--surface-border)]">
                 <span className="text-xs text-[var(--text-on-surface-muted)] flex-1">
                   {lang === "en" ? "Calories (P×4 + C×4 + F×9)" : "熱量（P×4 + C×4 + F×9）"}
                 </span>
                 <span className="text-sm font-semibold text-[var(--text-on-surface)]">{cfCalories} kcal</span>
               </div>
+              )}
 
               <div className="flex gap-micro.5">
                 <input className="input-base flex-1"
@@ -1629,7 +1699,13 @@ export function FoodLog() {
 
               <div className="flex gap-2">
                 <select className="input-base flex-1"
-                  value={cf.category} onChange={e => setCf(f => ({ ...f, category: e.target.value }))}>
+                  value={cf.category} onChange={e => {
+                    const category = e.target.value;
+                    // A new drink defaults to the advanced form (cup, sugar level, toppings) in ml
+                    setCf(f => category === "飲料" && f.category !== "飲料" && cfEditId === null
+                      ? { ...f, category, drinkAdvanced: true, unit: "ml", quantity: f.quantity === "100" ? "700" : f.quantity }
+                      : { ...f, category });
+                  }}>
                   <option value="">{lang === "en" ? "Category (optional)" : "分類（選填）"}</option>
                   {Object.keys(CAT_EN).map(c => (
                     <option key={c} value={c}>{getCatOptionLabel(c)}</option>
@@ -1666,6 +1742,14 @@ export function FoodLog() {
                     <input type="checkbox" className="w-5 h-5 accent-[var(--color-primary)]" checked={cf.drinkAdvanced}
                       onChange={e => setCf(f => ({ ...f, drinkAdvanced: e.target.checked, unit: e.target.checked ? "ml" : f.unit }))} />
                   </label>
+                  {cf.drinkAdvanced && cfAdjSugar <= 0 && (
+                    <p className="text-10 text-amber-600 flex items-center gap-micro">
+                      <AlertCircle size={11} className="shrink-0" />
+                      {lang === "zh"
+                        ? (cfKcalMode ? "未填糖量，記錄時甜度會是「固定」無法調整" : "全糖糖量未填或大於碳水／不可調的糖，記錄時甜度會是「固定」")
+                        : (cfKcalMode ? "No sugar entered — the sugar level will be fixed when logging" : "Sugar is empty, above carbs, or all fixed — the sugar level will be fixed when logging")}
+                    </p>
+                  )}
                 </div>
               )}
             </div>}

@@ -183,6 +183,41 @@ export function drinkOptsSummary(opts: DrinkOpts, toppings: Map<number, Topping>
   return parts.join(" · ");
 }
 
+/** What the non-sugar calories of a drink are made of. */
+export type DrinkKind =
+  | "tea"       // tea + syrup (+ a little juice): everything is carbohydrate
+  | "creamer"   // milk tea with creamer: mostly fat
+  | "milk";     // fresh-milk latte: protein and fat, lactose counted in sugar
+
+export const DRINK_KINDS: { key: DrinkKind; zh: string; en: string }[] = [
+  { key: "tea",     zh: "茶／果茶",   en: "Tea / fruit tea" },
+  { key: "creamer", zh: "奶茶（奶精）", en: "Milk tea (creamer)" },
+  { key: "milk",    zh: "鮮奶／拿鐵", en: "Fresh milk / latte" },
+];
+
+/**
+ * Split a drink's calories into P/C/F from just kcal and sugar — all most
+ * shops publish. Sugar is carbohydrate; the rest goes by the kind of drink.
+ */
+export function estimateDrinkMacros(kcal: number, sugar: number, kind: DrinkKind): { p: number; c: number; f: number } {
+  const rest = Math.max(0, kcal - sugar * 4);
+  switch (kind) {
+    case "tea":     return { p: 0, c: kcal / 4, f: 0 };
+    case "creamer": return { p: rest * 0.05 / 4, c: sugar + rest * 0.40 / 4, f: rest * 0.55 / 9 };
+    case "milk":    return { p: rest * 0.30 / 4, c: sugar, f: rest * 0.70 / 9 };
+  }
+}
+
+/** The drink kind whose estimate reproduces these macros, if any (to reopen a drink in kcal mode). */
+export function guessDrinkKind(food: { calories_kcal: number; sugar_g: number | null; protein_g: number; carbohydrates_g: number; fat_g: number }): DrinkKind | null {
+  for (const k of DRINK_KINDS) {
+    const m = estimateDrinkMacros(food.calories_kcal, food.sugar_g ?? 0, k.key);
+    if (Math.abs(round1(m.p) - food.protein_g) <= 0.2 && Math.abs(round1(m.c) - food.carbohydrates_g) <= 0.2
+        && Math.abs(round1(m.f) - food.fat_g) <= 0.2) return k.key;
+  }
+  return null;
+}
+
 export function round1(v: number): number {
   return Math.round(v * 10) / 10;
 }

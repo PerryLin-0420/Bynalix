@@ -10,10 +10,11 @@
  * toppings as `defaultToppings`, so a toppings change never double counts:
  *   base = published − default toppings.
  * Macros are not published, so they are estimated from the base's kcal and
- * sugar by the kind of drink (see `estimateMacros`).
+ * sugar by the kind of drink (see `estimateDrinkMacros` in lib/drink.ts).
  */
 
 import type { SeedFood } from "./foods";
+import { estimateDrinkMacros, type DrinkKind } from "@/lib/drink";
 
 export interface SeedTopping {
   name: string; name_en: string;
@@ -43,12 +44,6 @@ export const SEED_TOPPINGS: SeedTopping[] = [
   { name: "OREO 脆片", name_en: "OREO crumbs",    calories_kcal: 116, protein_g: 1,   carbohydrates_g: 17, fat_g: 5,    sugar_g: 6 },
   { name: "茶凍",     name_en: "Tea jelly",       calories_kcal: 40,  protein_g: 0,   carbohydrates_g: 10, fat_g: 0,    sugar_g: 8 },
 ];
-
-/** What the non-sugar calories of a drink's base are made of. */
-type DrinkKind =
-  | "tea"       // tea + syrup (+ a little juice): everything is carbohydrate
-  | "creamer"   // milk tea with creamer: mostly fat
-  | "milk";     // fresh-milk latte: protein and fat, lactose counted in sugar
 
 interface DrinkSpec {
   name: string; name_en: string;
@@ -256,16 +251,6 @@ const DRINKS: DrinkSpec[] = [
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
 
-/** Split a base's calories into P/C/F: sugar is carbohydrate, the rest by drink kind. */
-function estimateMacros(kcal: number, sugar: number, kind: DrinkKind) {
-  const rest = Math.max(0, kcal - sugar * 4);
-  switch (kind) {
-    case "tea":     return { p: 0, c: kcal / 4, f: 0 };
-    case "creamer": return { p: rest * 0.05 / 4, c: sugar + rest * 0.40 / 4, f: rest * 0.55 / 9 };
-    case "milk":    return { p: rest * 0.30 / 4, c: sugar, f: rest * 0.70 / 9 };
-  }
-}
-
 /** Builtin drinks renamed or dropped since an earlier seed; removed when nothing references them. */
 export const RETIRED_DRINKS = [
   "得正 紅茶",          // was 春烏龍's figure under the wrong name
@@ -293,7 +278,7 @@ export const SEED_DRINKS: SeedDrink[] = DRINKS.map(d => {
   // Floor at 0: a dietitian topping estimate can exceed what a shop's own
   // label leaves for the base, and a base can't have negative sugar.
   const sugar = Math.max(0, d.sugar - tops.reduce((s, t) => s + t.sugar_g, 0));
-  const m = estimateMacros(kcal, sugar, d.kind);
+  const m = estimateDrinkMacros(kcal, sugar, d.kind);
   return {
     food_name: d.name, name_en: d.name_en, brand: d.name.split(" ")[0],
     cup_sizes: BRAND_CUPS[d.name.split(" ")[0]] ? JSON.stringify(BRAND_CUPS[d.name.split(" ")[0]]) : null,
