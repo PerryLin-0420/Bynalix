@@ -63,7 +63,10 @@ but deeper personal understanding through self-owned data.
 
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
-**Latest — v1.8.3**
+**Latest — v1.8.4**
+- 85 more built-in drinks across 13 chains, from 2026 calorie tables and delivery-platform labels (276 drinks from 16 chains in all)
+
+**v1.8.3**
 - Custom drinks can be entered as calories + sugar straight from a shop's calorie table; macros are estimated and the sugar level stays adjustable
 - 有飲 joins the built-in drinks: 59 drinks and its own toppings from the shop's calorie table (191 drinks from 16 chains in all)
 - Water quick-add shortcuts can be changed and reordered from a settings button (still four)

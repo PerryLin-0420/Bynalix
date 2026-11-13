@@ -116,6 +116,22 @@ const DRINKS: DrinkSpec[] = [
   { name: "50嵐 阿華田拿鐵",   name_en: "50 Lan Ovaltine Latte",        ml: 700, kcal: 524.2, sugar: 64.1, fixedSugar: 23, kind: "milk" },
   { name: "50嵐 冰淇淋奶茶",   name_en: "50 Lan Ice Cream Milk Tea",    ml: 700, kcal: 708.6, sugar: 72.9, fixedSugar: 31.8, kind: "creamer" },
   { name: "50嵐 冰淇淋阿華田", name_en: "50 Lan Ice Cream Ovaltine",    ml: 700, kcal: 762,   sugar: 79.3, fixedSugar: 38.2, kind: "creamer" },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "50嵐 茉莉綠茶", name_en: "50 Lan Jasmine Green Tea", ml: 700, kcal: 170, sugar: 40, kind: "tea", water: true },
+  { name: "50嵐 阿薩姆紅茶", name_en: "50 Lan Assam Black Tea", ml: 700, kcal: 170, sugar: 40, kind: "tea", water: true },
+  { name: "50嵐 珍珠奶綠", name_en: "50 Lan Pearl Green Milk Tea", ml: 700, kcal: 668, sugar: 53, kind: "creamer", toppings: ["珍珠"] },
+  { name: "50嵐 波霸奶綠", name_en: "50 Lan Boba Green Milk Tea", ml: 700, kcal: 678, sugar: 53, kind: "creamer", toppings: ["波霸"] },
+  { name: "50嵐 布丁奶茶", name_en: "50 Lan Pudding Milk Tea", ml: 700, kcal: 592, sugar: 64, fixedSugar: 9.9, kind: "creamer", toppings: ["布丁"] },
+  { name: "50嵐 冰淇淋紅茶", name_en: "50 Lan Ice Cream Black Tea", ml: 700, kcal: 436, sugar: 67, fixedSugar: 25.9, kind: "creamer" },
+  { name: "50嵐 紅茶瑪奇朵", name_en: "50 Lan Black Tea Macchiato", ml: 700, kcal: 636, sugar: 60, fixedSugar: 18.9, kind: "creamer" },
+  { name: "50嵐 烏龍瑪奇朵", name_en: "50 Lan Oolong Macchiato", ml: 700, kcal: 636, sugar: 60, fixedSugar: 18.9, kind: "creamer" },
+  { name: "50嵐 8冰綠", name_en: "50 Lan No.8 Iced Green Tea", ml: 700, kcal: 291, sugar: 67, fixedSugar: 25.9, kind: "tea" },
+  { name: "50嵐 柚子茶", name_en: "50 Lan Yuzu Tea", ml: 700, kcal: 301, sugar: 53, fixedSugar: 11.9, kind: "tea" },
+  { name: "50嵐 葡萄柚多多", name_en: "50 Lan Grapefruit Yakult", ml: 700, kcal: 374, sugar: 84, fixedSugar: 42.9, kind: "tea" },
+  { name: "50嵐 梅の綠", name_en: "50 Lan Plum Green Tea", ml: 700, kcal: 395, sugar: 93, fixedSugar: 51.9, kind: "tea" },
+  { name: "50嵐 旺來紅", name_en: "50 Lan Pineapple Black Tea", ml: 700, kcal: 326, sugar: 75, fixedSugar: 33.9, kind: "tea" },
+  { name: "50嵐 桔子綠", name_en: "50 Lan Kumquat Green Tea", ml: 700, kcal: 218, sugar: 48, fixedSugar: 6.9, kind: "tea" },
+  { name: "50嵐 鮮柚綠", name_en: "50 Lan Pomelo Green Tea", ml: 700, kcal: 226, sugar: 51, fixedSugar: 9.9, kind: "tea" },
   // ── CoCo 都可 — platform labels
   { name: "CoCo 四季春",       name_en: "CoCo Four Seasons Tea",        ml: 640, kcal: 141,   sugar: 33,   kind: "tea", water: true },
   { name: "CoCo 手採紅茶",     name_en: "CoCo Hand-picked Black Tea",   ml: 640, kcal: 141,   sugar: 33,   kind: "tea", water: true },
@@ -130,6 +146,11 @@ const DRINKS: DrinkSpec[] = [
   { name: "CoCo 冬韻擂焙珍奶", name_en: "CoCo Roasted Pearl Milk Tea",  ml: 640, kcal: 749,   sugar: 59, fixedSugar: 11,   kind: "creamer", toppings: ["珍珠"] },
   { name: "CoCo 英式鮮奶茶",   name_en: "CoCo English Fresh Milk Tea",  ml: 640, kcal: 401,   sugar: 59,   fixedSugar: 26, kind: "milk" },
   { name: "CoCo 珍珠鮮奶茶",   name_en: "CoCo Pearl Fresh Milk Tea",    ml: 640, kcal: 547,   sugar: 57,   fixedSugar: 9, kind: "milk", toppings: ["珍珠"] },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "CoCo 芋頭牛奶", name_en: "CoCo Taro Milk", ml: 640, kcal: 552, sugar: 63, fixedSugar: 30, kind: "milk" },
+  { name: "CoCo 百香綠茶", name_en: "CoCo Passion Fruit Green Tea", ml: 640, kcal: 355, sugar: 84, fixedSugar: 51, kind: "tea" },
+  { name: "CoCo 鮮檸檬紅茶", name_en: "CoCo Fresh Lemon Black Tea", ml: 640, kcal: 322, sugar: 73, fixedSugar: 40, kind: "tea" },
+  { name: "CoCo 布丁奶茶", name_en: "CoCo Pudding Milk Tea", ml: 640, kcal: 522, sugar: 56, fixedSugar: 10, kind: "creamer", toppings: ["布丁"] },
   // ── 清心福全 — official product pages (chingshin.tw). The site labels each drink at its
   // highest level (少糖; 冬瓜檸檬 半糖), so the values below are converted to 全糖. The
   // syrup at 少糖 is 49 g (its plain teas' average) → 70 g at 全糖; sugar beyond the syrup is
@@ -166,6 +187,12 @@ const DRINKS: DrinkSpec[] = [
   // Platforms list these without pearls — add pearls as a topping
   { name: "迷客夏 伯爵紅茶拿鐵",     name_en: "Milksha Earl Grey Latte",        ml: 600, kcal: 236, sugar: 34, fixedSugar: 5, kind: "milk" },
   { name: "迷客夏 手炒黑糖鮮奶",     name_en: "Milksha Brown Sugar Fresh Milk", ml: 600, kcal: 334, sugar: 41, fixedSugar: 41, kind: "milk" },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "迷客夏 琥珀高峰烏龍", name_en: "Milksha Amber Oolong Tea", ml: 600, kcal: 144, sugar: 33, kind: "tea", water: true },
+  { name: "迷客夏 柳丁青茶", name_en: "Milksha Orange Green Tea (Qing)", ml: 600, kcal: 297, sugar: 66, fixedSugar: 37, kind: "tea" },
+  { name: "迷客夏 茉香綠茶拿鐵", name_en: "Milksha Jasmine Green Tea Latte", ml: 600, kcal: 243, sugar: 42, fixedSugar: 13, kind: "milk" },
+  { name: "迷客夏 琥珀烏龍拿鐵", name_en: "Milksha Amber Oolong Latte", ml: 600, kcal: 242, sugar: 42, fixedSugar: 13, kind: "milk" },
+  { name: "迷客夏 珍珠鮮奶", name_en: "Milksha Pearl Fresh Milk", ml: 600, kcal: 486, sugar: 26, fixedSugar: 11, kind: "milk", toppings: ["珍珠"] },
   // ── 可不可熟成紅茶 — official ordering pages (order.ocard.co/kebuke); 胭脂紅茶 is a dietitian figure
   { name: "可不可 熟成紅茶",   name_en: "Kebuke Aged Black Tea",        ml: 700, kcal: 200,   sugar: 50,   kind: "tea", water: true },
   { name: "可不可 麗春紅茶",   name_en: "Kebuke Li-Chun Black Tea",     ml: 700, kcal: 270,   sugar: 65,   kind: "tea", water: true },
@@ -175,6 +202,12 @@ const DRINKS: DrinkSpec[] = [
   { name: "可不可 雪花冷露",   name_en: "Kebuke Snow Cold Dew",         ml: 700, kcal: 233,   sugar: 55,   fixedSugar: 5, kind: "tea" },
   { name: "可不可 熟成歐蕾",   name_en: "Kebuke Aged Tea Au Lait",      ml: 700, kcal: 311,   sugar: 55,   fixedSugar: 5, kind: "milk" },
   { name: "可不可 白玉歐蕾",   name_en: "Kebuke White Pearl Au Lait",   ml: 700, kcal: 492,   sugar: 50, kind: "milk", toppings: ["珍珠"] },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "可不可 熟成冷露", name_en: "Kebuke Aged Tea Cold Dew", ml: 700, kcal: 211, sugar: 52, fixedSugar: 2, kind: "tea" },
+  { name: "可不可 春芽冷露", name_en: "Kebuke Spring Bud Cold Dew", ml: 700, kcal: 211, sugar: 52, fixedSugar: 2, kind: "tea" },
+  { name: "可不可 金蜜熟成", name_en: "Kebuke Honey Aged Black Tea", ml: 700, kcal: 215, sugar: 49, kind: "tea" },
+  { name: "可不可 金蜜檸檬", name_en: "Kebuke Honey Lemon", ml: 700, kcal: 249, sugar: 53, fixedSugar: 3, kind: "tea" },
+  { name: "可不可 胭脂多多", name_en: "Kebuke Rouge Black Tea Yakult", ml: 700, kcal: 453, sugar: 105, fixedSugar: 55, kind: "tea" },
   // ── 麻古茶坊 — delivery-platform labels. Where a store lists two sugar levels, the
   // fixed sugar is solved from them (1分糖 vs 全糖: sugar(r) = fixed + adjustable × r).
   // 甜感 drinks (減低 / 提升) are labelled at 提升 with only the gap left adjustable.
@@ -185,6 +218,11 @@ const DRINKS: DrinkSpec[] = [
   { name: "麻古 芝芝芒果果粒", name_en: "Macu Cheese Foam Mango",       ml: 700, kcal: 516,   sugar: 77,   fixedSugar: 31, kind: "tea", toppings: ["奶蓋"] },
   // 波霸奶茶: no platform label found yet — older menu calorie table
   { name: "麻古 波霸奶茶",     name_en: "Macu Boba Milk Tea",           ml: 700, kcal: 669,   sugar: 51, fixedSugar: 2,   kind: "creamer", toppings: ["波霸"] },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "麻古 高山金萱", name_en: "Macu High Mountain Jin Xuan Tea", ml: 700, kcal: 147, sugar: 34, kind: "tea", water: true },
+  { name: "麻古 芝芝金萱雙Q", name_en: "Macu Cheese Foam Jin Xuan Double Q", ml: 700, kcal: 510, sugar: 58, fixedSugar: 12, kind: "tea", toppings: ["奶蓋"] },
+  { name: "麻古 葡萄柚果粒茶", name_en: "Macu Grapefruit Fruit Tea", ml: 700, kcal: 315, sugar: 71, fixedSugar: 37, kind: "tea" },
+  { name: "麻古 翡翠柳橙", name_en: "Macu Jade Green Tea with Orange", ml: 700, kcal: 337, sugar: 75, fixedSugar: 41, kind: "tea" },
   // ── 得正 — menu figures (M/L listed per drink)
   { name: "得正 春烏龍",       name_en: "Oolong Tea Project Spring Oolong", ml: 660, kcal: 268, sugar: 57.5, kind: "tea", water: true },
   { name: "得正 輕烏龍",       name_en: "Oolong Tea Project Light Oolong",  ml: 660, kcal: 268, sugar: 57.5, kind: "tea", water: true },
@@ -193,6 +231,9 @@ const DRINKS: DrinkSpec[] = [
   { name: "得正 檸檬春烏龍",   name_en: "Oolong Tea Project Lemon Spring Oolong", ml: 660, kcal: 267, sugar: 58, fixedSugar: 0.5, kind: "tea" },
   { name: "得正 焙烏龍鮮奶",   name_en: "Oolong Tea Project Roasted Oolong Latte", ml: 660, kcal: 409, sugar: 72.6, fixedSugar: 15.1, kind: "milk" },
   { name: "得正 焙烏龍奶茶",   name_en: "Oolong Tea Project Roasted Oolong Milk Tea", ml: 660, kcal: 575.5, sugar: 62.7, fixedSugar: 5.2, kind: "creamer" },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "得正 雙柚金烏龍", name_en: "Oolong Tea Project Double Pomelo Golden Oolong", ml: 660, kcal: 341, sugar: 77, fixedSugar: 19.5, kind: "tea" },
+  { name: "得正 香橙春烏龍", name_en: "Oolong Tea Project Orange Spring Oolong", ml: 660, kcal: 389, sugar: 85, fixedSugar: 27.5, kind: "tea" },
   // ── 大苑子 — delivery-platform labels
   { name: "大苑子 水果茶",     name_en: "Dayungs Fruit Tea",            ml: 700, kcal: 317,   sugar: 70,   fixedSugar: 35, kind: "tea" },
   { name: "大苑子 翡翠檸檬",   name_en: "Dayungs Jade Lemon",           ml: 700, kcal: 329,   sugar: 68,   fixedSugar: 33,  kind: "tea" },
@@ -226,6 +267,11 @@ const DRINKS: DrinkSpec[] = [
   { name: "茶湯會 觀音拿鐵",   name_en: "TP Tea Tieguanyin Latte",      ml: 650, kcal: 297,   sugar: 49,   fixedSugar: 8, kind: "milk" },
   { name: "茶湯會 鐵觀音奶茶", name_en: "TP Tea Tieguanyin Milk Tea",   ml: 650, kcal: 581,   sugar: 47, fixedSugar: 6,   kind: "creamer" },
   { name: "茶湯會 鐵觀音珍珠奶茶", name_en: "TP Tea Tieguanyin Pearl Milk Tea", ml: 650, kcal: 717, sugar: 42, kind: "creamer", toppings: ["珍珠"] },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "茶湯會 珍珠奶茶", name_en: "TP Tea Pearl Milk Tea", ml: 650, kcal: 793, sugar: 43, kind: "creamer", toppings: ["珍珠"] },
+  { name: "茶湯會 冬瓜鐵觀音", name_en: "TP Tea Winter Melon Tieguanyin", ml: 650, kcal: 283, sugar: 54, fixedSugar: 13, kind: "tea" },
+  { name: "茶湯會 珍珠冬瓜觀音", name_en: "TP Tea Pearl Winter Melon Tieguanyin", ml: 650, kcal: 437, sugar: 51, kind: "tea", toppings: ["珍珠"] },
+  { name: "茶湯會 百香綠茶", name_en: "TP Tea Passion Fruit Green Tea", ml: 650, kcal: 421, sugar: 103, fixedSugar: 62, kind: "tea" },
   // ── 五桐號 — platform labels, large 660 ml
   { name: "五桐號 經典五桐茶", name_en: "WooTea Classic Wootong Tea",   ml: 660, kcal: 74.7,  sugar: 16.7, kind: "tea", water: true },
   { name: "五桐號 杏仁凍五桐茶", name_en: "WooTea Almond Jelly Wootong Tea", ml: 660, kcal: 192, sugar: 36, fixedSugar: 19.3, kind: "tea" },
@@ -233,6 +279,10 @@ const DRINKS: DrinkSpec[] = [
   // than calories), so the foam stays in the drink's own figures
   { name: "五桐號 烏龍奶霜",   name_en: "WooTea Oolong Cream Foam",     ml: 660, kcal: 303.2, sugar: 41.9, fixedSugar: 25.2, kind: "creamer" },
   { name: "五桐號 蕎麥奶霜",   name_en: "WooTea Buckwheat Cream Foam",  ml: 660, kcal: 320.3, sugar: 46, fixedSugar: 29.3,   kind: "creamer" },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "五桐號 玄米蕎麥", name_en: "WooTea Brown Rice Buckwheat Tea", ml: 660, kcal: 23.6, sugar: 4.6, kind: "tea", water: true },
+  { name: "五桐號 五桐奶霜", name_en: "WooTea Wootong Cream Foam", ml: 660, kcal: 191.7, sugar: 16.1, kind: "creamer" },
+  { name: "五桐號 玄米蕎麥奶茶", name_en: "WooTea Brown Rice Buckwheat Milk Tea", ml: 660, kcal: 348.6, sugar: 46.9, fixedSugar: 30.2, kind: "creamer" },
   // ── 一沐日 — platform labels at its one 660 ml cup, normal sweetness (the highest)
   { name: "一沐日 島韻紅茶",   name_en: "Yi Mu Ri Island Black Tea",    ml: 660, kcal: 200,   sugar: 48,   kind: "tea", water: true },
   { name: "一沐日 糯米香茶",   name_en: "Yi Mu Ri Glutinous Rice Green Tea", ml: 660, kcal: 200, sugar: 48, kind: "tea", water: true },
@@ -242,20 +292,68 @@ const DRINKS: DrinkSpec[] = [
   { name: "一沐日 奶蓋島韻紅", name_en: "Yi Mu Ri Milk Foam Island Black Tea", ml: 660, kcal: 426, sugar: 38, kind: "tea", toppings: ["奶蓋"] },
   { name: "一沐日 蕎麥鮮奶茶", name_en: "Yi Mu Ri Buckwheat Fresh Milk Tea", ml: 660, kcal: 304, sugar: 50, fixedSugar: 2, kind: "milk" },
   { name: "一沐日 逮丸奶茶",   name_en: "Yi Mu Ri Dai Wan Milk Tea",    ml: 660, kcal: 630,   sugar: 77, fixedSugar: 29,   kind: "creamer" },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "一沐日 粉粿黑糖鮮奶茶", name_en: "Yi Mu Ri Brown Sugar Fresh Milk Tea with Fen Guo", ml: 660, kcal: 480, sugar: 52, fixedSugar: 4, kind: "milk" },
+  { name: "一沐日 粉粿黑糖奶茶", name_en: "Yi Mu Ri Brown Sugar Milk Tea with Fen Guo", ml: 660, kcal: 436, sugar: 61, fixedSugar: 13, kind: "creamer" },
+  { name: "一沐日 粉粿黑糖檸檬", name_en: "Yi Mu Ri Brown Sugar Lemon with Fen Guo", ml: 660, kcal: 354, sugar: 76, fixedSugar: 28, kind: "tea" },
+  { name: "一沐日 粉粿牡丹檸檬", name_en: "Yi Mu Ri Peony Lemon with Fen Guo", ml: 660, kcal: 465, sugar: 93, fixedSugar: 45, kind: "tea" },
   // ── 龜記茗品 — platform labels, cold 660 ml
   { name: "龜記 翡翠綠茶",     name_en: "Guiji Jade Green Tea",         ml: 660, kcal: 212,   sugar: 45,   kind: "tea", water: true },
   { name: "龜記 紅柚翡翠",     name_en: "Guiji Grapefruit Green Tea",   ml: 660, kcal: 285,   sugar: 63,   fixedSugar: 18, kind: "tea" },
   { name: "龜記 阿源楊桃綠茶", name_en: "Guiji Starfruit Green Tea",    ml: 660, kcal: 250,   sugar: 60,   fixedSugar: 15, kind: "tea" },
   { name: "龜記 楊桃雷夢",     name_en: "Guiji Starfruit Lemon",        ml: 660, kcal: 299,   sugar: 68,   fixedSugar: 23, kind: "tea" },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "龜記 三十三茶王", name_en: "Guiji No.33 Tea King", ml: 660, kcal: 182, sugar: 37, kind: "tea", water: true },
+  { name: "龜記 青四季春", name_en: "Guiji Four Seasons Tea", ml: 660, kcal: 170, sugar: 38, kind: "tea", water: true },
+  { name: "龜記 極品紅茶", name_en: "Guiji Premium Black Tea", ml: 660, kcal: 207, sugar: 46, kind: "tea", water: true },
+  { name: "龜記 冬瓜茶王", name_en: "Guiji Winter Melon Tea King", ml: 660, kcal: 198, sugar: 45, kind: "tea" },
+  { name: "龜記 冬瓜雷夢", name_en: "Guiji Winter Melon Lemon", ml: 660, kcal: 214, sugar: 48, fixedSugar: 3, kind: "tea" },
+  { name: "龜記 柳丁翡翠", name_en: "Guiji Orange Jade Green Tea", ml: 660, kcal: 290, sugar: 60, fixedSugar: 15, kind: "tea" },
+  { name: "龜記 紫葡蘆薈春", name_en: "Guiji Grape Aloe Four Seasons Tea", ml: 660, kcal: 286, sugar: 78, fixedSugar: 33, kind: "tea" },
+  { name: "龜記 豆漿紅茶", name_en: "Guiji Soy Milk Black Tea", ml: 660, kcal: 259, sugar: 43, kind: "milk" },
+  { name: "龜記 碎銀普洱鮮乳", name_en: "Guiji Pu'er Fresh Milk Tea", ml: 660, kcal: 304, sugar: 53, fixedSugar: 8, kind: "milk" },
+  { name: "龜記 龜記濃乳茶", name_en: "Guiji Guiji Rich Milk Tea", ml: 660, kcal: 310, sugar: 53, fixedSugar: 8, kind: "milk" },
+  { name: "龜記 碎銀普洱奶茶", name_en: "Guiji Pu'er Milk Tea", ml: 660, kcal: 578, sugar: 48, fixedSugar: 3, kind: "creamer" },
   // ── 萬波島嶼紅茶 — platform labels (L)
   { name: "萬波 島嶼紅茶",     name_en: "Wanpo Island Black Tea",       ml: 700, kcal: 246,   sugar: 59,   kind: "tea", water: true },
   { name: "萬波 島嶼檸檬茶王", name_en: "Wanpo Island Lemon Tea King",  ml: 700, kcal: 479,   sugar: 95,   fixedSugar: 36,  kind: "tea" },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "萬波 紫蘇金萱", name_en: "Wanpo Perilla Jin Xuan Tea", ml: 700, kcal: 134, sugar: 31, kind: "tea", water: true },
+  { name: "萬波 纖麥茶", name_en: "Wanpo Barley Tea", ml: 700, kcal: 135, sugar: 32, kind: "tea", water: true },
+  { name: "萬波 白柚麗雅", name_en: "Wanpo Pomelo Li Ya Tea", ml: 700, kcal: 427, sugar: 92, fixedSugar: 33, kind: "tea" },
+  { name: "萬波 金鑽鳳梨麗雅", name_en: "Wanpo Pineapple Li Ya Tea", ml: 700, kcal: 514, sugar: 100, fixedSugar: 41, kind: "tea" },
+  { name: "萬波 萬事大桔", name_en: "Wanpo Tangerine Tea", ml: 700, kcal: 471, sugar: 107, fixedSugar: 48, kind: "tea" },
+  { name: "萬波 紅蘋島嶼", name_en: "Wanpo Red Apple Island Tea", ml: 700, kcal: 497, sugar: 117, fixedSugar: 58, kind: "tea" },
+  { name: "萬波 蔗香煙燻烏梅", name_en: "Wanpo Cane Smoked Plum Drink", ml: 700, kcal: 549, sugar: 124, fixedSugar: 65, kind: "tea" },
+  { name: "萬波 萬波奶茶", name_en: "Wanpo Wanpo Milk Tea", ml: 700, kcal: 465, sugar: 54, kind: "creamer" },
+  { name: "萬波 波霸奶茶", name_en: "Wanpo Boba Milk Tea", ml: 700, kcal: 725, sugar: 59, kind: "creamer", toppings: ["波霸"] },
+  { name: "萬波 麥仔奶茶", name_en: "Wanpo Barley Milk Tea", ml: 700, kcal: 355, sugar: 42, kind: "creamer" },
+  { name: "萬波 麗雅那堤", name_en: "Wanpo Li Ya Latte", ml: 700, kcal: 349, sugar: 45, kind: "milk" },
+  { name: "萬波 楊枝甘露", name_en: "Wanpo Mango Pomelo Sago", ml: 700, kcal: 717, sugar: 95, fixedSugar: 36, kind: "milk" },
+  { name: "萬波 椰芒紫米爽", name_en: "Wanpo Coconut Mango Purple Rice", ml: 700, kcal: 614, sugar: 82, fixedSugar: 23, kind: "milk" },
   // ── 珍煮丹 — platform labels (L); brown-sugar syrup isn't adjusted, so it's all fixed
   { name: "珍煮丹 黑糖鮮奶",   name_en: "Truedan Brown Sugar Fresh Milk", ml: 650, kcal: 364, sugar: 42,   fixedSugar: 42, kind: "milk" },
   { name: "珍煮丹 黑糖珍珠鮮奶", name_en: "Truedan Brown Sugar Pearl Fresh Milk", ml: 650, kcal: 619, sugar: 70, fixedSugar: 70, kind: "milk", toppings: ["珍珠"] },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "珍煮丹 復刻紅茶", name_en: "Truedan Classic Black Tea", ml: 650, kcal: 246, sugar: 55, kind: "tea", water: true },
+  { name: "珍煮丹 不知春", name_en: "Truedan Four Seasons Tea", ml: 650, kcal: 236, sugar: 55, kind: "tea", water: true },
+  { name: "珍煮丹 梅香檸綠", name_en: "Truedan Plum Lemon Green Tea", ml: 650, kcal: 198, sugar: 41, kind: "tea" },
+  { name: "珍煮丹 決明子復刻紅茶鮮奶", name_en: "Truedan Cassia Seed Black Tea Fresh Milk", ml: 650, kcal: 348, sugar: 63, fixedSugar: 8, kind: "milk" },
+  { name: "珍煮丹 泰式奶茶", name_en: "Truedan Thai Milk Tea", ml: 650, kcal: 336, sugar: 41, kind: "milk" },
+  { name: "珍煮丹 黑糖珍珠厚鮮奶", name_en: "Truedan Brown Sugar Pearl Rich Fresh Milk", ml: 650, kcal: 653, sugar: 67, fixedSugar: 52, kind: "milk", toppings: ["珍珠"] },
+  { name: "珍煮丹 黑糖仙草鮮奶", name_en: "Truedan Brown Sugar Grass Jelly Fresh Milk", ml: 650, kcal: 424, sugar: 71, fixedSugar: 71, kind: "milk" },
+  { name: "珍煮丹 黑糖粉粿鮮奶", name_en: "Truedan Brown Sugar Fen Guo Fresh Milk", ml: 650, kcal: 437, sugar: 43, fixedSugar: 43, kind: "milk" },
+  { name: "珍煮丹 黑糖檸檬", name_en: "Truedan Brown Sugar Lemon", ml: 650, kcal: 287, sugar: 61, fixedSugar: 61, kind: "tea" },
+  { name: "珍煮丹 手熬黑糖冬瓜茶", name_en: "Truedan Brown Sugar Winter Melon Tea", ml: 650, kcal: 201, sugar: 48, fixedSugar: 48, kind: "tea" },
+  { name: "珍煮丹 黑糖檸檬冬瓜", name_en: "Truedan Brown Sugar Lemon Winter Melon", ml: 650, kcal: 230, sugar: 53, fixedSugar: 53, kind: "tea" },
   // ── 鶴茶樓 — platform labels (one store, L)
   { name: "鶴茶樓 鶴頂紅茶",   name_en: "Hechalou Crane Black Tea",     ml: 660, kcal: 174,   sugar: 41,   kind: "tea", water: true },
   { name: "鶴茶樓 鶴頂那堤",   name_en: "Hechalou Crane Latte",         ml: 660, kcal: 290,   sugar: 49,   fixedSugar: 8, kind: "milk" },
+  // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
+  { name: "鶴茶樓 蘋果鶴頂紅茶", name_en: "Hechalou Apple Crane Black Tea", ml: 660, kcal: 252, sugar: 57, fixedSugar: 16, kind: "tea" },
+  { name: "鶴茶樓 紅鶴那堤", name_en: "Hechalou Red Crane Latte", ml: 660, kcal: 284, sugar: 48, fixedSugar: 7, kind: "milk" },
+  { name: "鶴茶樓 復刻奶茶", name_en: "Hechalou Classic Milk Tea", ml: 660, kcal: 433, sugar: 49, fixedSugar: 8, kind: "creamer" },
+  { name: "鶴茶樓 鶴記鴛鴦凍奶茶", name_en: "Hechalou Yuanyang Jelly Milk Tea", ml: 660, kcal: 485, sugar: 74, fixedSugar: 33, kind: "creamer" },
   // ── 有飲 — the shop's own calorie table (全糖, largest cup; M 500 / L 660 ml).
   // Drinks listed in both sizes use the L figure; M-only drinks are based on 500 ml
   // and offer only the M cup. Syrup baseline: its plain teas, 39.2 g per 660 ml.
