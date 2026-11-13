@@ -63,7 +63,11 @@ but deeper personal understanding through self-owned data.
 
 Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-TW.md)
 
-**Latest — v1.8.3**
+**Latest — v1.8.4**
+- Built-in drinks go from 191 to 635: ten chains rebuilt from their own calorie tables, the rest filled out from delivery-platform labels
+- Fixed sugar corrected for CoCo, 50嵐 and 五桐號; 清心福全 converted from its highest sweetness to 全糖
+
+**v1.8.3**
 - Custom drinks can be entered as calories + sugar straight from a shop's calorie table; macros are estimated and the sugar level stays adjustable
 - 有飲 joins the built-in drinks: 59 drinks and its own toppings from the shop's calorie table (191 drinks from 16 chains in all)
 - Water quick-add shortcuts can be changed and reordered from a settings button (still four)

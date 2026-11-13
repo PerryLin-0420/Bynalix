@@ -6,7 +6,7 @@ import { RETIRED_DRINKS, SEED_DRINKS, SEED_TOPPINGS } from "./drinks";
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "23"; // 有飲 drinks and toppings
+const SEED_VERSION = "27"; // official tables: 萬波, 茶湯會, 五桐號, 一沐日, 龜記, 可不可, 得正
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {
