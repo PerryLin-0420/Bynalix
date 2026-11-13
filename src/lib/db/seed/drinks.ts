@@ -234,6 +234,21 @@ const DRINKS: DrinkSpec[] = [
   // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
   { name: "得正 雙柚金烏龍", name_en: "Oolong Tea Project Double Pomelo Golden Oolong", ml: 660, kcal: 341, sugar: 77, fixedSugar: 19.5, kind: "tea" },
   { name: "得正 香橙春烏龍", name_en: "Oolong Tea Project Orange Spring Oolong", ml: 660, kcal: 389, sugar: 85, fixedSugar: 27.5, kind: "tea" },
+  // Added in seed v25 (platform labels / dietitian round-ups) — docs/drinks-research.md §17
+  { name: "得正 紅茶", name_en: "Oolong Tea Project Black Tea", ml: 660, kcal: 268, sugar: 57.5, kind: "tea", water: true },
+  { name: "得正 綠茶", name_en: "Oolong Tea Project Green Tea", ml: 660, kcal: 268, sugar: 57.5, kind: "tea", water: true },
+  { name: "得正 緋烏龍", name_en: "Oolong Tea Project Scarlet Oolong", ml: 660, kcal: 176.9, sugar: 43.6, kind: "tea", water: true },
+  { name: "得正 青梅春烏龍", name_en: "Oolong Tea Project Green Plum Spring Oolong", ml: 660, kcal: 439, sugar: 96, fixedSugar: 38.5, kind: "tea" },
+  { name: "得正 甘蔗春烏龍", name_en: "Oolong Tea Project Sugarcane Spring Oolong", ml: 660, kcal: 317, sugar: 68, fixedSugar: 10.5, kind: "tea" },
+  { name: "得正 芝士奶蓋焙烏龍", name_en: "Oolong Tea Project Cheese Foam Roasted Oolong", ml: 660, kcal: 435, sugar: 49, kind: "tea", toppings: ["奶蓋"] },
+  { name: "得正 芝士奶蓋緋烏龍", name_en: "Oolong Tea Project Cheese Foam Scarlet Oolong", ml: 660, kcal: 367.6, sugar: 50.8, kind: "tea", toppings: ["奶蓋"] },
+  { name: "得正 奶茶", name_en: "Oolong Tea Project Milk Tea", ml: 660, kcal: 575.5, sugar: 62.7, fixedSugar: 5.2, kind: "creamer" },
+  { name: "得正 珍珠奶茶", name_en: "Oolong Tea Project Pearl Milk Tea", ml: 660, kcal: 620, sugar: 52.4, kind: "creamer", toppings: ["珍珠"] },
+  { name: "得正 黃金珍珠奶綠", name_en: "Oolong Tea Project Golden Pearl Green Milk Tea", ml: 660, kcal: 597, sugar: 51.8, kind: "creamer", toppings: ["珍珠"] },
+  { name: "得正 紅茶鮮奶", name_en: "Oolong Tea Project Black Tea Latte", ml: 660, kcal: 409, sugar: 72.6, fixedSugar: 15.1, kind: "milk" },
+  { name: "得正 輕烏龍鮮奶", name_en: "Oolong Tea Project Light Oolong Latte", ml: 660, kcal: 409, sugar: 72.6, fixedSugar: 15.1, kind: "milk" },
+  { name: "得正 緋烏龍鮮奶", name_en: "Oolong Tea Project Scarlet Oolong Latte", ml: 660, kcal: 305.6, sugar: 58.7, fixedSugar: 1.2, kind: "milk" },
+  { name: "得正 陳皮烏龍鮮奶", name_en: "Oolong Tea Project Tangerine Peel Oolong Latte", ml: 660, kcal: 283.1, sugar: 50.8, kind: "milk" },
   // ── 大苑子 — delivery-platform labels
   { name: "大苑子 水果茶",     name_en: "Dayungs Fruit Tea",            ml: 700, kcal: 317,   sugar: 70,   fixedSugar: 35, kind: "tea" },
   { name: "大苑子 翡翠檸檬",   name_en: "Dayungs Jade Lemon",           ml: 700, kcal: 329,   sugar: 68,   fixedSugar: 33,  kind: "tea" },
@@ -272,17 +287,28 @@ const DRINKS: DrinkSpec[] = [
   { name: "茶湯會 冬瓜鐵觀音", name_en: "TP Tea Winter Melon Tieguanyin", ml: 650, kcal: 283, sugar: 54, fixedSugar: 13, kind: "tea" },
   { name: "茶湯會 珍珠冬瓜觀音", name_en: "TP Tea Pearl Winter Melon Tieguanyin", ml: 650, kcal: 437, sugar: 51, kind: "tea", toppings: ["珍珠"] },
   { name: "茶湯會 百香綠茶", name_en: "TP Tea Passion Fruit Green Tea", ml: 650, kcal: 421, sugar: 103, fixedSugar: 62, kind: "tea" },
-  // ── 五桐號 — platform labels, large 660 ml
-  { name: "五桐號 經典五桐茶", name_en: "WooTea Classic Wootong Tea",   ml: 660, kcal: 74.7,  sugar: 16.7, kind: "tea", water: true },
-  { name: "五桐號 杏仁凍五桐茶", name_en: "WooTea Almond Jelly Wootong Tea", ml: 660, kcal: 192, sugar: 36, fixedSugar: 19.3, kind: "tea" },
+  // ── 五桐號 — platform labels, large 660 ml. Syrup baseline: its plain teas 老實人紅茶 / 一把青茶
+  // (39.5 g). 經典五桐茶 is sold at a fixed sweetness, so it and drinks built on it are all fixed.
+  { name: "五桐號 經典五桐茶", name_en: "WooTea Classic Wootong Tea",   ml: 660, kcal: 74.7,  sugar: 16.7, fixedSugar: 16.7, kind: "tea" },
+  { name: "五桐號 杏仁凍五桐茶", name_en: "WooTea Almond Jelly Wootong Tea", ml: 660, kcal: 192, sugar: 36, fixedSugar: 36, kind: "tea" },
   // 奶霜 is lighter than the generic 奶蓋 topping (subtracting it leaves more sugar
   // than calories), so the foam stays in the drink's own figures
-  { name: "五桐號 烏龍奶霜",   name_en: "WooTea Oolong Cream Foam",     ml: 660, kcal: 303.2, sugar: 41.9, fixedSugar: 25.2, kind: "creamer" },
-  { name: "五桐號 蕎麥奶霜",   name_en: "WooTea Buckwheat Cream Foam",  ml: 660, kcal: 320.3, sugar: 46, fixedSugar: 29.3,   kind: "creamer" },
+  { name: "五桐號 烏龍奶霜",   name_en: "WooTea Oolong Cream Foam",     ml: 660, kcal: 303.2, sugar: 41.9, fixedSugar: 2.4, kind: "creamer" },
+  { name: "五桐號 蕎麥奶霜",   name_en: "WooTea Buckwheat Cream Foam",  ml: 660, kcal: 320.3, sugar: 46, fixedSugar: 6.5,   kind: "creamer" },
   // Added in seed v24 (dietitian round-ups / platform labels) — docs/drinks-research.md §16
   { name: "五桐號 玄米蕎麥", name_en: "WooTea Brown Rice Buckwheat Tea", ml: 660, kcal: 23.6, sugar: 4.6, kind: "tea", water: true },
-  { name: "五桐號 五桐奶霜", name_en: "WooTea Wootong Cream Foam", ml: 660, kcal: 191.7, sugar: 16.1, kind: "creamer" },
-  { name: "五桐號 玄米蕎麥奶茶", name_en: "WooTea Brown Rice Buckwheat Milk Tea", ml: 660, kcal: 348.6, sugar: 46.9, fixedSugar: 30.2, kind: "creamer" },
+  { name: "五桐號 五桐奶霜", name_en: "WooTea Wootong Cream Foam", ml: 660, kcal: 191.7, sugar: 16.1, fixedSugar: 16.1, kind: "creamer" },
+  { name: "五桐號 玄米蕎麥奶茶", name_en: "WooTea Brown Rice Buckwheat Milk Tea", ml: 660, kcal: 348.6, sugar: 46.9, fixedSugar: 7.4, kind: "creamer" },
+  // Added in seed v25 (platform labels / dietitian round-ups) — docs/drinks-research.md §17
+  { name: "五桐號 老實人紅茶", name_en: "WooTea Honest Black Tea", ml: 660, kcal: 173.4, sugar: 39.5, kind: "tea", water: true },
+  { name: "五桐號 一把青茶", name_en: "WooTea Turquoise Tea", ml: 660, kcal: 171.7, sugar: 39.5, kind: "tea", water: true },
+  { name: "五桐號 紅柚青茶凍飲", name_en: "WooTea Grapefruit Green Tea with Jelly", ml: 660, kcal: 277.3, sugar: 65.7, fixedSugar: 26.2, kind: "tea" },
+  { name: "五桐號 茉莉奶綠", name_en: "WooTea Jasmine Green Milk Tea", ml: 660, kcal: 420.1, sugar: 45.2, fixedSugar: 5.7, kind: "creamer" },
+  { name: "五桐號 杏仁凍奶茶", name_en: "WooTea Almond Jelly Milk Tea", ml: 660, kcal: 293, sugar: 51, fixedSugar: 11.5, kind: "creamer" },
+  { name: "五桐號 最完美手沖泰奶", name_en: "WooTea Hand-brewed Thai Milk Tea", ml: 660, kcal: 499.2, sugar: 36.7, kind: "creamer" },
+  { name: "五桐號 茉莉奶霜", name_en: "WooTea Jasmine Cream Foam", ml: 660, kcal: 304.6, sugar: 41.9, fixedSugar: 2.4, kind: "creamer" },
+  { name: "五桐號 五桐奶霜QQ", name_en: "WooTea Wootong Cream Foam with Taro Balls", ml: 660, kcal: 408.8, sugar: 44.6, fixedSugar: 44.6, kind: "creamer" },
+  { name: "五桐號 玄米蕎麥拿鐵", name_en: "WooTea Brown Rice Buckwheat Latte", ml: 660, kcal: 285.2, sugar: 52.5, fixedSugar: 13, kind: "milk" },
   // ── 一沐日 — platform labels at its one 660 ml cup, normal sweetness (the highest)
   { name: "一沐日 島韻紅茶",   name_en: "Yi Mu Ri Island Black Tea",    ml: 660, kcal: 200,   sugar: 48,   kind: "tea", water: true },
   { name: "一沐日 糯米香茶",   name_en: "Yi Mu Ri Glutinous Rice Green Tea", ml: 660, kcal: 200, sugar: 48, kind: "tea", water: true },
@@ -354,6 +380,14 @@ const DRINKS: DrinkSpec[] = [
   { name: "鶴茶樓 紅鶴那堤", name_en: "Hechalou Red Crane Latte", ml: 660, kcal: 284, sugar: 48, fixedSugar: 7, kind: "milk" },
   { name: "鶴茶樓 復刻奶茶", name_en: "Hechalou Classic Milk Tea", ml: 660, kcal: 433, sugar: 49, fixedSugar: 8, kind: "creamer" },
   { name: "鶴茶樓 鶴記鴛鴦凍奶茶", name_en: "Hechalou Yuanyang Jelly Milk Tea", ml: 660, kcal: 485, sugar: 74, fixedSugar: 33, kind: "creamer" },
+  // Added in seed v25 (platform labels / dietitian round-ups) — docs/drinks-research.md §17
+  { name: "鶴茶樓 舶來紅茶", name_en: "Hechalou Imported Black Tea", ml: 660, kcal: 174, sugar: 41, kind: "tea", water: true },
+  { name: "鶴茶樓 藝伎紅茶", name_en: "Hechalou Geisha Black Tea", ml: 660, kcal: 174, sugar: 41, kind: "tea", water: true },
+  { name: "鶴茶樓 金萱青茶", name_en: "Hechalou Jin Xuan Tea", ml: 660, kcal: 174, sugar: 41, kind: "tea", water: true },
+  { name: "鶴茶樓 桂香烏龍茶", name_en: "Hechalou Osmanthus Oolong Tea", ml: 660, kcal: 174, sugar: 41, kind: "tea", water: true },
+  { name: "鶴茶樓 冬瓜菊花粉粿桂香烏龍茶", name_en: "Hechalou Winter Melon Chrysanthemum Osmanthus Oolong with Fen Guo", ml: 660, kcal: 304, sugar: 55, fixedSugar: 14, kind: "tea" },
+  { name: "鶴茶樓 舶來那堤", name_en: "Hechalou Imported Black Tea Latte", ml: 660, kcal: 290, sugar: 49, fixedSugar: 8, kind: "milk" },
+  { name: "鶴茶樓 藝伎那堤", name_en: "Hechalou Geisha Black Tea Latte", ml: 660, kcal: 290, sugar: 49, fixedSugar: 8, kind: "milk" },
   // ── 有飲 — the shop's own calorie table (全糖, largest cup; M 500 / L 660 ml).
   // Drinks listed in both sizes use the L figure; M-only drinks are based on 500 ml
   // and offer only the M cup. Syrup baseline: its plain teas, 39.2 g per 660 ml.
@@ -424,7 +458,6 @@ const r1 = (v: number) => Math.round(v * 10) / 10;
 
 /** Builtin drinks renamed or dropped since an earlier seed; removed when nothing references them. */
 export const RETIRED_DRINKS = [
-  "得正 紅茶",          // was 春烏龍's figure under the wrong name
   "清心福全 蜂蜜奶茶",  // official name is 蜜香奶茶
   "迷客夏 珍珠伯爵紅茶拿鐵", // platforms label 伯爵紅茶拿鐵 without pearls
   "迷客夏 珍珠手炒黑糖鮮奶", // likewise 手炒黑糖鮮奶

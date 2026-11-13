@@ -65,6 +65,7 @@ Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-T
 
 **Latest — v1.8.4**
 - 85 more built-in drinks across 13 chains, from 2026 calorie tables and delivery-platform labels (276 drinks from 16 chains in all)
+- 得正, 五桐號 and 鶴茶樓 get 30 more drinks (306 in all); 五桐號's fixed sugar is corrected
 
 **v1.8.3**
 - Custom drinks can be entered as calories + sugar straight from a shop's calorie table; macros are estimated and the sugar level stays adjustable

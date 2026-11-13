@@ -762,3 +762,76 @@ CoCo 芋頭西谷米牛乳（中杯和大杯同一組數字）、CoCo 西谷米�
 - 龜記：[Uber Eats 西門店](https://www.ubereats.com/tw/store/%E9%BE%9C%E8%A8%98%E8%8C%97%E5%93%81-%E8%A5%BF%E9%96%80%E5%BA%97/0Ox6pst4QL610WAijj-ENA)、[foodpanda 觀音大觀店](https://www.foodpanda.com.tw/restaurant/yfdk/gui-ji-ming-pin-guan-yin-da-guan-dian)、[勤美美村店](https://www.foodpanda.com.tw/restaurant/rjq7/gui-ji-ming-pin-qin-mei-mei-cun-dian)
 - 珍煮丹：[Uber Eats 南港園區店](https://www.ubereats.com/tw/store/%E7%8F%8D%E7%85%AE%E4%B8%B9-%E5%8D%97%E6%B8%AF%E5%9C%92%E5%8D%80%E5%BA%97/9beFXdCxQQSRsp7WNyAcow)、[信義市府店](https://www.ubereats.com/tw/store/%E7%8F%8D%E7%85%AE%E4%B8%B9-%E4%BF%A1%E7%BE%A9%E5%B8%82%E5%BA%9C%E5%BA%97/mEdKvUR-R-2dTqv3VYuAUw)、[ocard 大安復興店](https://order.ocard.co/truedan/wdlYEw)
 - 鶴茶樓：[foodpanda 逢甲福星店](https://www.foodpanda.com.tw/chain/ci8mq/he-cha-lou)
+
+
+---
+
+## 十七、得正、五桐號、鶴茶樓再補齊（seed v25）
+
+這三家在第十六節後仍只有 6～9 款，這次再補 **30 款**（得正 +14、五桐號 +9、鶴茶樓 +7；總數 276 → 306）。
+取得方式同第十六節（只能用網路搜尋擷取頁面內容），數字主要來自 foodpanda／Uber Eats 店家標示，
+得正另參考食尚玩家 2026 菜單整理與 2023 年營養師熱量圖鑑（兩者數字一致者才收）。
+
+### 五桐號：修正糖漿基準
+- Uber Eats 東寧店標示**經典五桐茶「甜度及冰量固定、限冷飲」**，所以它不是可調糖的純茶，不能當糖漿基準，也不該算進飲水。
+- 改用純茶 **老實人紅茶 173.4／39.5、一把青茶 171.7／39.5**（660 ml）為基準：每杯全糖糖漿 39.5 g。
+- 既有品項重算：
+
+| 品項 | 舊不可調 | 新不可調 | 說明 |
+|---|---|---|---|
+| 經典五桐茶 | 0（且算飲水） | 16.7（不算飲水） | 甜度固定，整杯不可調 |
+| 杏仁凍五桐茶 | 19.3 | 36 | 以甜度固定的五桐茶為底，整杯不可調（推論） |
+| 五桐奶霜 | 0 | 16.1 | 同上（推論） |
+| 烏龍奶霜／蕎麥奶霜 | 25.2／29.3 | 2.4／6.5 | 基準 16.7 → 39.5 g |
+| 玄米蕎麥奶茶 | 30.2 | 7.4 | 同上 |
+
+### 得正：「紅茶」恢復
+seed v13 曾把「得正 紅茶」當成誤植退役（數字與春烏龍相同）。這次的來源明確列出
+**春烏龍、輕烏龍、焙烏龍、紅茶、綠茶同為 L 268／57.5**，所以紅茶、綠茶以這組數字重新加入，並從退役清單移除。
+珍珠奶茶、黃金珍珠奶綠以通用「珍珠」配料拆分（得正自己標示珍珠 245 kcal／13.1 g、黃金珍珠 225／9.82、焙烏龍茶凍 83／18.4，份量比通用配料大）。
+
+| 品牌 | 品項 | 容量 ml | 熱量 kcal | 總糖 g | 預設配料 | 不可調糖 g |
+|---|---|---|---|---|---|---|
+| 得正 | 紅茶 | 660 | 268 | 57.5 | — | 0 |
+| 得正 | 綠茶 | 660 | 268 | 57.5 | — | 0 |
+| 得正 | 緋烏龍 | 660 | 176.9 | 43.6 | — | 0 |
+| 得正 | 青梅春烏龍 | 660 | 439 | 96 | — | 38.5 |
+| 得正 | 甘蔗春烏龍 | 660 | 317 | 68 | — | 10.5 |
+| 得正 | 芝士奶蓋焙烏龍 | 660 | 435 | 49 | 奶蓋 | 0 |
+| 得正 | 芝士奶蓋緋烏龍 | 660 | 367.6 | 50.8 | 奶蓋 | 0 |
+| 得正 | 奶茶 | 660 | 575.5 | 62.7 | — | 5.2 |
+| 得正 | 珍珠奶茶 | 660 | 620 | 52.4 | 珍珠 | 0 |
+| 得正 | 黃金珍珠奶綠 | 660 | 597 | 51.8 | 珍珠 | 0 |
+| 得正 | 紅茶鮮奶 | 660 | 409 | 72.6 | — | 15.1 |
+| 得正 | 輕烏龍鮮奶 | 660 | 409 | 72.6 | — | 15.1 |
+| 得正 | 緋烏龍鮮奶 | 660 | 305.6 | 58.7 | — | 1.2 |
+| 得正 | 陳皮烏龍鮮奶 | 660 | 283.1 | 50.8 | — | 0 |
+| 五桐號 | 老實人紅茶 | 660 | 173.4 | 39.5 | — | 0 |
+| 五桐號 | 一把青茶 | 660 | 171.7 | 39.5 | — | 0 |
+| 五桐號 | 紅柚青茶凍飲 | 660 | 277.3 | 65.7 | — | 26.2 |
+| 五桐號 | 茉莉奶綠 | 660 | 420.1 | 45.2 | — | 5.7 |
+| 五桐號 | 杏仁凍奶茶 | 660 | 293 | 51 | — | 11.5 |
+| 五桐號 | 最完美手沖泰奶 | 660 | 499.2 | 36.7 | — | 0 |
+| 五桐號 | 茉莉奶霜 | 660 | 304.6 | 41.9 | — | 2.4 |
+| 五桐號 | 五桐奶霜QQ | 660 | 408.8 | 44.6 | — | 44.6 |
+| 五桐號 | 玄米蕎麥拿鐵 | 660 | 285.2 | 52.5 | — | 13 |
+| 鶴茶樓 | 舶來紅茶 | 660 | 174 | 41 | — | 0 |
+| 鶴茶樓 | 藝伎紅茶 | 660 | 174 | 41 | — | 0 |
+| 鶴茶樓 | 金萱青茶 | 660 | 174 | 41 | — | 0 |
+| 鶴茶樓 | 桂香烏龍茶 | 660 | 174 | 41 | — | 0 |
+| 鶴茶樓 | 冬瓜菊花粉粿桂香烏龍茶 | 660 | 304 | 55 | — | 14 |
+| 鶴茶樓 | 舶來那堤 | 660 | 290 | 49 | — | 8 |
+| 鶴茶樓 | 藝伎那堤 | 660 | 290 | 49 | — | 8 |
+
+### 未收錄
+- 得正 焙烏龍鮮奶：2026 整理 409／58.7 與既有 409／72.6 糖量不同，維持原值；陳皮烏龍奶茶只有中杯數字
+- 五桐號 經典五桐茶：忠孝復興店標 120／27（另一版本，疑為 700 ml），維持東寧店 74.7／16.7；
+  一把青茶、老實人紅茶在忠孝復興店為 199／47，同為較大版本，不採用；桂花烏龍凍飲兩店數字不同（334.1／76 vs 306.1／72.8）；
+  冬瓜檸檬、黑糖冬瓜檸檬為 700 ml 版本且品名不完整
+- 鶴茶樓 鶴記鴛鴦凍奶茶 477／163、鶴記杏仁凍桂香烏龍茶 196／162、鶴記紅茶凍奶茶 380／157：糖量大於熱量 ÷ 4，疑為「糖液重量」，不採用；
+  蘋果鶴頂紅茶另一版 282／64，維持既有 252／57
+
+### 來源
+- 得正：[食尚玩家 2026 得正菜單](https://supertaste.tvbs.com.tw/food/350077)、[Yahoo 得正手搖飲熱量圖鑑](https://tw.news.yahoo.com/%E5%BF%85%E5%96%9D%E7%83%8F%E9%BE%8D%E8%8C%B6-%E5%BE%97%E6%AD%A3-%E6%89%8B%E6%90%96%E9%A3%B2%E7%86%B1%E9%87%8F%E5%9C%96%E9%91%91-%E8%A6%BD%E8%A1%A8-074931569.html)、[foodpanda 高雄十全計劃](https://www.foodpanda.com.tw/restaurant/oqzd/de-zheng-oolong-tea-project-gao-xiong-shi-quan-ji-hua)、[台南公園計劃](https://www.foodpanda.com.tw/restaurant/btfo/de-zheng-oolong-tea-project-tai-nan-gong-yuan-ji-hua)、[日日營養 得正](https://dailydietitian.com.tw/%E5%BE%97%E6%AD%A3%E8%8F%9C%E5%96%AE-%E7%86%B1%E9%87%8F-%E7%B3%96%E9%87%8F-%E5%92%96%E5%95%A1%E5%9B%A0-%E5%83%B9%E7%9B%AE%E8%A1%A8/)
+- 五桐號：[Uber Eats 東寧店](https://www.ubereats.com/tw/store/%E4%BA%94%E6%A1%90%E8%99%9Fwootea-%E6%9D%B1%E5%AF%A7%E5%BA%97/p22xlB5aXPCD8zTZIv1zJw)、[竹北正西店](https://www.ubereats.com/tw/store/%E4%BA%94%E6%A1%90%E8%99%9Fwootea-%E7%AB%B9%E5%8C%97%E6%AD%A3%E8%A5%BF%E5%BA%97/kQEV4BJlVSqLSG7b6Uj-Jg)、[忠孝復興店](https://www.ubereats.com/tw/store/%E4%BA%94%E6%A1%90%E8%99%9Fwootea-%E5%BF%A0%E5%AD%9D%E5%BE%A9%E8%88%88%E5%BA%97/FQgPKT14Tf-mCA8rxgzE1A)、[中壢中原店](https://www.ubereats.com/tw/store/%E4%BA%94%E6%A1%90%E8%99%9Fwootea-%E4%B8%AD%E5%A3%A2%E4%B8%AD%E5%8E%9F%E5%BA%97/6QPePdbOXvOKDCuVINi81A)、[大甲順天店](https://www.ubereats.com/tw/store/%E4%BA%94%E6%A1%90%E8%99%9Fwootea-%E5%A4%A7%E7%94%B2%E9%A0%86%E5%A4%A9%E5%BA%97/u8RrakL_WIialqvUkaS-dQ)、[foodpanda 內湖江南店](https://www.foodpanda.com.tw/restaurant/tf78/wu-tong-hao-wootea-nei-hu-jiang-nan-dian)、[foodpanda 新豐新興店](https://www.foodpanda.com.tw/restaurant/wq8f/wu-tong-hao-wootea-xin-feng-xin-xing-dian)、[官網 五桐奶霜QQ](https://www.wootea.com/products-detail/wooteawithcreamandtaroball/)
+- 鶴茶樓：[foodpanda 內湖店](https://www.foodpanda.com.tw/restaurant/bsc7/he-cha-lou-tai-bei-nei-hu-dian)、[逢甲福星店](https://www.foodpanda.com.tw/en/restaurant/v8xb/he-cha-lou-feng-jia-fu-xing-dian)、[Uber Eats 中正寧波西店](https://www.ubereats.com/tw/store/%E9%B6%B4%E8%8C%B6%E6%A8%93-%E9%B6%B4%E9%A0%82%E7%B4%85%E8%8C%B6%E5%95%86%E5%BA%97-%E4%B8%AD%E6%AD%A3%E5%AF%A7%E6%B3%A2%E8%A5%BF%E5%BA%97/Zg3RJADwST26q0eLKfi1_g)、[瑞豐南屏店](https://www.ubereats.com/tw/store/%E9%B6%B4%E8%8C%B6%E6%A8%93-%E9%B6%B4%E9%A0%82%E7%B4%85%E8%8C%B6%E5%95%86%E5%BA%97-%E7%91%9E%E8%B1%90%E5%8D%97%E5%B1%8F%E5%BA%97/Pb5ifIb7SFKWzNtJ-0cEMQ)

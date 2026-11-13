@@ -6,7 +6,7 @@ import { RETIRED_DRINKS, SEED_DRINKS, SEED_TOPPINGS } from "./drinks";
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "24"; // 85 more drinks across 13 chains
+const SEED_VERSION = "25"; // more 得正 / 五桐號 / 鶴茶樓 drinks; 五桐號 syrup baseline fixed
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {
