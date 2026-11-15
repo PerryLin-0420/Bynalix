@@ -219,7 +219,6 @@ export const SEED_FOODS: SeedFood[] = [
   { food_name: "木瓜牛奶",           name_en: "Papaya Milk",                 protein_g: 2.5,  carbohydrates_g: 13.0, fat_g: 2.8,  calories_kcal: 85,   base_quantity: 100, base_unit: "ml", category: "飲料" },
   { food_name: "冬瓜茶",             name_en: "Winter Melon Tea",            protein_g: 0.0,  carbohydrates_g: 12.0, fat_g: 0.0,  calories_kcal: 48,   base_quantity: 100, base_unit: "ml", category: "飲料" },
   { food_name: "蜂蜜檸檬",           name_en: "Honey Lemon Water",           protein_g: 0.1,  carbohydrates_g: 9.0,  fat_g: 0.0,  calories_kcal: 36,   base_quantity: 100, base_unit: "ml", category: "飲料" },
-  { food_name: "啤酒",               name_en: "Beer",                        protein_g: 0.5,  carbohydrates_g: 3.6,  fat_g: 0.0,  calories_kcal: 43,   base_quantity: 100, base_unit: "ml", category: "飲料" },
   { food_name: "無糖氣泡水",         name_en: "Sparkling Water, Unsweetened",protein_g: 0.0,  carbohydrates_g: 0.0,  fat_g: 0.0,  calories_kcal: 0,    base_quantity: 100, base_unit: "ml", category: "飲料", counts_as_water: true },
   { food_name: "全脂優酪乳",         name_en: "Whole Milk Kefir/Yogurt Drink",protein_g: 3.2, carbohydrates_g: 6.0,  fat_g: 3.2,  calories_kcal: 63,   base_quantity: 100, base_unit: "ml", category: "飲料" },
 ];

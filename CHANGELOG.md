@@ -7,6 +7,12 @@ see the [README](./README.md).
 
 ---
 
+### v1.8.5
+- **Alcohol in the food log** — a new 酒類 (Alcohol) category with its own filter chip. Alcohol is a fourth energy source (7 kcal/g) that protein, carbs and fat don't cover, so each food now stores its grams of alcohol and an alcoholic drink's calories include it. The list shows each drink's ABV and alcohol per 100 ml; picking one shows the alcohol and Taiwan's standard drinks (10 g each) for the amount, the meal list shows it per item, and the day totals add a line with the day's alcohol, standard drinks and the calories it contributed
+- **33 built-in alcoholic drinks (no brands)** — beer (regular, light, wheat, stout, IPA, non-alcoholic), wine (red, white, rosé, sparkling, dessert), sake, shochu, soju, umeshu, kaoliang (58% and 38%), Shaoxing, rice wine, whisky, brandy, vodka, gin, rum, tequila, liqueur, and cocktails (highball, gin and tonic, screwdriver, mojito, margarita, Long Island iced tea, canned fruit cocktails). Typical ABV with USDA / Japanese food-table carbs; cocktails from a standard recipe. Each opens on a serving shortcut — a can, a glass, a shot, a gō — instead of 100 ml
+- **Custom alcoholic drinks** — choosing 酒類 for a custom food adds an ABV field; the alcohol is worked out from the amount and added to the calories
+- 啤酒 moves from 飲料 to 酒類 with its alcohol counted (43 → 44 kcal per 100 ml), so earlier beer logs change by a few kcal
+
 ### v1.8.4
 - **Built-in drinks: 191 → 635** — every chain except 有飲 had only 2–24 drinks. Ten chains are now rebuilt from their own calorie / sugar tables: 茶湯會 8 → 80 (2026.11 sheet), 清心福全 20 → 67 (2026 標示表), 大苑子 23 → 56 (2026 menu), 五桐號 4 → 52 (2026/04), 一沐日 8 → 51, 萬波 2 → 50, 龜記 4 → 43, CoCo 13 → 42, 得正 7 → 32, 可不可 8 → 17. The rest gain common drinks from delivery-platform labels and dietitian round-ups of 2026 figures: 50嵐 15 → 30, 鶴茶樓 2 → 18, 迷客夏 10 → 15, 珍煮丹 2 → 13, 麻古 6 → 10. All figures are each chain's large cup at full sugar; drinks sold only in one size offer only that cup. Where sources disagreed the drink was left out, and existing drinks whose figures differ from an official table now use the official values (e.g. 大苑子 許慶良鮮奶冬瓜 542 → 287 kcal, 可不可 麗春紅茶 270 → 200 kcal)
 - **清心福全 converted from its highest sweetness** — its table labels each drink at the most it is sold at (少糖 / 少蜜, 半糖 or 微糖); each is converted to 全糖 so picking that level in the app gives back the labelled figure. 無糖-only drinks (桂圓茶) are all fixed sugar

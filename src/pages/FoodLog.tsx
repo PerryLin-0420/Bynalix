@@ -17,6 +17,8 @@ import { DateNavHeader } from "@/components/layout/DateNavHeader";
 import { FoodHistoryDrawer } from "@/components/food/FoodHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
 import { DrinkOptions, SummaryTabs, ToppingEditor, type NewTopping } from "@/components/food/DrinkOptions";
+import { ALCOHOL_CATEGORY, DEFAULT_SERVINGS, KCAL_PER_G_ALCOHOL, SERVINGS, abvOf, alcoholGrams, standardDrinks } from "@/lib/alcohol";
+import { ALCOHOL_SERVING_BY_NAME } from "@/lib/db/seed/alcohol";
 import {
   CUP_PRESETS, DRINK_KINDS, defaultDrinkOpts, estimateDrinkMacros, guessDrinkKind, type DrinkKind, drinkAdjustment, drinkCountsAsWater, drinkOptsSummary, isAdvancedDrink,
   parseCupSizes, parseDrinkOpts, parseToppings, round1, type DrinkOpts, type Topping, type ToppingPick,
@@ -34,6 +36,8 @@ interface FoodItem {
   drink_advanced: number; sugar_g: number | null; sugar_fixed_g: number; default_toppings: string | null;
   brand: string | null;
   cup_sizes: string | null;
+  /** Grams of alcohol per base quantity (酒類), 0 otherwise. */
+  alcohol_g: number;
 }
 
 interface BasketItem {
@@ -48,13 +52,14 @@ interface MealEntry {
   meal_log_id: number; food_id: number; food_name: string; name_en: string | null;
   quantity: number; unit: string; meal_type: string; log_time: string;
   calories: number; protein: number; carb: number; fat: number;
+  alcohol: number;
   drink_opts: string | null;
 }
 
 interface MealGroup {
   meal_type: string;    // display label (Chinese)
   entries: MealEntry[];
-  total: { calories: number; protein: number; carb: number; fat: number };
+  total: { calories: number; protein: number; carb: number; fat: number; alcohol: number };
 }
 
 interface MealTemplate {
@@ -78,7 +83,7 @@ const LABEL_TO_KEY: Record<string, string> = {
 // Normalize any DB variant (English key or Chinese) → canonical Chinese label
 const toZhLabel = (mt: string): string => KEY_TO_LABEL[mt] ?? mt;
 
-const CATEGORY_FILTERS = ["全部", "澱粉", "蛋白質", "油質", "飲料", "我的最愛"] as const;
+const CATEGORY_FILTERS = ["全部", "澱粉", "蛋白質", "油質", "飲料", ALCOHOL_CATEGORY, "我的最愛"] as const;
 /** The category whose chip also opens a brand row (drink-shop chains). */
 const DRINK_CATEGORY = "飲料";
 /**
@@ -106,7 +111,7 @@ const TAG_COLOR: Record<string, string> = {
 
 // Maps DB category (Chinese) to its English label for the dropdown
 const CAT_EN: Record<string, string> = {
-  主食: "Staple", 水果: "Fruit", 飲料: "Drinks",
+  主食: "Staple", 水果: "Fruit", 飲料: "Drinks", 酒類: "Alcohol",
   肉類: "Meat",   海鮮: "Seafood", 乳製品: "Dairy",
   蛋類: "Eggs",   豆類: "Beans",  補劑: "Supplements",
   油脂: "Oils",   堅果: "Nuts",
@@ -141,6 +146,17 @@ function calcItem(food: FoodItem, qty: number, opts: DrinkOpts | undefined, topp
   };
 }
 
+/** Alcohol (g) in a logged amount — 0 for anything that isn't an alcoholic drink. */
+function alcoholIn(food: Pick<FoodItem, "alcohol_g" | "base_quantity">, qty: number): number {
+  return food.alcohol_g ? food.alcohol_g * qty / food.base_quantity : 0;
+}
+
+/** Serving shortcuts for an alcoholic drink (ml): its kind's for built-ins, a general set otherwise. */
+function servingsOf(food: FoodItem) {
+  const kind = food.source_type === "builtin" ? ALCOHOL_SERVING_BY_NAME.get(food.food_name) : undefined;
+  return kind ? SERVINGS[kind] : DEFAULT_SERVINGS;
+}
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export function FoodLog() {
@@ -162,6 +178,7 @@ export function FoodLog() {
       "全部": t("food.catAll"), "澱粉": t("food.catCarb"),
       "蛋白質": t("food.catProtein"), "油質": t("food.catFat"),
       "飲料": lang === "en" ? "Drinks" : "飲料",
+      "酒類": lang === "en" ? "Alcohol" : "酒類",
       "我的最愛": t("food.catFavorite"),
     };
     return map[cat] ?? cat;
@@ -182,7 +199,7 @@ export function FoodLog() {
   const [historyOpen, setHistoryOpen]   = useState(false);
 
   const [mealGroups, setMealGroups]     = useState<MealGroup[]>([]);
-  const [dayTotals, setDayTotals]       = useState({ calories: 0, protein: 0, carb: 0, fat: 0 });
+  const [dayTotals, setDayTotals]       = useState({ calories: 0, protein: 0, carb: 0, fat: 0, alcohol: 0 });
   const [expanded, setExpanded]         = useState<Set<string>>(new Set());
   const [knownTypes, setKnownTypes]     = useState<string[]>([...DEFAULT_TYPES]);
   // Inline edit state
@@ -251,9 +268,14 @@ export function FoodLog() {
     // Advanced drink: its own cup volumes (blank = not offered; all blank = defaults)
     cups: { M: "", L: "", XL: "" } as Record<"M" | "L" | "XL", string>,
     defaultToppings: [] as ToppingPick[],
+    // 酒類: alcohol by volume, %
+    abv: "",
   };
   const [cf, setCf] = useState(CF_EMPTY);
   const cfIsDrink = cf.category === "飲料";
+  const cfIsAlcohol = cf.category === ALCOHOL_CATEGORY;
+  // Alcohol in the entered amount (g amounts are taken as ml), 7 kcal/g on top of the macros
+  const cfAlcoholG = cfIsAlcohol ? Math.round(100 * alcoholGrams(parseFloat(cf.quantity) || 100, parseFloat(cf.abv) || 0)) / 100 : 0;
   // An advanced drink's form is split into tabs; any other food stays one page
   const [cfTab, setCfTab] = useState<"basic" | "sugar" | "toppings">("basic");
   const cfTabbed = cfIsDrink && cf.drinkAdvanced;
@@ -268,7 +290,7 @@ export function FoodLog() {
     : { p: parseFloat(cf.protein) || 0, c: parseFloat(cf.carb) || 0, f: parseFloat(cf.fat) || 0 };
   const cfCalories = cfKcalMode
     ? Math.round(parseFloat(cf.kcal) || 0)
-    : Math.round(cfMacros.p * 4 + cfMacros.c * 4 + cfMacros.f * 9);
+    : Math.round(cfMacros.p * 4 + cfMacros.c * 4 + cfMacros.f * 9 + cfAlcoholG * KCAL_PER_G_ALCOHOL);
   // Sugar the sugar level can act on, as it will be saved (capped by carbs, minus fixed)
   const cfAdjSugar = Math.min(parseFloat(cf.sugar) || 0, cfMacros.c) - (parseFloat(cf.sugarFixed) || 0);
 
@@ -287,7 +309,8 @@ export function FoodLog() {
           ROUND(ml.quantity / fd.base_quantity * fd.calories_kcal + ml.adj_kcal, 1)     as calories,
           ROUND(ml.quantity / fd.base_quantity * fd.protein_g + ml.adj_protein, 1)         as protein,
           ROUND(ml.quantity / fd.base_quantity * fd.carbohydrates_g + ml.adj_carb, 1)   as carb,
-          ROUND(ml.quantity / fd.base_quantity * fd.fat_g + ml.adj_fat, 1)             as fat
+          ROUND(ml.quantity / fd.base_quantity * fd.fat_g + ml.adj_fat, 1)             as fat,
+          ROUND(ml.quantity / fd.base_quantity * COALESCE(fd.alcohol_g, 0), 1)       as alcohol
         FROM meal_log ml JOIN food_database fd ON ml.food_id = fd.food_id
         WHERE ml.user_id = ? AND ml.log_date = ?
         ORDER BY ml.log_time ASC`, [profile!.user_id, selectedDate]);
@@ -303,14 +326,14 @@ export function FoodLog() {
         entries,
         total: entries.reduce((a, e) => ({
           calories: a.calories + e.calories, protein: a.protein + e.protein,
-          carb: a.carb + e.carb, fat: a.fat + e.fat,
-        }), { calories: 0, protein: 0, carb: 0, fat: 0 }),
+          carb: a.carb + e.carb, fat: a.fat + e.fat, alcohol: a.alcohol + (e.alcohol ?? 0),
+        }), { calories: 0, protein: 0, carb: 0, fat: 0, alcohol: 0 }),
       }));
       setMealGroups(groups);
       setDayTotals(groups.reduce((a, g) => ({
         calories: a.calories + g.total.calories, protein: a.protein + g.total.protein,
-        carb: a.carb + g.total.carb, fat: a.fat + g.total.fat,
-      }), { calories: 0, protein: 0, carb: 0, fat: 0 }));
+        carb: a.carb + g.total.carb, fat: a.fat + g.total.fat, alcohol: a.alcohol + g.total.alcohol,
+      }), { calories: 0, protein: 0, carb: 0, fat: 0, alcohol: 0 }));
     } catch (e) { logError("FoodLog", e); }
   };
 
@@ -525,7 +548,8 @@ export function FoodLog() {
 
   const pickFood = (food: FoodItem) => {
     setPickedFood(food);
-    setPickedQty(String(food.base_quantity));
+    // An alcoholic drink in ml opens on its first serving (a can, a glass, a shot)
+    setPickedQty(String(food.alcohol_g > 0 && food.base_unit === "ml" ? servingsOf(food)[0].ml : food.base_quantity));
     setPickedDrink(isAdvancedDrink(food) ? defaultDrinkOpts(food) : null);
   };
 
@@ -822,6 +846,7 @@ export function FoodLog() {
         return { M: own?.M ? String(own.M) : "", L: own?.L ? String(own.L) : "", XL: own?.XL ? String(own.XL) : "" };
       })(),
       defaultToppings: parseToppings(food.default_toppings),
+      abv: food.alcohol_g > 0 ? String(round1(abvOf(food))) : "",
       ...(() => {
         // Reopen a drink in kcal mode when its macros are our own estimate
         const kind = food.category === "飲料" ? guessDrinkKind(food) : null;
@@ -871,12 +896,12 @@ export function FoodLog() {
           `UPDATE food_database SET
              food_name=?, name_en=?, protein_g=?, carbohydrates_g=?, fat_g=?, calories_kcal=?,
              base_quantity=?, base_unit=?, category=?,
-             drink_advanced=?, sugar_g=?, sugar_fixed_g=?, brand=?, cup_sizes=?, default_toppings=?
+             drink_advanced=?, sugar_g=?, sugar_fixed_g=?, brand=?, cup_sizes=?, default_toppings=?, alcohol_g=?
            WHERE food_id=? AND source_type='custom'`,
           [cf.name, cf.name_en.trim() || null,
            cfMacros.p, cfMacros.c, cfMacros.f, cfCalories,
            parseFloat(cf.quantity)||100, unit,
-           cf.category||null, adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings, cfEditId]);
+           cf.category||null, adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings, cfAlcoholG, cfEditId]);
         if (profile) {
           if (cf.addToFav) {
             await db.execute(
@@ -895,13 +920,13 @@ export function FoodLog() {
           `INSERT INTO food_database
              (food_name, name_en, protein_g, carbohydrates_g, fat_g, calories_kcal,
               base_quantity, base_unit, category, source_type, created_by,
-              drink_advanced, sugar_g, sugar_fixed_g, brand, cup_sizes, default_toppings)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+              drink_advanced, sugar_g, sugar_fixed_g, brand, cup_sizes, default_toppings, alcohol_g)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [cf.name, cf.name_en.trim() || null,
            cfMacros.p, cfMacros.c, cfMacros.f, cfCalories,
            parseFloat(cf.quantity)||100, unit,
            cf.category||null, "custom", profile?.user_id??null,
-           adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings]);
+           adv ? 1 : 0, sugar, sugarFixed, brand, cupSizes, defaultToppings, cfAlcoholG]);
         if (cf.addToFav && profile) {
           await db.execute(
             "INSERT OR IGNORE INTO user_favorites (user_id, item_type, item_id) VALUES (?,?,?)",
@@ -1023,7 +1048,8 @@ export function FoodLog() {
       />
 
       {/* Day totals */}
-      <div className="card mb-5 grid grid-cols-4 divide-x divide-[var(--surface-border)] text-center">
+      <div className="card mb-5">
+      <div className="grid grid-cols-4 divide-x divide-[var(--surface-border)] text-center">
         {[
           { label: t("dashboard.calories"), val: Math.round(dayTotals.calories), unit: "kcal" },
           { label: t("dashboard.protein"),  val: +dayTotals.protein.toFixed(1),  unit: "g" },
@@ -1036,6 +1062,14 @@ export function FoodLog() {
             <p className="text-10 text-[var(--text-on-surface-muted)] leading-tight whitespace-nowrap">{label}</p>
           </div>
         ))}
+      </div>
+      {dayTotals.alcohol > 0 && (
+        <p className="mt-3 pt-2.5 border-t border-[var(--surface-border)] text-xs text-center text-rose-600">
+          {lang === "zh"
+            ? `酒精 ${dayTotals.alcohol.toFixed(1)} g · 約 ${standardDrinks(dayTotals.alcohol).toFixed(1)} 標準杯（${Math.round(dayTotals.alcohol * KCAL_PER_G_ALCOHOL)} kcal 已含在熱量中）`
+            : `Alcohol ${dayTotals.alcohol.toFixed(1)} g · ${standardDrinks(dayTotals.alcohol).toFixed(1)} standard drinks (${Math.round(dayTotals.alcohol * KCAL_PER_G_ALCOHOL)} kcal included above)`}
+        </p>
+      )}
       </div>
 
       {/* Meal groups */}
@@ -1295,7 +1329,7 @@ export function FoodLog() {
                       {f === "我的最愛" ? `⭐ ${t("food.catFavorite")}` : getCatLabel(f)}
                     </button>
                   ))}
-                  {extraFilters.filter(f => f !== DRINK_CATEGORY).map(f => (
+                  {extraFilters.filter(f => f !== DRINK_CATEGORY && f !== ALCOHOL_CATEGORY).map(f => (
                     <button key={f} onClick={() => setCatFilter(f)}
                       className={clsx("px-2.5 py-1 rounded-full text-xs font-medium transition-all",
                         catFilter === f ? "bg-[var(--color-secondary)] text-white" : "bg-[var(--surface-container-low)] text-[var(--text-accent-mid)] hover:bg-[var(--surface-container)]")}>
@@ -1316,7 +1350,7 @@ export function FoodLog() {
                             {lang === "en" ? "Add quick filter" : "新增快篩"}
                           </p>
                           <div className="space-y-0.5 max-h-48 overflow-y-auto">
-                            {Object.keys(CAT_EN).filter(c => !extraFilters.includes(c) && c !== DRINK_CATEGORY).map(cat => (
+                            {Object.keys(CAT_EN).filter(c => !extraFilters.includes(c) && c !== DRINK_CATEGORY && c !== ALCOHOL_CATEGORY).map(cat => (
                               <button key={cat} onClick={() => addExtraFilter(cat)}
                                 className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-[var(--text-on-surface)] hover:bg-[var(--surface-container-low)] transition-colors">
                                 {getCatOptionLabel(cat)}
@@ -1383,6 +1417,11 @@ export function FoodLog() {
                                 {getTagLabel(tag)}
                               </span>
                             )}
+                            {food.alcohol_g > 0 && (
+                              <span className="px-1.5 py-0.5 rounded-full text-10 font-semibold bg-rose-100 text-rose-600">
+                                {+abvOf(food).toFixed(1)}%
+                              </span>
+                            )}
                             {food.source_type === "custom" && (
                               <span className="px-1.5 py-0.5 rounded-full text-10 font-semibold bg-purple-100 text-purple-600">
                                 {t("food.mealCustom")}
@@ -1390,7 +1429,7 @@ export function FoodLog() {
                             )}
                           </div>
                           <p className="text-xs text-[var(--text-on-surface-muted)]">
-                            {food.calories_kcal} kcal · P{food.protein_g} C{food.carbohydrates_g} F{food.fat_g} / {food.base_quantity}{food.base_unit}
+                            {food.calories_kcal} kcal · P{food.protein_g} C{food.carbohydrates_g} F{food.fat_g}{food.alcohol_g > 0 && ` · ${lang === "zh" ? "酒精" : "Alcohol"} ${round1(food.alcohol_g)}g`} / {food.base_quantity}{food.base_unit}
                           </p>
                         </div>
                         <button onClick={e => { e.stopPropagation(); toggleFav(food); }}
@@ -1452,6 +1491,16 @@ export function FoodLog() {
                             </p>
                           );
                         })()}
+                        {pickedFood.alcohol_g > 0 && (() => {
+                          const g = alcoholIn(pickedFood, parseFloat(pickedQty) || 0);
+                          return (
+                            <p className="text-xs text-rose-600 mt-0.5">
+                              {lang === "zh"
+                                ? `酒精 ${g.toFixed(1)} g · 約 ${standardDrinks(g).toFixed(1)} 標準杯`
+                                : `Alcohol ${g.toFixed(1)} g · ${standardDrinks(g).toFixed(1)} standard drinks`}
+                            </p>
+                          );
+                        })()}
                       </div>
                       <button onClick={() => { setPickedFood(null); setPickedDrink(null); }} className="text-[var(--text-on-surface-muted)] hover:text-[var(--text-on-surface)] mt-0.5">
                         <X size={14} />
@@ -1465,6 +1514,20 @@ export function FoodLog() {
                         <button onClick={addToBasket} className="btn-primary w-full mt-3 py-2 text-sm">{t("food.addBtn")}</button>
                       </>
                     ) : (
+                    <>
+                    {pickedFood.alcohol_g > 0 && pickedFood.base_unit === "ml" && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {servingsOf(pickedFood).map(sv => (
+                          <button key={sv.zh + sv.ml} onClick={() => setPickedQty(String(sv.ml))}
+                            className={clsx("px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
+                              parseFloat(pickedQty) === sv.ml
+                                ? "bg-[var(--color-primary)] text-white border-[var(--color-primary)]"
+                                : "border-[var(--surface-border)] text-[var(--text-on-surface-sub)] hover:border-[var(--color-outline)]")}>
+                            {lang === "zh" ? sv.zh : sv.en} {sv.ml} ml
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <input className="input-base pr-10" type="number" inputMode="decimal" value={pickedQty}
@@ -1479,6 +1542,7 @@ export function FoodLog() {
                         {t("food.addBtn")}
                       </button>
                     </div>
+                    </>
                     )}
                   </div>
                 )}
@@ -1508,6 +1572,11 @@ export function FoodLog() {
                           <p className="text-sm font-medium text-[var(--text-on-surface)] truncate">{foodName(item.food)}</p>
                           {item.drinkOpts && (
                             <p className="text-10 text-[var(--text-on-surface-muted)] truncate">{drinkOptsSummary(item.drinkOpts, toppingMap, lang === "zh")}</p>
+                          )}
+                          {item.food.alcohol_g > 0 && (
+                            <p className="text-10 text-rose-600 truncate">
+                              {lang === "zh" ? "酒精" : "Alcohol"} {alcoholIn(item.food, item.quantity).toFixed(1)} g · {standardDrinks(alcoholIn(item.food, item.quantity)).toFixed(1)} {lang === "zh" ? "標準杯" : "std drinks"}
+                            </p>
                           )}
                           <div className="flex items-center gap-1.5 mt-1 text-xs text-[var(--text-on-surface-muted)]">
                             <div className="relative w-24">
@@ -1683,7 +1752,9 @@ export function FoodLog() {
               {!cfKcalMode && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--surface-container)] border border-[var(--surface-border)]">
                 <span className="text-xs text-[var(--text-on-surface-muted)] flex-1">
-                  {lang === "en" ? "Calories (P×4 + C×4 + F×9)" : "熱量（P×4 + C×4 + F×9）"}
+                  {cfIsAlcohol
+                    ? (lang === "en" ? `Calories (P×4 + C×4 + F×9 + alcohol ${round1(cfAlcoholG)} g × 7)` : `熱量（P×4 + C×4 + F×9 + 酒精 ${round1(cfAlcoholG)} g × 7）`)
+                    : (lang === "en" ? "Calories (P×4 + C×4 + F×9)" : "熱量（P×4 + C×4 + F×9）")}
                 </span>
                 <span className="text-sm font-semibold text-[var(--text-on-surface)]">{cfCalories} kcal</span>
               </div>
@@ -1704,6 +1775,8 @@ export function FoodLog() {
                     // A new drink defaults to the advanced form (cup, sugar level, toppings) in ml
                     setCf(f => category === "飲料" && f.category !== "飲料" && cfEditId === null
                       ? { ...f, category, drinkAdvanced: true, unit: "ml", quantity: f.quantity === "100" ? "700" : f.quantity }
+                      : category === ALCOHOL_CATEGORY && cfEditId === null
+                      ? { ...f, category, unit: "ml" }
                       : { ...f, category });
                   }}>
                   <option value="">{lang === "en" ? "Category (optional)" : "分類（選填）"}</option>
@@ -1718,6 +1791,22 @@ export function FoodLog() {
                   {t("food.catFavorite")}
                 </button>
               </div>
+
+              {cfIsAlcohol && (
+                <div className="space-y-1">
+                  <div className="relative">
+                    <input className="input-base pr-8" type="number" inputMode="decimal"
+                      placeholder={lang === "zh" ? "酒精濃度（例：啤酒 5、紅酒 13.5、烈酒 40）" : "Alcohol by volume (e.g. beer 5, wine 13.5, spirits 40)"}
+                      value={cf.abv} onChange={e => setCf(f => ({ ...f, abv: e.target.value }))} />
+                    <span className="absolute right-3 top-2 text-xs text-[var(--text-on-surface-muted)]">%</span>
+                  </div>
+                  <p className="text-10 text-[var(--text-on-surface-muted)]">
+                    {lang === "zh"
+                      ? `每 ${parseFloat(cf.quantity) || 100} ${cf.unit || "ml"} 含酒精 ${round1(cfAlcoholG)} g（每克 7 大卡，已加進熱量）；碳水填糖分即可，純烈酒填 0`
+                      : `${round1(cfAlcoholG)} g alcohol per ${parseFloat(cf.quantity) || 100} ${cf.unit || "ml"} (7 kcal/g, added to the calories); carbs are the sugar, 0 for straight spirits`}
+                  </p>
+                </div>
+              )}
 
               {cfIsDrink && (
                 <>
