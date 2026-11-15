@@ -50,13 +50,13 @@ const ALCOHOL: AlcoholSpec[] = [
   { name: "蘭姆酒",         name_en: "Rum",                    abv: 40,   carbs: 0,   serving: "spirit" },
   { name: "龍舌蘭",         name_en: "Tequila",                abv: 40,   carbs: 0,   serving: "spirit" },
   { name: "香甜酒（利口酒）", name_en: "Liqueur",               abv: 25,   carbs: 35,  serving: "liqueur" },
-  // ── 調酒 (recipe, no ice)
-  { name: "威士忌嗨棒",     name_en: "Whisky Highball",        abv: 7,    carbs: 0,   serving: "cocktail" },
-  { name: "琴通寧",         name_en: "Gin and Tonic",          abv: 9,    carbs: 7,   serving: "cocktail" },
-  { name: "螺絲起子",       name_en: "Screwdriver",            abv: 11,   carbs: 7.6, protein: 0.5, serving: "cocktail" },
-  { name: "莫希托",         name_en: "Mojito",                 abv: 12,   carbs: 9.3, serving: "cocktail" },
-  { name: "瑪格麗特",       name_en: "Margarita",              abv: 26,   carbs: 6,   serving: "cocktail" },
-  { name: "長島冰茶",       name_en: "Long Island Iced Tea",   abv: 21,   carbs: 9.8, serving: "cocktail" },
+  // ── 調酒 (recipe, no ice) — named in the original, as bars list them
+  { name: "Whisky Highball",     name_en: "Whisky Highball",        abv: 7,    carbs: 0,   serving: "cocktail" },
+  { name: "Gin and Tonic",         name_en: "Gin and Tonic",          abv: 9,    carbs: 7,   serving: "cocktail" },
+  { name: "Screwdriver",       name_en: "Screwdriver",            abv: 11,   carbs: 7.6, protein: 0.5, serving: "cocktail" },
+  { name: "Mojito",         name_en: "Mojito",                 abv: 12,   carbs: 9.3, serving: "cocktail" },
+  { name: "Margarita",       name_en: "Margarita",              abv: 26,   carbs: 6,   serving: "cocktail" },
+  { name: "Long Island Iced Tea",       name_en: "Long Island Iced Tea",   abv: 21,   carbs: 9.8, serving: "cocktail" },
   { name: "罐裝調酒（水果風味）", name_en: "Canned Fruit Cocktail (RTD)", abv: 4.5, carbs: 8, serving: "rtd" },
 ];
 
