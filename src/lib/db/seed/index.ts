@@ -7,7 +7,7 @@ import { SEED_ALCOHOL } from "./alcohol";
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "28"; // alcoholic drinks (酒類) with alcohol_g
+const SEED_VERSION = "29"; // alcoholic drinks (酒類) with alcohol_g; 96 classic cocktails
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {

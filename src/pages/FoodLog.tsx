@@ -17,8 +17,8 @@ import { DateNavHeader } from "@/components/layout/DateNavHeader";
 import { FoodHistoryDrawer } from "@/components/food/FoodHistoryDrawer";
 import { TimePicker } from "@/components/TimePicker";
 import { DrinkOptions, SummaryTabs, ToppingEditor, type NewTopping } from "@/components/food/DrinkOptions";
-import { ALCOHOL_CATEGORY, DEFAULT_SERVINGS, KCAL_PER_G_ALCOHOL, SERVINGS, abvOf, alcoholGrams, standardDrinks } from "@/lib/alcohol";
-import { ALCOHOL_SERVING_BY_NAME } from "@/lib/db/seed/alcohol";
+import { ALCOHOL_CATEGORY, DEFAULT_SERVINGS, KCAL_PER_G_ALCOHOL, abvOf, alcoholGrams, standardDrinks } from "@/lib/alcohol";
+import { ALCOHOL_SERVINGS_BY_NAME } from "@/lib/db/seed/alcohol";
 import {
   CUP_PRESETS, DRINK_KINDS, defaultDrinkOpts, estimateDrinkMacros, guessDrinkKind, type DrinkKind, drinkAdjustment, drinkCountsAsWater, drinkOptsSummary, isAdvancedDrink,
   parseCupSizes, parseDrinkOpts, parseToppings, round1, type DrinkOpts, type Topping, type ToppingPick,
@@ -153,8 +153,7 @@ function alcoholIn(food: Pick<FoodItem, "alcohol_g" | "base_quantity">, qty: num
 
 /** Serving shortcuts for an alcoholic drink (ml): its kind's for built-ins, a general set otherwise. */
 function servingsOf(food: FoodItem) {
-  const kind = food.source_type === "builtin" ? ALCOHOL_SERVING_BY_NAME.get(food.food_name) : undefined;
-  return kind ? SERVINGS[kind] : DEFAULT_SERVINGS;
+  return (food.source_type === "builtin" && ALCOHOL_SERVINGS_BY_NAME.get(food.food_name)) || DEFAULT_SERVINGS;
 }
 
 // ─── Main component ──────────────────────────────────────────────────────────

@@ -32,11 +32,10 @@ export interface Serving { zh: string; en: string; ml: number }
 const WINE: Serving[]   = [{ zh: "一杯", en: "Glass", ml: 150 }, { zh: "一瓶", en: "Bottle", ml: 750 }];
 const SPIRIT: Serving[] = [{ zh: "一口杯", en: "Shot", ml: 30 }, { zh: "一份", en: "Pour", ml: 45 }, { zh: "雙份", en: "Double", ml: 60 }];
 const BEER: Serving[]   = [{ zh: "一罐", en: "Can", ml: 330 }, { zh: "大罐", en: "Tall can", ml: 500 }, { zh: "一瓶", en: "Bottle", ml: 600 }];
-const COCKTAIL: Serving[] = [{ zh: "一杯", en: "Glass", ml: 200 }, { zh: "大杯", en: "Tall", ml: 300 }];
 
-/** Serving shortcuts by kind; the seed picks one per drink. */
+/** Serving shortcuts by kind; cocktails get one glass of their own recipe (seed/alcohol). */
 export const SERVINGS = {
-  beer: BEER, wine: WINE, spirit: SPIRIT, cocktail: COCKTAIL,
+  beer: BEER, wine: WINE, spirit: SPIRIT,
   sake: [{ zh: "一杯", en: "Cup", ml: 60 }, { zh: "一合", en: "Gō", ml: 180 }, { zh: "一瓶", en: "Bottle", ml: 720 }],
   soju: [{ zh: "一杯", en: "Glass", ml: 50 }, { zh: "一瓶", en: "Bottle", ml: 360 }],
   liqueur: [{ zh: "一杯", en: "Glass", ml: 60 }, { zh: "一口杯", en: "Shot", ml: 30 }],

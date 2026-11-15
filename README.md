@@ -65,7 +65,7 @@ Full history: **[CHANGELOG.md](./CHANGELOG.md)** · [繁體中文](./CHANGELOG-T
 
 **Latest — v1.8.5**
 - Alcohol in the food log: a 酒類 category, alcohol counted at 7 kcal/g, standard drinks per item and per day
-- 33 built-in alcoholic drinks by type (beer, wine, sake, soju, spirits, kaoliang, cocktails…) with serving shortcuts; custom drinks take an ABV
+- 123 built-in alcoholic drinks by type, including 96 classic cocktails (the IBA list) summed from their recipes, with serving shortcuts; custom drinks take an ABV
 
 **v1.8.4**
 - Built-in drinks go from 191 to 635: ten chains rebuilt from their own calorie tables, the rest filled out from delivery-platform labels
