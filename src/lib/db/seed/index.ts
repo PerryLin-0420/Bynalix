@@ -2,11 +2,12 @@ import type Database from "@tauri-apps/plugin-sql";
 import { SEED_FOODS } from "./foods";
 import { SEED_EXERCISES } from "./exercises";
 import { RETIRED_DRINKS, SEED_DRINKS, SEED_TOPPINGS } from "./drinks";
+import { SEED_ALCOHOL } from "./alcohol";
 
 /**
  * Increment when seed data changes — triggers a full re-seed on next launch.
  */
-const SEED_VERSION = "27"; // official tables: 萬波, 茶湯會, 五桐號, 一沐日, 龜記, 可不可, 得正
+const SEED_VERSION = "29"; // alcoholic drinks (酒類) with alcohol_g; 96 classic cocktails
 
 /** Seeds built-in databases. On subsequent launches, returns immediately. */
 export async function seedBuiltins(db: Database): Promise<void> {
@@ -120,6 +121,23 @@ export async function seedBuiltins(db: Database): Promise<void> {
       [d.name_en ?? null, d.protein_g, d.carbohydrates_g, d.fat_g, d.calories_kcal,
        d.base_quantity, d.base_unit, d.category, d.counts_as_water ? 1 : 0,
        d.sugar_g, d.sugar_fixed_g, defaults, d.brand, d.cup_sizes, d.food_name]);
+  }
+
+  // ── Alcoholic drinks (酒類) — upserted by name; 啤酒 moves here from 飲料 ──
+  for (const a of SEED_ALCOHOL) {
+    await db.execute(
+      `INSERT OR IGNORE INTO food_database
+         (food_name, name_en, protein_g, carbohydrates_g, fat_g, calories_kcal,
+          base_quantity, base_unit, category, counts_as_water, source_type)
+       VALUES (?,?,?,?,?,?,?,?,?,0,'builtin')`,
+      [a.food_name, a.name_en ?? null, a.protein_g, a.carbohydrates_g, a.fat_g, a.calories_kcal,
+       a.base_quantity, a.base_unit, a.category]);
+    await db.execute(
+      `UPDATE food_database SET name_en=?, protein_g=?, carbohydrates_g=?, fat_g=?, calories_kcal=?,
+         base_quantity=?, base_unit=?, category=?, counts_as_water=0, alcohol_g=?
+       WHERE food_name=? AND source_type='builtin'`,
+      [a.name_en ?? null, a.protein_g, a.carbohydrates_g, a.fat_g, a.calories_kcal,
+       a.base_quantity, a.base_unit, a.category, a.alcohol_g, a.food_name]);
   }
 
   // A retired builtin drink goes only if no log or template still points at it

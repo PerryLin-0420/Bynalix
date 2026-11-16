@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS food_database (
   sugar_fixed_g REAL NOT NULL DEFAULT 0,
   default_toppings TEXT,
   brand TEXT,
-  cup_sizes TEXT
+  cup_sizes TEXT,
+  alcohol_g REAL NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS drink_topping (
@@ -446,6 +447,8 @@ const MIGRATIONS: { v: number; sql: string }[] = [
        ORDER BY w.log_date, w.log_time LIMIT 1),
       (SELECT p.weight_kg FROM user_profile p WHERE p.user_id = body_composition_log.user_id)), 1)
     WHERE body_water_pct IS NOT NULL AND body_water_kg IS NULL` },
+  // Alcoholic drinks (category 酒類): grams of alcohol per base quantity, 7 kcal/g (lib/alcohol)
+  { v: 65, sql: "ALTER TABLE food_database ADD COLUMN alcohol_g REAL NOT NULL DEFAULT 0" },
 ];
 
 // Compute & store calories for running_session rows missing them, using the
